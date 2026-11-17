@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zombie Survival</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div id="banner" class="who"></div>
+      <div class="hbtns">
+        <button id="logtoggle" title="Show/hide log (Tab)">📜 Show log</button>
+        <button id="mute" title="Sound on/off (M)">🔊</button>
+        <button id="newgame">New game</button>
+      </div>
+    </header>
+    <main>
+      <section id="board"><svg id="map"></svg>
+        <svg id="clock" viewBox="-96 -96 192 192" aria-label="Round clock">
+          <g id="wedges"></g>
+          <g id="hand"><path d="M0 -84 L-7 -95 L7 -95 Z"/></g>
+          <circle r="28" class="hub"/>
+          <text y="-6" class="dl" id="clocklabel">Day</text>
+          <text y="14" class="dn" id="clockday">1</text>
+        </svg><div id="hint"></div><div id="actions"></div><div id="apbox"></div><div id="stats"></div><div id="pack"></div><div id="players"></div><div id="toast"></div><div id="popup" hidden></div></section>
+      <aside id="panel">
+        <div class="chathead">Log</div>
+        <div id="log"></div>
+        <form id="chatform" autocomplete="off">
+          <input id="chatinput" placeholder="Write a note…" maxlength="300">
+          <button type="submit">Send</button>
+        </form>
+      </aside>
+    </main>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
