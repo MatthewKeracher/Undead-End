@@ -8,8 +8,8 @@ const CONFIG = {
   maxAP: 12,              // highest max AP can grow to
   trackGain: 1,           // max AP gained per food / water check paid
   trackLoss: 2,           // max AP lost per food / water check missed (0 = death)
-  startMaxAP: 6,          // max AP at the start (grows to 12 with food & water)
-  startRes: { food: 0, water: 0, hope: 0, fuel: 0, ammo: 0 },   // AP, food, water, hope are rolled 1d6 at start
+  startMaxAP: 12,         // max AP at the start (food & water missed lower it; paid raises it back, up to 12)
+  startRes: { food: 0, water: 0, hope: 0, fuel: 0, ammo: 0 },   // food, water, hope are rolled 1d6 at start; AP starts full
   startSafety: 0,         // Safety on the starting tile
   maxSafety: 6,           // most Safety any tile can hold
   maxItems: 6,            // backpack size

@@ -60,8 +60,8 @@ Current behaviour is noted in *italics* where the game already does something as
   > Answer:
 
 ### Starting values
-- [ ] **Starting max AP:** 6? *(AP, food, water, hope are 1d6; fuel & ammo 0.)*
-  > Answer:
+- [x] **Starting max AP:** 12. *(AP starts full; food, water, hope are 1d6; fuel & ammo 0.)*
+  > Answer: 12
 
 ---
 

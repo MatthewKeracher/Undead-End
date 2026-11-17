@@ -52,7 +52,7 @@ Checked at the **start** of the round, before anyone acts (on night rounds, the 
 | 6 | Night | 1 Water *(may become Hope — undecided)* + Safety check |
 
 ### Failing a check
-- **Max AP:** each player has a max AP (starts at **6**, can grow to **12**).
+- **Max AP:** each player has a max AP (starts at **12**, the most it can be).
   - Every **food or water check paid → max AP +1** (up to 12).
   - Every **food or water check missed → max AP −2** (current AP drops to fit). **Max AP 0 → death.**
   - Sleep can't take you above your max. Players never lose turns.
@@ -127,7 +127,7 @@ Repeat until the tile is clear, you escape, or you die.
 
 ## Prototype placeholders (in `data.js`, change freely)
 - Game starts Day 1, Round 2 (first morning).
-- Each player starts with **1d6** each of AP, Food, Water and Hope; 0 Fuel and 0 Ammo.
+- Each player starts with **full AP (12)** and **1d6** each of Food, Water and Hope; 0 Fuel and 0 Ammo.
 - A tile holds at most **6 Safety**. Safety belongs to the tile and is shared by everyone on it; it does not decay.
 - Scouting reveals a random tile from the tile list; the scout stays put.
 - Sharing resources with a player on the same tile is free (doesn't use the round).

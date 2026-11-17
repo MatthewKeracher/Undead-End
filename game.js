@@ -67,8 +67,8 @@ function newGame(names) {
   G.tiles[key(0, 0)] = { def: START_TILE, safety: CONFIG.startSafety, zombies: 0, vehicles: [] };
   for (const id of CONFIG.testStartVehicles || []) G.tiles[key(0, 0)].vehicles.push({ id, cond: CONFIG.maxCondition });
   names.forEach((name, i) => {
-    // AP, food, water and hope each start at 1d6
-    const p = { name, color: COLORS[i % COLORS.length], q: 0, r: 0, ap: d6(), maxAP: CONFIG.startMaxAP, res: { ...CONFIG.startRes }, items: [], skip: false };
+    // full AP; food, water and hope each start at 1d6
+    const p = { name, color: COLORS[i % COLORS.length], q: 0, r: 0, ap: CONFIG.startMaxAP, maxAP: CONFIG.startMaxAP, res: { ...CONFIG.startRes }, items: [], skip: false };
     for (const k of ['food', 'water', 'hope']) p.res[k] = d6();
     p.ap = Math.min(p.ap, p.maxAP);
     for (const id of CONFIG.testStartItems || []) p.items.push({ id, cond: CONFIG.maxCondition });
@@ -79,7 +79,7 @@ function newGame(names) {
   logSeen = 0; rolls = []; forced = []; mode = null; fleeDone = null; driving = null; threatChoice = null; modalKey = null; logShown = Infinity; // forces log reset on next render
   log(`Day ${G.day} begins. ${names.length} survivor${names.length > 1 ? 's' : ''} shelter at the ${START_TILE.name}.`, 'phase');
   for (const p of G.players) {
-    G.log.push({ msg: `${p.name} starts with ${p.ap} 🎲 AP, ${p.res.food} ${ICON.food} food, ${p.res.water} ${ICON.water} water, ${p.res.hope} ${ICON.hope} hope.`, cls: '', dice: [p.ap, p.res.food, p.res.water, p.res.hope] });
+    G.log.push({ msg: `${p.name} starts with full 🎲 ${p.ap} AP, ${p.res.food} ${ICON.food} food, ${p.res.water} ${ICON.water} water, ${p.res.hope} ${ICON.hope} hope.`, cls: '', dice: [p.res.food, p.res.water, p.res.hope] });
   }
   log(roundBanner(), 'phase');
   prevStats = {};
