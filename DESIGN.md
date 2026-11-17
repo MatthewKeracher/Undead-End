@@ -19,7 +19,7 @@ Living rules document for the digital version. Updated as rules are clarified.
 ## Components
 - Item cards
 - Six-sided dice (d6)
-- Resources: **Safety, Fuel, Ammo, Food, Water, Morale**
+- Resources: **Safety, Fuel, Ammo, Food, Water, Hope**
 
 ## Action Points (AP)
 - Players spend AP to take actions.
@@ -44,19 +44,19 @@ Living rules document for the digital version. Updated as rules are clarified.
 Checked at the **start** of the round, before anyone acts (on night rounds, the check comes before the night attack).
 | Round | Day/Night | Upkeep |
 |---|---|---|
-| 1 | Night | 1 Morale |
+| 1 | Night | 1 Hope |
 | 2 | Day | 1 Water |
 | 3 | Day | 1 Food |
 | 4 | Day | 1 Water |
 | 5 | Day | 1 Food |
-| 6 | Night | 1 Water *(may become Morale — undecided)* + Safety check |
+| 6 | Night | 1 Water *(may become Hope — undecided)* + Safety check |
 
 ### Failing a check
 - **Max AP:** each player has a max AP (starts at **6**, can grow to **12**).
   - Every **food or water check paid → max AP +1** (up to 12).
-  - Every **food or water check missed → max AP −1** (current AP drops to fit). **Max AP 0 → death.**
+  - Every **food or water check missed → max AP −2** (current AP drops to fit). **Max AP 0 → death.**
   - Sleep can't take you above your max. Players never lose turns.
-- **Having to give Morale without having it → the player dies.** That is: the night Morale check when you have 0 Morale, or missing food/water when you have 0 AP and 0 Morale. (Reaching 0 Morale by itself is survivable.)
+- **Having to give Hope without having it → the player dies** (the night Hope check when you have 0 Hope). Reaching 0 Hope by itself is survivable.
 
 ## Turn structure
 - Each round, each player takes **one action or sleeps**.
@@ -120,14 +120,14 @@ Repeat until the tile is clear, you escape, or you die.
 - Tiles differ in what their 5 results give.
 
 ## Open questions
-- Round 6: water or morale?
+- Round 6: water or hope?
 - More item cards; what uses Fuel
 - Item cards and their fuel/ammo use
 - Starting tile list and their d6 tables (prototype uses placeholders)
 
 ## Prototype placeholders (in `data.js`, change freely)
 - Game starts Day 1, Round 2 (first morning).
-- Each player starts with **1d6** each of AP, Food, Water and Morale; 0 Fuel and 0 Ammo.
+- Each player starts with **1d6** each of AP, Food, Water and Hope; 0 Fuel and 0 Ammo.
 - A tile holds at most **6 Safety**. Safety belongs to the tile and is shared by everyone on it; it does not decay.
 - Scouting reveals a random tile from the tile list; the scout stays put.
 - Sharing resources with a player on the same tile is free (doesn't use the round).

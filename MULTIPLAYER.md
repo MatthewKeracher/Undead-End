@@ -33,7 +33,7 @@ Taking turns one player at a time doesn't scale (100 players × 30 s = 50 min pe
 
 Proposed, *to confirm*:
 
-1. **Start-of-round:** resource checks (food/water/morale) for everyone; night attack on every occupied tile on night rounds.
+1. **Start-of-round:** resource checks (food/water/hope) for everyone; night attack on every occupied tile on night rounds.
 2. **Free actions** already happened live during the 30 s.
 3. **Locked-in actions resolve per tile, in a fixed order:** Fortify → Scavenge → Scout → Move.
    - Several players **scavenging the same tile** each roll independently.
@@ -130,7 +130,7 @@ Decided: you can attack another player **if you have a weapon**. To decide how i
 - **Defender's response:** Fight back (if armed) or Flee (same flee roll vs… attacker count?).
 - **Armor** absorbs a hit for −1 condition, like it rescues a failed flee?
 - **Safety:** does a fortified tile protect you from players too, or only zombies?
-- **Consequences:** killer gets the victim's drop (it's on the tile). Any penalty for killing — e.g. a "hostile" mark visible to others, or morale loss?
+- **Consequences:** killer gets the victim's drop (it's on the tile). Any penalty for killing — e.g. a "hostile" mark visible to others, or hope loss?
 - **Same-tile voice** means attackers and victims can hear each other — good for drama, worth keeping.
 
 ## 7. Architecture

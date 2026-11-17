@@ -6,8 +6,10 @@ const CONFIG = {
   startDay: 1,
   startRound: 2,          // 1 = first night round; 2 = first morning
   maxAP: 12,              // highest max AP can grow to
-  startMaxAP: 6,          // max AP at the start; +1 per food/water check paid, −1 per check missed (0 = death)
-  startRes: { food: 0, water: 0, morale: 0, fuel: 0, ammo: 0 },   // AP, food, water, morale are rolled 1d6 at start
+  trackGain: 1,           // max AP gained per food / water check paid
+  trackLoss: 2,           // max AP lost per food / water check missed (0 = death)
+  startMaxAP: 6,          // max AP at the start (grows to 12 with food & water)
+  startRes: { food: 0, water: 0, hope: 0, fuel: 0, ammo: 0 },   // AP, food, water, hope are rolled 1d6 at start
   startSafety: 0,         // Safety on the starting tile
   maxSafety: 6,           // most Safety any tile can hold
   maxItems: 6,            // backpack size
@@ -21,7 +23,7 @@ const CONFIG = {
 
   // What each round of the clock calls for (checked at the END of the round).
   upkeep: {
-    1: { morale: 1 },
+    1: { hope: 1 },
     2: { water: 1 },
     3: { food: 1 },
     4: { water: 1 },
@@ -32,7 +34,7 @@ const CONFIG = {
 
 // Scavenge table helpers
 const Z = (n = 1) => ({ zombies: n });     // zombies
-const R = (res, n = 1) => ({ res, n });   // resource: food, water, morale, fuel, ammo
+const R = (res, n = 1) => ({ res, n });   // resource: food, water, hope, fuel, ammo
 const I = (item) => ({ item });           // item card (condition rolled 1d6 when found)
 
 // Item cards. Condition = uses left; at 0 the item breaks.
@@ -54,17 +56,17 @@ const START_TILE = {
 };
 
 const TILES = [
-  { name: 'Supermarket',    icon: '🛒', table: [Z(), R('water'), R('food', 2), R('water', 2), R('food'), R('morale')] },
+  { name: 'Supermarket',    icon: '🛒', table: [Z(), R('water'), R('food', 2), R('water', 2), R('food'), R('hope')] },
   { name: 'Petrol Station', icon: '⛽', table: [Z(), R('fuel', 2), I('Toolkit'), I('Truck'), R('water'), R('fuel')] },
-  { name: 'Hospital',       icon: '🏥', table: [Z(), R('water'), R('morale'), R('water'), R('morale', 2), R('food')] },
+  { name: 'Hospital',       icon: '🏥', table: [Z(), R('water'), R('hope'), R('water'), R('hope', 2), R('food')] },
   { name: 'Police Station', icon: '🚓', table: [Z(), R('ammo'), R('ammo', 3), I('Handgun'), R('ammo', 2), I('Body Armor')] },
   { name: 'Hardware Store', icon: '🔨', table: [Z(), I('Toolkit'), I('Axe'), R('ammo'), R('water'), I('Handgun')] },
-  { name: 'School',         icon: '🏫', table: [Z(), R('food'), R('food'), R('water'), R('morale', 2), I('Bike')] },
-  { name: 'Church',         icon: '⛪', table: [Z(), R('morale', 2), R('morale'), R('water'), R('food'), R('water')] },
-  { name: 'Pharmacy',       icon: '💊', table: [Z(), R('water'), R('morale'), R('water', 2), R('food'), R('morale')] },
+  { name: 'School',         icon: '🏫', table: [Z(), R('food'), R('food'), R('water'), R('hope', 2), I('Bike')] },
+  { name: 'Church',         icon: '⛪', table: [Z(), R('hope', 2), R('hope'), R('water'), R('food'), R('water')] },
+  { name: 'Pharmacy',       icon: '💊', table: [Z(), R('water'), R('hope'), R('water', 2), R('food'), R('hope')] },
   { name: 'Gun Shop',       icon: '🎯', table: [Z(), R('ammo'), R('ammo', 2), R('ammo', 3), I('Handgun'), I('Body Armor')] },
-  { name: 'Forest',         icon: '🌲', table: [Z(), R('food'), R('water'), I('Axe'), R('food'), R('morale')] },
-  { name: 'Lake',           icon: '🏞️', table: [Z(), R('water', 2), R('water', 2), R('food'), R('morale'), R('water')] },
-  { name: 'Pub',            icon: '🍺', table: [Z(), R('food'), R('morale', 2), R('morale'), R('food'), R('water')] },
+  { name: 'Forest',         icon: '🌲', table: [Z(), R('food'), R('water'), I('Axe'), R('food'), R('hope')] },
+  { name: 'Lake',           icon: '🏞️', table: [Z(), R('water', 2), R('water', 2), R('food'), R('hope'), R('water')] },
+  { name: 'Pub',            icon: '🍺', table: [Z(), R('food'), R('hope', 2), R('hope'), R('food'), R('water')] },
   { name: 'Campsite',       icon: '⛺', table: [Z(), R('fuel'), R('food'), R('water'), I('Bike'), I('Toolkit')] },
 ];

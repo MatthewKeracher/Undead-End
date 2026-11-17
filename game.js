@@ -2,8 +2,8 @@
 //  GAME ENGINE
 // =====================================================================
 
-const RES = ['food', 'water', 'morale', 'fuel', 'ammo'];
-const ICON = { food: '🔴', water: '🔵', morale: '🟣', fuel: '🟠', ammo: '🟢', safety: '🟡', ap: '🎲' };
+const RES = ['food', 'water', 'hope', 'fuel', 'ammo'];
+const ICON = { food: '🔴', water: '🔵', hope: '🟣', fuel: '🟠', ammo: '🟢', safety: '🟡', ap: '🎲' };
 const DIE = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 const COLORS = ['#e4572e', '#29a3d6', '#f3c13a', '#9b5de5', '#2ec4b6', '#ff7eb6'];
 const HEX = 120;
@@ -67,9 +67,9 @@ function newGame(names) {
   G.tiles[key(0, 0)] = { def: START_TILE, safety: CONFIG.startSafety, zombies: 0, vehicles: [] };
   for (const id of CONFIG.testStartVehicles || []) G.tiles[key(0, 0)].vehicles.push({ id, cond: CONFIG.maxCondition });
   names.forEach((name, i) => {
-    // AP, food, water and morale each start at 1d6
+    // AP, food, water and hope each start at 1d6
     const p = { name, color: COLORS[i % COLORS.length], q: 0, r: 0, ap: d6(), maxAP: CONFIG.startMaxAP, res: { ...CONFIG.startRes }, items: [], skip: false };
-    for (const k of ['food', 'water', 'morale']) p.res[k] = d6();
+    for (const k of ['food', 'water', 'hope']) p.res[k] = d6();
     p.ap = Math.min(p.ap, p.maxAP);
     for (const id of CONFIG.testStartItems || []) p.items.push({ id, cond: CONFIG.maxCondition });
     for (const [k, n] of Object.entries(CONFIG.testStartRes || {})) p.res[k] += n;
@@ -79,7 +79,7 @@ function newGame(names) {
   logSeen = 0; rolls = []; forced = []; mode = null; fleeDone = null; driving = null; threatChoice = null; modalKey = null; logShown = Infinity; // forces log reset on next render
   log(`Day ${G.day} begins. ${names.length} survivor${names.length > 1 ? 's' : ''} shelter at the ${START_TILE.name}.`, 'phase');
   for (const p of G.players) {
-    G.log.push({ msg: `${p.name} starts with ${p.ap} 🎲 AP, ${p.res.food} ${ICON.food} food, ${p.res.water} ${ICON.water} water, ${p.res.morale} ${ICON.morale} morale.`, cls: '', dice: [p.ap, p.res.food, p.res.water, p.res.morale] });
+    G.log.push({ msg: `${p.name} starts with ${p.ap} 🎲 AP, ${p.res.food} ${ICON.food} food, ${p.res.water} ${ICON.water} water, ${p.res.hope} ${ICON.hope} hope.`, cls: '', dice: [p.ap, p.res.food, p.res.water, p.res.hope] });
   }
   log(roundBanner(), 'phase');
   prevStats = {};
@@ -128,6 +128,7 @@ async function endRound() {
 
 // Everything that happens at the START of a round, before anyone acts:
 // 1) this round's resource check, 2) the night attack on night rounds.
+// Food & water feed max AP: each check paid → +trackGain (max 12); each missed → −trackLoss. Max AP 0 = death.
 async function startOfRound() {
   const r = G.round;
   const up = CONFIG.upkeep[r] || {};
@@ -139,18 +140,20 @@ async function startOfRound() {
       if (p.res[res] >= n) {
         p.res[res] -= n;
         if (body && p.maxAP < CONFIG.maxAP) {
-          p.maxAP++;
-          log(`${p.name} uses ${n} ${ICON[res]} ${res} — max AP ${p.maxAP - 1} → ${p.maxAP}.`, 'good');
+          const oldMax = p.maxAP;
+          p.maxAP = Math.min(CONFIG.maxAP, p.maxAP + CONFIG.trackGain);
+          log(`${p.name} uses ${n} ${ICON[res]} ${res} — max AP ${oldMax} → ${p.maxAP}.`, 'good');
         } else log(`${p.name} uses ${n} ${ICON[res]} ${res}.`);
       } else if (body) {
+        const oldMax = p.maxAP;
         p.res[res] = 0;
         render();
         busy = true;
         await maxApLossShow(p, res);
         busy = false;
-        p.maxAP--;
+        p.maxAP = Math.max(0, p.maxAP - CONFIG.trackLoss);
         p.ap = Math.min(p.ap, p.maxAP);
-        log(`${p.name} has no ${res}! Max AP ${p.maxAP + 1} → ${p.maxAP}.`, 'bad');
+        log(`${p.name} has no ${res}! Max AP ${oldMax} → ${p.maxAP}.`, 'bad');
         if (p.maxAP <= 0) { render(); die(p, `${p.name} ${res === 'food' ? 'starved' : 'died of thirst'} (max AP 0).`); }
       } else {
         p.res[res] = 0;
@@ -163,29 +166,29 @@ async function startOfRound() {
   if (isNight(r)) await nightAttack();
 }
 
-// Missing food or water: the player chooses to lose 1 AP or 1 morale.
+// Missing food or water: the player chooses to lose 1 AP or 1 hope.
 async function failCheck(p, res) {
   if (res === 'food' || res === 'water') {
     const what = res === 'food' ? `${ICON.food} No food` : `${ICON.water} No water`;
-    const opts = [['ap', `🎲 Lose 1 AP`, `${p.ap} → ${p.ap - 1}`, p.ap > 0], ['morale', `${ICON.morale} Lose 1 morale`, `${p.res.morale} → ${p.res.morale - 1}`, p.res.morale > 0]];
-    if (!opts.some((o) => o[3])) {   // no AP to give, so it must be morale — and there is none
+    const opts = [['ap', `🎲 Lose 1 AP`, `${p.ap} → ${p.ap - 1}`, p.ap > 0], ['hope', `${ICON.hope} Lose 1 hope`, `${p.res.hope} → ${p.res.hope - 1}`, p.res.hope > 0]];
+    if (!opts.some((o) => o[3])) {   // no AP to give, so it must be hope — and there is none
       render();
-      return die(p, `${p.name} has no ${res}, no strength and no morale left to give.`);
+      return die(p, `${p.name} has no ${res}, no strength and no hope left to give.`);
     }
     render();
     const pick = opts.filter((o) => o[3]).length === 1 ? opts.find((o) => o[3])[0] : await lossChoice(what, opts);
-    if (pick === 'ap') p.ap--; else p.res.morale--;
-    log(`${p.name} has no ${res}! Loses 1 ${pick === 'ap' ? '🎲 AP' : `${ICON.morale} morale`}.`, 'bad');
-    toast(`${what} — −1 ${pick === 'ap' ? 'AP' : 'morale'}.`);
-  } else if (res === 'morale') {   // the night morale check can't be paid
+    if (pick === 'ap') p.ap--; else p.res.hope--;
+    log(`${p.name} has no ${res}! Loses 1 ${pick === 'ap' ? '🎲 AP' : `${ICON.hope} hope`}.`, 'bad');
+    toast(`${what} — −1 ${pick === 'ap' ? 'AP' : 'hope'}.`);
+  } else if (res === 'hope') {   // the night hope check can't be paid
     render();
-    die(p, `${p.name} has lost all hope (no ${ICON.morale} morale to give).`);
+    die(p, `${p.name} has lost all hope (no ${ICON.hope} hope to give).`);
   } else {
     log(`${p.name} has no ${res}!`, 'bad');
   }
 }
 
-const LOSS_KEYS = ['a', 'd'];   // A = lose AP, D = lose morale
+const LOSS_KEYS = ['a', 'd'];   // A = lose AP, D = lose hope
 async function lossChoice(what, opts) {
   const pop = $('#popup');
   pop.className = 'zombie';
@@ -802,11 +805,11 @@ const sfx = {
     if (dir < 0) {
       if (k === 'food') { noise(0.07, 0.25, 1800); setTimeout(() => noise(0.06, 0.2, 1400), 90); setTimeout(() => noise(0.05, 0.15, 1100), 170); }   // crunch crunch
       else if (k === 'water') { tone(520, 0.12, 'sine', 0.15, -260); setTimeout(() => tone(380, 0.14, 'sine', 0.12, -180), 130); }               // gulp gulp
-      else if (k === 'morale') { [392, 349, 294].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.07), i * 140)); }             // sad sigh
+      else if (k === 'hope') { [392, 349, 294].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.07), i * 140)); }             // sad sigh
       else if (k === 'fuel') { noise(0.3, 0.12, 600); tone(140, 0.3, 'sine', 0.08, -40); }                                                      // slosh
       else if (k === 'ammo') { if (!modalKey) tone(1600, 0.03, 'square', 0.05); }                                                             // click (gun fight has its own sound)
     } else {
-      const base = { food: 440, water: 587, morale: 659, fuel: 330, ammo: 784 }[k] || 500;
+      const base = { food: 440, water: 587, hope: 659, fuel: 330, ammo: 784 }[k] || 500;
       tone(base, 0.09, 'triangle', 0.08); setTimeout(() => tone(base * 1.5, 0.12, 'triangle', 0.07), 70);   // little pickup chime
     }
   },
@@ -940,7 +943,7 @@ async function fortifyShow(t, r, before, after) {
 
 // Missed food / water: pause the game and show the max AP ring losing a segment.
 async function maxApLossShow(p, res) {
-  const pop = $('#popup'), oldMax = p.maxAP, newMax = p.maxAP - 1, newAp = Math.min(p.ap, newMax);
+  const pop = $('#popup'), oldMax = p.maxAP, newMax = Math.max(0, p.maxAP - CONFIG.trackLoss), newAp = Math.min(p.ap, newMax);
   const what = res === 'food' ? `${ICON.food} No food` : `${ICON.water} No water`;
   skipAnim = false;
   pop.className = 'zombie';
@@ -952,11 +955,11 @@ async function maxApLossShow(p, res) {
   pop.hidden = false;
   tone(300, 0.5, 'sawtooth', 0.08, -200);
   await wait(900);
-  $('#bigap').innerHTML = apGauge(newAp, '', newMax, newMax);   // segment newMax cracks and goes dark
+  $('#bigap').innerHTML = apGauge(newAp, '', newMax, newMax, -1, oldMax);   // the lost segments crack and go dark
   noise(0.25, 0.3, 700); tone(90, 0.6, 'square', 0.12, -40);
   await wait(500);
   $('#pres').innerHTML = newMax > 0
-    ? `<div class="big bad">Max AP ${oldMax} → ${newMax}</div><small class="muted">Find ${res} — each one you have at a check raises it again.</small>`
+    ? `<div class="big bad">Max AP ${oldMax} → ${newMax}</div><small class="muted">Each ${res} you have at a check raises it by ${CONFIG.trackGain}; each one missed costs ${CONFIG.trackLoss}.</small>`
     : `<div class="big bad">Max AP 0</div>`;
   await popupHold(newMax > 0 ? 2600 : 1500);
 }
@@ -1054,7 +1057,7 @@ function hexPoints(cx, cy, s) {
   }).join(' ');
 }
 
-const RES_LABEL = { food: 'Food', water: 'Water', morale: 'Morale', fuel: 'Fuel', ammo: 'Ammo' };
+const RES_LABEL = { food: 'Food', water: 'Water', hope: 'Hope', fuel: 'Fuel', ammo: 'Ammo' };
 function cellText(e) {
   if (e.zombies) return e.zombies > 1 ? `Zombies ×${e.zombies}` : 'Zombies';
   if (e.item) return e.item;
@@ -1171,12 +1174,12 @@ function apLevel(ap, max) {
   return ap >= max ? 'full' : f >= 2 / 3 ? 'high' : f >= 1 / 3 ? 'mid' : 'low';
 }
 // Segments above your current max AP are locked (food & water raise / lower the max).
-function apGauge(ap, flash, max, losing = -1, gaining = -1) {
+function apGauge(ap, flash, max, losing = -1, gaining = -1, losingEnd = losing + 1) {
   const n = CONFIG.maxAP, step = (2 * Math.PI) / n, gap = 0.04;
   let s = '';
   for (let i = 0; i < n; i++) {
     const a0 = -Math.PI / 2 + i * step + gap, a1 = a0 + step - gap * 2;
-    s += `<path d="${wedgePath(a0, a1, 52, 80)}" class="seg ${i < ap ? 'on' : i >= max ? 'locked' : ''} ${i === losing ? 'losing' : ''} ${i === gaining ? 'gaining' : ''}"/>`;
+    s += `<path d="${wedgePath(a0, a1, 52, 80)}" class="seg ${i < ap ? 'on' : i >= max ? 'locked' : ''} ${i >= losing && i < losingEnd && losing >= 0 ? 'losing' : ''} ${i === gaining ? 'gaining' : ''}"/>`;
   }
   return `<svg viewBox="-90 -90 180 180" class="apgauge ${apLevel(ap, max)} ${flash}">
     ${s}<circle r="48" class="hub"/>
@@ -1220,11 +1223,11 @@ function renderStats() {
   // AP gets its own big counter in the bottom-left of the board
   const apd = prevStats.ap === undefined ? '' : (p.ap > prevStats.ap || p.maxAP > prevStats.maxAP) ? 'up' : (p.ap < prevStats.ap || p.maxAP < prevStats.maxAP) ? 'down' : '';
   $('#apbox').innerHTML = apGauge(p.ap, apd, p.maxAP);
-  const label = { ap: 'AP', food: 'Food', water: 'Water', morale: 'Morale', fuel: 'Fuel', ammo: 'Ammo' };
+  const label = { ap: 'AP', food: 'Food', water: 'Water', hope: 'Hope', fuel: 'Fuel', ammo: 'Ammo' };
   $('#stats').innerHTML = Object.entries(vals).map(([k, v]) => {
     const prev = prevStats[k];
     const d = prev === undefined ? '' : v > prev ? 'up' : v < prev ? 'down' : '';
-    const low = ['food', 'water', 'morale'].includes(k) && v <= 2 ? (v <= 1 ? 'low1' : 'low2') : '';
+    const low = ['food', 'water', 'hope'].includes(k) && v <= 2 ? (v <= 1 ? 'low1' : 'low2') : '';
     if (d) setTimeout(() => sfx.res(k, d === 'up' ? 1 : -1), 0);
     const delta = d ? `<span class="delta ${d}">${v > prev ? '+' : '−'}${Math.abs(v - prev)}</span>` : '';
     return `<div class="stat ${k} ${d} ${low}" title="${label[k]}"><div class="orb"><b>${v}</b>${delta}</div><small>${label[k]}</small></div>`;
@@ -1340,7 +1343,7 @@ const CHEATS = {
   'zombies(n)': 'set zombies on your tile (fight/flee if > 0)',
   'safety(n)': 'set your tile\'s Safety',
   'item(name[,cond])': 'add an item (vehicles park on your tile)',
-  'ap(n) maxap(n) food(n) water(n) morale(n) fuel(n) ammo(n)': 'set a value',
+  'ap(n) maxap(n) food(n) water(n) hope(n) fuel(n) ammo(n)': 'set a value',
   'round(n) day(n)': 'jump the clock (no checks run)',
 };
 async function runCheat(cmd, args) {
@@ -1374,7 +1377,7 @@ async function runCheat(cmd, args) {
     }
     case 'ap': p.ap = Math.max(0, Math.min(p.maxAP, n[0] ?? 0)); say(`AP: ${p.ap}`); render(); break;
     case 'maxap': p.maxAP = Math.max(1, Math.min(CONFIG.maxAP, n[0] ?? CONFIG.maxAP)); p.ap = Math.min(p.ap, p.maxAP); say(`Max AP: ${p.maxAP}`); render(); break;
-    case 'food': case 'water': case 'morale': case 'fuel': case 'ammo': p.res[cmd] = Math.max(0, n[0] ?? 0); say(`${cmd}: ${p.res[cmd]}`); render(); break;
+    case 'food': case 'water': case 'hope': case 'fuel': case 'ammo': p.res[cmd] = Math.max(0, n[0] ?? 0); say(`${cmd}: ${p.res[cmd]}`); render(); break;
     case 'round': G.round = Math.max(1, Math.min(6, n[0] ?? 1)); say(`Round ${G.round}`); render(); break;
     case 'day': G.day = Math.max(1, n[0] ?? 1); say(`Day ${G.day}`); render(); break;
     default: say(`Unknown cheat "${cmd}" — try help()`);

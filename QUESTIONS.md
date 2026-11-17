@@ -8,7 +8,7 @@ Current behaviour is noted in *italics* where the game already does something as
 ## Core rules (single player)
 
 ### Clock & checks
-- [ ] **Round 6 check: water or morale?**
+- [ ] **Round 6 check: water or hope?**
   *Now: 1 water.*
   > Answer:
 
@@ -50,7 +50,7 @@ Current behaviour is noted in *italics* where the game already does something as
   > Answer:
 - [ ] **More item cards** — what else is in the deck?
   > Answer:
-- [ ] **Fuel** is only used by the Truck. Anything else use fuel (generator, Molotov, fire for morale…)?
+- [ ] **Fuel** is only used by the Truck. Anything else use fuel (generator, Molotov, fire for hope…)?
   > Answer:
 
 ### Tiles
@@ -60,7 +60,7 @@ Current behaviour is noted in *italics* where the game already does something as
   > Answer:
 
 ### Starting values
-- [ ] **Starting max AP:** 6? *(AP, food, water, morale are 1d6; fuel & ammo 0.)*
+- [ ] **Starting max AP:** 6? *(AP, food, water, hope are 1d6; fuel & ammo 0.)*
   > Answer:
 
 ---
@@ -108,7 +108,7 @@ Current behaviour is noted in *italics* where the game already does something as
   > Answer:
 - [ ] **Does Safety protect against players**, or only zombies?
   > Answer:
-- [ ] **Any penalty for killing** (visible "hostile" mark, morale loss…)?
+- [ ] **Any penalty for killing** (visible "hostile" mark, hope loss…)?
   > Answer:
 
 ### Multiplayer fights & sharing
