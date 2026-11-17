@@ -4,7 +4,9 @@ A digital prototype of a hex-tile zombie survival board game. Scout the map, sca
 
 ## Play
 
-Open `index.html` in a browser — no build step or install needed.
+**Play online:** https://matthewkeracher.github.io/Undead-End/
+
+Or open `index.html` in a browser — no build step or install needed.
 
 ## Controls
 
