@@ -104,6 +104,7 @@ Repeat until the tile is clear, you escape, or you die.
   - **Fleeing:** still needs the flee roll, but on success you can escape by vehicle (more than one tile).
   - Toolkit can repair vehicles on your tile.
   - Truck: Farmhouse, Petrol Station. Bike: School, Campsite.
+- **Radio** *(multiplayer, planned)*: talk to players **not on your tile** (same-tile voice is the default). Details in `MULTIPLAYER.md`.
 - **Tools** (e.g. **Toolkit**): have a condition like any item. Can be used **at any time, for free**, to transfer any amount of their condition to another item (max 6 condition). At 0 condition the tool is destroyed. Toolkit found at Hardware Store, Petrol Station, Campsite *(placeholder name & locations)*.
 - If you carry several weapons of the same kind, the one with the **lowest condition** is used first *(placeholder)*.
 

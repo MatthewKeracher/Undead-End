@@ -29,6 +29,8 @@ Or open `index.html` in a browser — no build step or install needed.
 ## Files
 
 - `DESIGN.md` — the rules as they currently stand, plus open questions
+- `MULTIPLAYER.md` — plan for online multiplayer, voice and the Radio
+- `QUESTIONS.md` — every open rules question, with space for answers
 - `data.js` — rules numbers, tiles and items (edit freely)
 - `game.js` — game engine and UI
 - `style.css`, `index.html` — layout and styling

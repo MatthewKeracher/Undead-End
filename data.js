@@ -42,6 +42,8 @@ const ITEMS = {
   'Body Armor': { icon: '🦺', armor: true, desc: 'When a flee roll fails: take the hit for −1 condition and reroll (1 AP).' },
   Truck: { icon: '🛻', vehicle: true, uses: 'fuel', verb: 'Drive', desc: 'Parked on a tile. Drive through scouted tiles: 1 🟠 fuel per tile, −1 condition per trip.' },
   Bike:  { icon: '🚲', vehicle: true, uses: 'ap',   verb: 'Ride',  desc: 'Parked on a tile. Ride through scouted tiles: 1 AP per tile, −1 condition per trip.' },
+  // Multiplayer (planned — see MULTIPLAYER.md): talk to players on other tiles. No effect in single player; not in any loot table yet.
+  Radio:   { icon: '📻', radio: true, desc: 'Multiplayer: lets you talk to players on other tiles who also carry a radio. −1 condition per round used.' },
   Toolkit: { icon: '🧰', tool: true, desc: 'Use any time (free): transfer some of its condition to another item. Destroyed at 0.' },
 };
 
