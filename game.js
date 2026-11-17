@@ -711,7 +711,15 @@ function clickHex(q, r) {
     G.tiles[k] = { def, safety: 0, zombies: 0, vehicles: [] };
     p.ap--;
     log(`${p.name} scouts and discovers a ${def.icon} ${def.name}.`);
-    nextTurn();
+    // Pause so the player can take in the new location before the round moves on.
+    mode = null;
+    G.justRevealed = k;
+    busy = true;
+    render();
+    toast(`🔭 Discovered: ${def.icon} ${def.name}`);
+    tone(520, 0.15, 'triangle', 0.07); setTimeout(() => tone(780, 0.25, 'triangle', 0.07), 120);
+    new Promise((res) => { const tm = setTimeout(res, 2800); dismissPopup = () => { clearTimeout(tm); res(); }; })
+      .then(() => { dismissPopup = null; busy = false; G.justRevealed = null; nextTurn(); });
   } else if (mode === 'move' && G.tiles[k] && canEnter(p, G.tiles[k])) {
     const t = G.tiles[k];
     p.q = q; p.r = r; p.ap--;
@@ -1100,9 +1108,10 @@ function applyView() {
 }
 window.addEventListener('resize', applyView);
 
+// Vehicles parked on a tile: a vertical column in the space right of the loot table.
 function vehicleSvg(x, y, vs) {
-  if (!vs.length) return '';
-  return `<text x="${x}" y="${y}" class="veh">${vs.map((v) => ITEMS[v.id].icon).join('')}</text>`;
+  const gap = 24, top = y - ((vs.length - 1) * gap) / 2;
+  return vs.map((v, i) => `<text x="${x}" y="${top + i * gap + 6}" class="veh">${ITEMS[v.id].icon}</text>`).join('');
 }
 
 function pickBadge(x, y, n, big = false) {
@@ -1135,12 +1144,12 @@ function renderMap() {
     const danger = t.def.table.filter((e) => e.zombies).length;
     const isHere = q === p.q && r === p.r;
     const target = adj.has(k) && ((mode === 'move' && canEnter(p, t)) || (mode === 'flee' && !t.zombies) || mode === 'drive');
-    const g = `<g class="hex tile d${Math.min(danger, 4)} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''}" data-k="${k}">
+    const g = `<g class="hex tile d${Math.min(danger, 4)} ${k === G.justRevealed ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''}" data-k="${k}">
       <polygon points="${hexPoints(x, y, HEX - (isHere ? 4 : 2))}" ${isHere ? `style="stroke:${p.color}"` : ''}/>
       <text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>
       ${tableSvg(x, y + 4, t.def)}
       ${safetySvg(x, y + HEX * 0.64, t.safety, t.zombies)}
-      ${vehicleSvg(x, y + HEX * 0.84, [...(t.vehicles || []), ...(isHere && driving ? [driving.v] : [])])}
+      ${vehicleSvg(x + HEX * 0.69, y + 4, [...(t.vehicles || []), ...(isHere && driving ? [driving.v] : [])])}
       ${target ? pickBadge(x, y - HEX * 0.8, pickNumber(p, q, r)) : ''}</g>`;
     if (isHere) hereSvg = g; else svg += g;   // draw current tile last so its border sits on top
   }
