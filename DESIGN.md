@@ -92,7 +92,7 @@ Repeat until the tile is clear, you escape, or you die.
 - Item cards appear **explicitly in tile loot tables** (e.g. "Handgun") so players can plan where to go.
 - When found, an item's **condition is rolled 1d6**. Condition = number of uses; at 0 the item breaks.
 - **Backpack holds 6 items.** If full when finding one, destroy an item or leave the new one.
-- Items can be dropped at any time, but dropping **destroys** them.
+- Items can be dropped at any time: a dropped item goes into **your stash** on that tile (see Tiles).
 - **Handgun** (gun): see Fight. Found at Police Station, Gun Shop, Hardware Store *(placeholder locations)*.
 - **Axe** (melee): see Fight. Found at Farmhouse, Hardware Store, Forest *(placeholder locations)*.
 - With both a gun and a melee weapon you choose which to fight with.
@@ -114,6 +114,9 @@ Repeat until the tile is clear, you escape, or you die.
 
 ## Tiles
 - A tile can be any real-world location (e.g. hospital, petrol station, farm).
+- **Depletion:** when a scavenge roll finds a result (resource or item), that row is **crossed off for good**. Rolling a looted row finds **nothing — the AP is still spent**. Zombies never run out.
+- **Stashes:** dropped items — and everything a survivor carried when they die — become **"NAME's stash"** on a row of that tile's table. A stash covers a looted row if there is one, otherwise a random row (2–6); up to 5 per tile (your own stash on a tile grows; with all 5 rows taken, things join the oldest). Roll its number to claim it: all its resources, plus its items up to your backpack space (choose which; the rest stay). Once emptied, the row underneath shows again.
+  - A tile with no table (Wasteland) only has empty rows — so it can be scavenged just for a stash left there *(placeholder)*.
 - Each tile has a **d6 scavenge table**:
   - **1 is always Zombies.**
   - Results 2–6 are the tile's 5 themed items/resources.

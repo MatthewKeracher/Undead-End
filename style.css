@@ -319,6 +319,13 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 .cond i.on { background: var(--accent); }
 .hex .cell.it { fill: var(--accent); font-weight: 700; }
 .ptable li.it { color: var(--accent); }
+/* looted rows are crossed off; stashes stand out */
+.hex .cell.looted { opacity: .35; text-decoration: line-through; }
+.ptable li.looted { opacity: .4; text-decoration: line-through; }
+.hex .cell.stash { fill: #8fd3ff; font-weight: 700; }
+.ptable li.stash { color: #8fd3ff; font-weight: 700; }
+.stashgot { font-size: 22px; margin-top: 4px; }
+.pack-choose button.on { border-color: var(--accent); background: #3a3220; }
 
 /* fight */
 #popup.fight { background: #1a0505cc; cursor: default; }

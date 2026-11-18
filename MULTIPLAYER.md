@@ -102,7 +102,7 @@ The log's note box becomes **text chat** with the same rules: same tile by defau
   - *Placeholders, to confirm:* the rescue roll uses the same target (beat the zombies left) and costs 1 AP like any flee attempt · you get a 10 s prompt, default **don't rescue** · a rescued player escapes with you to your destination · no armor reroll on a rescue roll · you may try to save each failed player, one roll each · zombie fights only (not PvP).
 - **Giving is instant:** resources & items given to a player on your tile go straight to them (free action, no accept). If their backpack is full, the item becomes **your stash** on the tile instead.
 - **Vehicles:** the **Truck carries the driver + up to 3 passengers** from the same tile (each passenger accepts; the trip costs them nothing). The **Bike is solo**. Parked vehicles **belong to nobody** — anyone on the tile can take one, so leaving it unguarded is a risk.
-### 6a. Loot tables: depletion and stashes *(decided)*
+### 6a. Loot tables: depletion and stashes *(decided — built in single player, see DESIGN.md)*
 
 **Depletion — permanent.** When a scavenge roll finds a result (resource or item), that row of the tile's table is **crossed off for good**. Rolling a looted row gives **nothing — the AP is wasted**. Row 1 (Zombies) never depletes. A tile with every row looted is effectively wasteland that can still spawn zombies.
 - Shared world: a row looted by anyone is looted for everyone. "Last seen" shows the table as you last saw it, so a tile you remember as full may have been stripped since.

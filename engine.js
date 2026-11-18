@@ -54,8 +54,26 @@ const Engine = (() => {
   // Tiles with zombies can only be entered by a player carrying a weapon.
   const canEnter = (p, t) => passable(t) && (!t.zombies || !!weaponOf(p));
   const moveAdj = (S, p) => tileAdj(S, p).filter(([q, r]) => canEnter(p, S.tiles[key(q, r)]));
-  const canScavengeHere = (t) => t.def.table.length > 0;   // tiles without a table (e.g. Wasteland) have nothing to find
   const canFortifyHere = (t) => t.def.fortify;
+
+  // ---------------------------------------------------------------- loot tables
+  // Found results are crossed off for good (t.looted: row numbers). Zombies never run out.
+  // A survivor's stash covers a row until it's emptied (t.stashes). A tile with no table
+  // (e.g. Wasteland) has only empty rows — so it can only be scavenged for a stash left there.
+  const stashAt = (t, row) => (t.stashes || []).find((s) => s.row === row);
+  function lootRow(t, row) {
+    const stash = stashAt(t, row);
+    if (stash) return { kind: 'stash', stash };
+    const e = t.def.table[row - 1] ?? (row === 1 ? { zombies: 1 } : null);
+    if (e?.zombies) return { kind: 'zombies', e };
+    if (!e || (t.looted || []).includes(row)) return { kind: 'looted', e };
+    return { kind: e.item ? 'item' : 'res', e };
+  }
+  const tableView = (t) => [1, 2, 3, 4, 5, 6].map((row) => ({ row, ...lootRow(t, row) }));
+  const canScavengeHere = (t) => t.def.table.length > 0 || (t.stashes || []).length > 0;
+  const hasStuff = (s) => s.items.length > 0 || Object.values(s.res).some((n) => n > 0);
+  const stashText = (s) => [...Object.entries(s.res).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${ICON[k]}`),
+    ...s.items.map((it) => ITEMS[it.id].icon)].join(' ');
   // Fleeing: only to an adjacent, already-scouted, passable tile with no zombies.
   const fleeAdj = (S, p) => neighbors(p.q, p.r).filter(([q, r]) => { const t = S.tiles[key(q, r)]; return passable(t) && !t.zombies; });
   const canShoot = (p) => !!weaponOf(p, 'ammo') && p.res.ammo > 0;
@@ -87,7 +105,7 @@ const Engine = (() => {
   const statsOf = (p) => ({ ap: p.ap, maxAP: p.maxAP, res: { ...p.res } });
 
   // ---------------------------------------------------------------- setup
-  const newTile = (def, safety = 0) => ({ def, safety, zombies: 0, vehicles: [] });
+  const newTile = (def, safety = 0) => ({ def, safety, zombies: 0, vehicles: [], looted: [], stashes: [] });
 
   // autoEnd: the round ends as soon as every survivor has acted (single player).
   // Without it, the host ends rounds with timeUp() (the 30 s timer).
@@ -236,6 +254,12 @@ const Engine = (() => {
   function die(S, p, why) {
     p.dead = true; p.pending = null; p.queue = [];
     log(S, `☠️ ${why} The zombies get ${p.name}.`, 'bad');
+    const t = tileOf(S, p);
+    if (hasStuff({ res: p.res, items: p.items })) {   // everything they carried becomes their stash on the tile
+      const s = addToStash(S, t, p.name, { res: p.res, items: p.items });
+      p.items = []; p.res = Object.fromEntries(Object.keys(p.res).map((k) => [k, 0]));
+      log(S, `🎒 Everything ${p.name} carried is left in a stash at the ${t.def.name} (row ${s.row}).`);
+    }
     emit(S, { type: 'die', player: p.id, why });
     if (!alive(S).length) S.over = { why, day: S.day, round: S.round };
   }
@@ -340,6 +364,44 @@ const Engine = (() => {
     if (t.zombies && steps) { log(S, `🧟 ${plural(t.zombies, 'zombie')} at the ${t.def.name}!`, 'bad'); p.queue.unshift({ type: 'threat' }); }
   }
 
+  // ---------------------------------------------------------------- stashes
+  // A survivor's stash covers a looted row if there is one, else a random free row (2–6). Up to 5 per tile;
+  // your own stash on a tile just grows, and once every row is taken, things join the oldest stash.
+  function addToStash(S, t, owner, { res = {}, items = [] }) {
+    t.stashes ||= [];
+    let s = t.stashes.find((x) => x.owner === owner);
+    if (!s) {
+      const free = [2, 3, 4, 5, 6].filter((row) => !stashAt(t, row));
+      if (free.length) {
+        const looted = free.filter((row) => lootRow(t, row).kind === 'looted');
+        const pool = looted.length ? looted : free;
+        s = { owner, row: pool[Math.floor(rand(S) * pool.length)], res: {}, items: [] };
+        t.stashes.push(s);
+      } else s = t.stashes[0];
+    }
+    for (const [k, n] of Object.entries(res)) if (n > 0) s.res[k] = (s.res[k] || 0) + n;
+    s.items.push(...items);
+    return s;
+  }
+  // Rolling a stash: all its resources, and its items as far as your backpack allows (you choose if they don't all fit).
+  function claimStash(S, p, t, s, at) {
+    const got = stashText({ res: s.res, items: [] });
+    for (const [k, n] of Object.entries(s.res)) p.res[k] += n;
+    s.res = {};
+    logRoll(S, `${at}: 🎒 ${s.owner}'s stash${got ? ` — ${got}` : ''}!`, 'good');
+    const room = CONFIG.maxItems - p.items.length;
+    if (s.items.length <= room) takeFromStash(S, p, t, s, s.items.map((_, i) => i));
+    else p.pending = { kind: 'stash', k: key(p.q, p.r), row: s.row, room };
+  }
+  function takeFromStash(S, p, t, s, picks) {
+    const taken = s.items.filter((_, i) => picks.includes(i));
+    s.items = s.items.filter((_, i) => !picks.includes(i));
+    p.items.push(...taken);
+    if (taken.length) log(S, `${p.name} takes ${taken.map((it) => `${ITEMS[it.id].icon} ${it.id}`).join(', ')} from ${s.owner}'s stash.`, 'good');
+    if (s.items.length) log(S, `${plural(s.items.length, 'item')} stay in ${s.owner}'s stash.`);
+    if (!hasStuff(s)) t.stashes.splice(t.stashes.indexOf(s), 1);   // emptied: the row underneath shows again
+  }
+
   // ---------------------------------------------------------------- items
   // Backpack full: destroy one to make room, or leave the new item (a 'backpack' decision).
   function gainItem(S, p, id, cond) {
@@ -384,24 +446,32 @@ const Engine = (() => {
       if (t.zombies) return 'Zombies here block scavenging.';
       p.ap--;
       p.acted = true;
-      const r = roll(S), e = t.def.table[r - 1];
-      const amt = roll(S, true);
-      const c = e.zombies ? zombieContest(t, amt) : null;
-      emit(S, { type: 'scavenge', player: p.id, k: key(p.q, p.r), name: t.def.name, table: t.def.table, r, e, amt, c });
+      const r = roll(S), rows = tableView(t), hit = rows[r - 1], e = hit.e;
+      const amt = hit.kind === 'looted' || hit.kind === 'stash' ? null : roll(S, true);   // amount / condition / zombies
+      const c = hit.kind === 'zombies' ? zombieContest(t, amt) : null;
+      const snap = (x) => JSON.parse(JSON.stringify(x));   // events carry the table as it was when you rolled
+      emit(S, { type: 'scavenge', player: p.id, k: key(p.q, p.r), name: t.def.name, rows: snap(rows), r, hit: snap(hit), amt, c });
+      const at = `${p.name} scavenges the ${t.def.name} — rolls ${r}`;
       if (c) {
         applyContest(t, c);
-        logRoll(S, `${p.name} scavenges the ${t.def.name} — rolls ${r}: 🧟 ${plural(amt, 'zombie')}! ${contestText(c)}`, c.left ? 'bad' : 'good');
+        logRoll(S, `${at}: 🧟 ${plural(amt, 'zombie')}! ${contestText(c)}`, c.left ? 'bad' : 'good');
         if (t.zombies) p.queue.push({ type: 'threat' });
+      } else if (hit.kind === 'looted') {
+        logRoll(S, `${at}: already looted — nothing left.`, 'bad');
+      } else if (hit.kind === 'stash') {
+        claimStash(S, p, t, hit.stash, at);
       } else if (e.item) {
-        logRoll(S, `${p.name} scavenges the ${t.def.name} — rolls ${r}: ${ITEMS[e.item].icon} ${e.item}, condition ${amt}.`, 'good');
+        (t.looted ||= []).push(r);   // found: crossed off for good
+        logRoll(S, `${at}: ${ITEMS[e.item].icon} ${e.item}, condition ${amt}.`, 'good');
         if (ITEMS[e.item].vehicle) {
           t.vehicles.push({ id: e.item, cond: amt });
           log(S, `${ITEMS[e.item].icon} The ${e.item} is parked at the ${t.def.name}.`, 'good');
         } else gainItem(S, p, e.item, amt);
       } else {
+        (t.looted ||= []).push(r);
         const got = amt * e.n;
         p.res[e.res] += got;
-        logRoll(S, `${p.name} scavenges the ${t.def.name} — rolls ${r}: ${cellText(e)} → rolls ${amt}${e.n > 1 ? ` ×${e.n}` : ''} = ${got} ${ICON[e.res]} ${e.res}.`, 'good');
+        logRoll(S, `${at}: ${cellText(e)} → rolls ${amt}${e.n > 1 ? ` ×${e.n}` : ''} = ${got} ${ICON[e.res]} ${e.res}.`, 'good');
       }
     },
     scout(S, p, { q, r }) {
@@ -447,12 +517,13 @@ const Engine = (() => {
         log(S, `${ITEMS[tool.id].icon} The ${tool.id} is used up and destroyed.`, 'bad');
       }
     },
-    // Dropping destroys the item (in multiplayer it will become a stash on the tile).
+    // Dropping leaves the item in your stash on this tile — anyone who rolls that row can take it.
     drop(S, p, { item: i }) {
-      const it = p.items[i];
+      const it = p.items[i], t = tileOf(S, p);
       if (!it) return 'No such item.';
       p.items.splice(i, 1);
-      log(S, `${p.name} destroys their ${ITEMS[it.id].icon} ${it.id}.`, 'bad');
+      const s = addToStash(S, t, p.name, { items: [it] });
+      log(S, `${p.name} leaves their ${ITEMS[it.id].icon} ${it.id} in ${s.owner === p.name ? 'their' : `${s.owner}'s`} stash at the ${t.def.name} (row ${s.row}).`);
     },
     give(S, p, { to, res }) {
       const o = S.players[to];
@@ -506,6 +577,15 @@ const Engine = (() => {
       }
       return driveStep(S, p, choice?.q, choice?.r);
     },
+    // indices of the stash's items to take (up to the room in your backpack); the rest stay
+    stash(S, p, picks) {
+      const d = p.pending, t = S.tiles[d.k], s = stashAt(t, d.row);
+      if (!s) { p.pending = null; return void log(S, 'The stash is gone.', 'bad'); }   // someone else emptied it first
+      if (!Array.isArray(picks) || new Set(picks).size !== picks.length || picks.length > d.room
+        || picks.some((i) => !(i >= 0 && i < s.items.length))) return `Pick up to ${d.room} items.`;
+      p.pending = null;
+      takeFromStash(S, p, t, s, picks);
+    },
     // index of the item to destroy (the new item is last: choosing it leaves it behind)
     backpack(S, p, i) {
       const item = p.pending.item, all = [...p.items, item];
@@ -553,9 +633,11 @@ const Engine = (() => {
           if (p.ap < 1) { say = 'No AP — use ap(n) first.'; break; }
           if (!canScavengeHere(t)) { say = 'Nothing to scavenge on this tile.'; break; }
           if (t.zombies) { say = 'Zombies here block scavenging — use zombies(0).'; break; }
-          S.forced = [n[0], n[1] ?? d6(S)];
+          S.forced = [n[0], ...(n[1] !== undefined ? [n[1]] : [])];
           say = `Scavenge forced: ${n.join(', ')}`;
-          ROUND_ACTIONS.scavenge(S, p); break;
+          ROUND_ACTIONS.scavenge(S, p);
+          S.forced = [];   // a looted or stash row doesn't use the second die
+          break;
         case 'sleep': {   // sleep(8) splits the total over the two dice; sleep(3,5) sets each die
           if (busy) { say = 'Busy — deal with what is happening first.'; break; }
           const total = Math.max(2, Math.min(12, n[0] ?? 12));
@@ -602,7 +684,7 @@ const Engine = (() => {
 
   return {
     ICON, RES_LABEL, key, neighbors, isNight, cellText, upkeepText, roundBanner,
-    tileOf, emptyAdj, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere,
+    tileOf, emptyAdj, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, tableView, stashText,
     fleeAdj, canShoot, canMelee, canFight, canFlee, vehicleFuel, vehicleLeft, vehicleOf, canDrive,
     createGame, start, act, timeUp, cheat,
   };

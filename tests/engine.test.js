@@ -237,3 +237,117 @@ test('state survives a JSON round trip and plays on identically', () => {
   assert.deepEqual(a.events, b.events);
   assert.deepEqual(JSON.parse(JSON.stringify(S)), JSON.parse(JSON.stringify(copy)));
 });
+
+// ---------------------------------------------------------------- depletion & stashes
+test('found results are crossed off; rolling them again finds nothing (AP still spent)', () => {
+  const { S, p } = game();
+  S.forced = [2, 3];                    // Farmhouse 2 = Food
+  act(S, { type: 'scavenge' });
+  assert.deepEqual([...E.tileOf(S, p).looted], [2]);
+  const food = p.res.food, ap = p.ap;
+  S.forced = [2];
+  const { events } = act(S, { type: 'scavenge' });
+  assert.equal(p.res.food, food);
+  assert.equal(p.ap, ap - 1);
+  assert.equal(events.find((e) => e.type === 'scavenge').hit.kind, 'looted');
+  assert.ok(S.log.at(-1).msg.includes('already looted') || S.log.some((l) => l.msg.includes('already looted')));
+});
+
+test('zombies never run out', () => {
+  const { S, p } = game();
+  tile(S, 1, 0, 'Forest');
+  E.tileOf(S, p).safety = 6;
+  S.forced = [1, 2];
+  act(S, { type: 'scavenge' });
+  assert.equal(E.tableView(E.tileOf(S, p))[0].kind, 'zombies');
+  assert.deepEqual([...E.tileOf(S, p).looted], []);
+});
+
+test('dropping an item leaves it in your stash, on a looted row if there is one', () => {
+  const { S, p } = game();
+  const t = E.tileOf(S, p);
+  t.looted = [4];
+  p.items.push({ id: 'Axe', cond: 3 }, { id: 'Toolkit', cond: 2 });
+  act(S, { type: 'drop', item: 0 });
+  act(S, { type: 'drop', item: 0 });
+  assert.equal(p.items.length, 0);
+  assert.equal(t.stashes.length, 1);    // one stash per owner per tile — it grows
+  assert.equal(t.stashes[0].row, 4);
+  assert.equal(t.stashes[0].owner, 'Survivor');
+  assert.equal(E.tableView(t)[3].kind, 'stash');
+});
+
+test('rolling a stash takes everything; once empty, the row underneath shows again', () => {
+  const { S, p } = game();
+  const t = E.tileOf(S, p);
+  t.looted = [5];
+  t.stashes = [{ owner: 'Ana', row: 5, res: { food: 4, ammo: 2 }, items: [{ id: 'Handgun', cond: 3 }] }];
+  const food = p.res.food;
+  S.forced = [5];
+  const { events } = act(S, { type: 'scavenge' });
+  assert.equal(events.find((e) => e.type === 'scavenge').hit.kind, 'stash');
+  assert.equal(p.res.food, food + 4);
+  assert.equal(p.res.ammo, 2);
+  assert.equal(p.items[0].id, 'Handgun');
+  assert.equal(t.stashes.length, 0);
+  assert.equal(E.tableView(t)[4].kind, 'looted');
+});
+
+test('stash with more items than your backpack holds: choose what to take', () => {
+  const { S, p } = game();
+  const t = E.tileOf(S, p);
+  for (let i = 0; i < 5; i++) p.items.push({ id: 'Toolkit', cond: 1 });
+  t.stashes = [{ owner: 'Ana', row: 3, res: {}, items: [{ id: 'Axe', cond: 2 }, { id: 'Handgun', cond: 5 }] }];
+  S.forced = [3];
+  act(S, { type: 'scavenge' });
+  assert.equal(p.pending.kind, 'stash');
+  assert.match(decide(S, [0, 1]).error, /up to 1/);
+  decide(S, [1]);
+  assert.equal(p.items.at(-1).id, 'Handgun');
+  assert.equal(t.stashes[0].items.length, 1);   // the Axe stays
+  assert.equal(t.stashes[0].items[0].id, 'Axe');
+});
+
+test('death leaves everything in a stash on the tile', () => {
+  const { S, p } = game();
+  tile(S, 1, 0, 'Forest');
+  p.items.push({ id: 'Toolkit', cond: 2 });
+  p.res.ammo = 3;
+  E.cheat(S, 0, 'zombies', [4]);
+  S.forced = [2];
+  decide(S, 'flee');
+  assert.equal(p.dead, true);
+  const s = E.tileOf(S, p).stashes[0];
+  assert.equal(s.owner, 'Survivor');
+  assert.equal(s.res.ammo, 3);
+  assert.equal(s.items[0].id, 'Toolkit');
+  assert.equal(p.items.length, 0);
+});
+
+test('a stash on a Wasteland can be scavenged for; other rolls find nothing', () => {
+  const { S, p } = game();
+  const t = tile(S, 1, 0, 'Wasteland');
+  act(S, { type: 'move', q: 1, r: 0 });
+  assert.equal(E.canScavengeHere(t), false);
+  p.items.push({ id: 'Axe', cond: 3 });
+  act(S, { type: 'drop', item: 0 });
+  assert.equal(E.canScavengeHere(t), true);
+  const row = t.stashes[0].row, other = [2, 3, 4, 5, 6].find((x) => x !== row);
+  S.forced = [other];
+  act(S, { type: 'scavenge' });
+  assert.equal(p.items.length, 0);
+  S.forced = [row];
+  act(S, { type: 'scavenge' });
+  assert.equal(p.items[0].id, 'Axe');
+  assert.equal(E.canScavengeHere(t), false);
+});
+
+test('a tile holds 5 stashes at most; then things join the oldest', () => {
+  const { S, p } = game();
+  const t = E.tileOf(S, p);
+  t.stashes = ['A', 'B', 'C', 'D', 'E'].map((owner, i) => ({ owner, row: i + 2, res: {}, items: [{ id: 'Toolkit', cond: 1 }] }));
+  p.items.push({ id: 'Axe', cond: 3 });
+  act(S, { type: 'drop', item: 0 });
+  assert.equal(t.stashes.length, 5);
+  assert.equal(t.stashes[0].items.at(-1).id, 'Axe');
+});
