@@ -1050,9 +1050,9 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.target.matches?.('input, textarea')) { if (e.key === 'Escape') e.target.blur(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (G.over) { if (e.key === 'Enter') { e.preventDefault(); newGame(['Survivor']); } return; }
   if (modalKey) { modalKey(e); return; }
-  if (busy) { e.preventDefault(); popupInput(); return; }
+  if (busy) { e.preventDefault(); popupInput(); return; }   // skip an animation — even the one where you die
+  if (G.over) { if (e.key === 'Enter') { e.preventDefault(); newGame(['Survivor']); } return; }
   if (mode === 'drive' && (e.key === 'Enter' || e.key === 'Escape')) {
     e.preventDefault();
     send({ type: 'decide', choice: 'stop' });
