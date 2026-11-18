@@ -17,8 +17,8 @@ Current behaviour is noted in *italics* where the game already does something as
   > Answer: Yes — a Zombies row is crossed off once rolled, and comes back when the tile has no Safety and no survivor on it.
 - [ ] **When do cleared zombies come back?** *Now: at the start of the next round once the tile is empty with no Safety (placeholder).* Immediately, next round, next night, after 1d6 rounds…?
   > Answer:
-- [ ] **Night attacks are the main killer** (balance sim: ~80% of deaths happen at night — two attacks back to back in rounds 6 and 1). Soften them? e.g. one attack per night, 1d6 − 1, or Fortify +2d6.
-  > Answer:
+- [x] **Night attacks are the main killer** (balance sim: ~80% of deaths happen at night — two attacks back to back in rounds 6 and 1). Soften them? e.g. one attack per night, 1d6 − 1, or Fortify +2d6.
+  > Answer: One attack per night, at the start of round 6.
 - [ ] **Can you Fortify a tile that has zombies on it?**
   *Now: no, blocked until cleared.*
   > Answer:

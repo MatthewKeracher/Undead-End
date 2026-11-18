@@ -19,6 +19,7 @@ const Engine = (() => {
   const neighbors = (q, r) => DIRS.map(([a, b]) => [q + a, r + b]);
   const isAdjacent = (p, q, r) => neighbors(p.q, p.r).some(([a, b]) => a === q && b === r);
   const isNight = (r) => CONFIG.nightRounds.includes(r);
+  const isAttack = (r) => CONFIG.attackRounds.includes(r);   // a night attack starts this round
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
   // ---------------------------------------------------------------- dice
@@ -69,10 +70,11 @@ const Engine = (() => {
     const e = rowEntry(t, row);
     if (!e || (t.looted || []).includes(row)) return { kind: 'looted', e };
     if (e.zombies) return { kind: 'zombies', e };
-    return { kind: e.item ? 'item' : 'res', e };
+    return { kind: e.item || e.parts?.some((x) => x.item) ? 'item' : 'res', e };
   }
   const tableView = (t) => [1, 2, 3, 4, 5, 6].map((row) => ({ row, ...lootRow(t, row) }));
-  const canScavengeHere = (t) => t.def.table.length > 0 || (t.stashes || []).length > 0;
+  // something to scavenge for: a table (or a stash left on a tile without one), and at least one row not crossed off
+  const canScavengeHere = (t) => (t.def.table.length > 0 || (t.stashes || []).length > 0) && tableView(t).some((r) => r.kind !== 'looted');
   const hasStuff = (s) => s.items.length > 0 || Object.values(s.res).some((n) => n > 0);
   const stashText = (s) => [...Object.entries(s.res).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${ICON[k]}`),
     ...s.items.map((it) => ITEMS[it.id].icon)].join(' ');
@@ -93,6 +95,7 @@ const Engine = (() => {
   function cellText(e) {
     if (e.zombies) return e.zombies > 1 ? `Zombies ×${e.zombies}` : 'Zombies';
     const forever = e.endless ? ' ∞' : '';   // an Endless row never runs out
+    if (e.parts) return e.parts.map(cellText).join(' + ') + forever;
     if (e.item) return e.item + forever;
     const mult = { 2: 'Double', 3: 'Triple', 4: 'Quadruple' }[e.n];
     return (e.n > 1 ? (mult ? `${mult} ${RES_LABEL[e.res]}` : `${RES_LABEL[e.res]} ×${e.n}`) : RES_LABEL[e.res]) + forever;
@@ -120,19 +123,18 @@ const Engine = (() => {
     S.tiles[key(0, 0)] = newTile(START_TILE, CONFIG.startSafety);
     for (const id of CONFIG.testStartVehicles || []) S.tiles[key(0, 0)].vehicles.push({ id, cond: CONFIG.maxCondition });
     names.forEach((name, i) => {
-      // full AP; food, water and hope each start at 1d6
+      // full AP and CONFIG.startRes (6 food, water and hope)
       const p = {
         id: i, name, color: COLORS[i % COLORS.length], q: 0, r: 0, ap: CONFIG.startMaxAP, maxAP: CONFIG.startMaxAP,
-        res: { ...CONFIG.startRes }, items: [], dead: false, acted: false, caught: false, pending: null, queue: [],
+        res: { ...CONFIG.startRes }, items: [], dead: false, acted: false, freeMoved: false, caught: false, pending: null, queue: [],
       };
-      for (const k of ['food', 'water', 'hope']) p.res[k] = d6(S);
       for (const id of CONFIG.testStartItems || []) p.items.push({ id, cond: CONFIG.maxCondition });
       for (const [k, n] of Object.entries(CONFIG.testStartRes || {})) p.res[k] += n;
       S.players.push(p);
     });
     log(S, `Day ${S.day} begins. ${plural(names.length, 'survivor')} shelter at the ${START_TILE.name}.`, 'phase');
     for (const p of S.players) {
-      S.log.push({ msg: `${p.name} starts with full 🎲 ${p.ap} AP, ${p.res.food} ${ICON.food} food, ${p.res.water} ${ICON.water} water, ${p.res.hope} ${ICON.hope} hope.`, cls: '', dice: [p.res.food, p.res.water, p.res.hope] });
+      log(S, `${p.name} starts with full 🎲 ${p.ap} AP, ${p.res.food} ${ICON.food} food, ${p.res.water} ${ICON.water} water, ${p.res.hope} ${ICON.hope} hope.`);
     }
     log(S, roundBanner(S), 'phase');
     return S;
@@ -172,7 +174,7 @@ const Engine = (() => {
     S.round++;
     if (S.round > 6) { S.round = 1; S.day++; log(S, `☀️→🌙 Day ${S.day} begins.`, 'phase'); }
     log(S, roundBanner(S), 'phase');
-    for (const p of S.players) p.acted = false;
+    for (const p of S.players) { p.acted = false; p.freeMoved = false; }
     emit(S, { type: 'round', day: S.day, round: S.round });
     startOfRound(S);
   }
@@ -181,7 +183,7 @@ const Engine = (() => {
   const timeUp = (S) => run(S, () => { S.timesUp = true; });
 
   // Everything that happens at the START of a round, before anyone acts:
-  // 1) this round's resource check, 2) the night attack on night rounds.
+  // 1) this round's resource check, 2) the night attack (CONFIG.attackRounds).
   // Food & water feed max AP: each check paid → +trackGain (max 12); each missed → −trackLoss. Max AP 0 = death.
   // A Hope check you can't pay is death.
   // Zombies drift back into a tile's table once it has no Safety and nobody is on it.
@@ -229,7 +231,7 @@ const Engine = (() => {
     }
     if (S.over) return;
     emit(S, { type: 'checks', stats: Object.fromEntries(S.players.map((p) => [p.id, statsOf(p)])) });
-    if (isNight(r)) nightAttack(S);
+    if (isAttack(r)) nightAttack(S);
   }
 
   // ---------------------------------------------------------------- zombies
@@ -349,7 +351,8 @@ const Engine = (() => {
   }
 
   // ---------------------------------------------------------------- vehicles
-  // −1 condition per trip. Only scouted tiles; you can pass through zombie tiles but stopping on one triggers them.
+  // −1 condition per trip; at 0 it stays parked, broken down, until a Toolkit repairs it.
+  // Only scouted tiles; you can pass through zombie tiles but stopping on one triggers them.
   function startDrive(S, p, id, fleeing = false) {
     const t = tileOf(S, p), v = vehicleOf(S, p, id);
     t.vehicles.splice(t.vehicles.indexOf(v), 1);   // the vehicle travels with you
@@ -371,8 +374,8 @@ const Engine = (() => {
       v.cond--;
       log(S, `${p.name} ${def.verb.toLowerCase()}s the ${def.icon} ${v.id} ${plural(steps, 'tile')} to the ${t.def.name}.`, t.zombies ? 'bad' : '');
     }
-    if (v.cond > 0) t.vehicles.push(v);
-    else log(S, `${def.icon} The ${v.id} breaks down for good.`, 'bad');
+    t.vehicles.push(v);   // parked here — even broken down, so a Toolkit can fix it
+    if (v.cond <= 0) log(S, `${def.icon} The ${v.id} breaks down at the ${t.def.name} — it needs a Toolkit before it'll go again.`, 'bad');
     if (t.zombies && steps) { log(S, `🧟 ${plural(t.zombies, 'zombie')} at the ${t.def.name}!`, 'bad'); p.queue.unshift({ type: 'threat' }); }
   }
 
@@ -454,37 +457,44 @@ const Engine = (() => {
     scavenge(S, p) {
       const t = tileOf(S, p);
       if (p.ap < 1) return 'No AP.';
-      if (!canScavengeHere(t)) return 'Nothing to scavenge on this tile.';
+      if (!canScavengeHere(t)) return 'Nothing left to scavenge on this tile.';
       if (t.zombies) return 'Zombies here block scavenging.';
       p.ap--;
       p.acted = true;
-      const r = roll(S), rows = tableView(t), hit = rows[r - 1], e = hit.e;
-      const amt = hit.kind === 'looted' || hit.kind === 'stash' ? null : roll(S, true);   // amount / condition / zombies
+      // roll 1d6 for the row; a crossed-off row is rolled again until the die lands on something
+      const rows = tableView(t), tries = [];
+      do tries.push(roll(S, tries.length > 0)); while (rows[tries.at(-1) - 1].kind === 'looted');
+      const r = tries.at(-1), hit = rows[r - 1], e = hit.e;
+      // then dice for each part: a resource rolls CONFIG.lootDice d6; zombies and an item's condition roll 1d6
+      const parts = hit.kind === 'stash' ? [] : e.parts ?? [e];
+      const dice = parts.map((x) => Array.from({ length: x.res ? CONFIG.lootDice : 1 }, () => roll(S, true)));
+      const amts = dice.map((d) => d.reduce((a, b) => a + b, 0)), amt = amts[0] ?? null;
       const c = hit.kind === 'zombies' ? zombieContest(t, amt) : null;
       const snap = (x) => JSON.parse(JSON.stringify(x));   // events carry the table as it was when you rolled
-      emit(S, { type: 'scavenge', player: p.id, k: key(p.q, p.r), name: t.def.name, rows: snap(rows), r, hit: snap(hit), amt, c });
-      const at = `${p.name} scavenges the ${t.def.name} — rolls ${r}`;
+      emit(S, { type: 'scavenge', player: p.id, k: key(p.q, p.r), name: t.def.name, rows: snap(rows), tries, r, hit: snap(hit), amt, amts, dice, c });
+      const at = `${p.name} scavenges the ${t.def.name} — rolls ${tries.length > 1 ? `${tries.slice(0, -1).map((x) => `${x} (looted)`).join(', ')}, then ${r}` : r}`;
       if (c) {
         (t.looted ||= []).push(r);   // these zombies have come; the row is clear until they drift back
         applyContest(t, c);
         logRoll(S, `${at}: 🧟 ${plural(amt, 'zombie')}! ${contestText(c)}`, c.left ? 'bad' : 'good');
         if (t.zombies) p.queue.push({ type: 'threat' });
-      } else if (hit.kind === 'looted') {
-        logRoll(S, `${at}: already looted — nothing left.`, 'bad');
       } else if (hit.kind === 'stash') {
         claimStash(S, p, t, hit.stash, at);
-      } else if (e.item) {
-        if (!e.endless) (t.looted ||= []).push(r);   // found: crossed off for good (unless it's Endless)
-        logRoll(S, `${at}: ${ITEMS[e.item].icon} ${e.item}, condition ${amt}.`, 'good');
-        if (ITEMS[e.item].vehicle) {
-          t.vehicles.push({ id: e.item, cond: amt });
-          log(S, `${ITEMS[e.item].icon} The ${e.item} is parked at the ${t.def.name}.`, 'good');
-        } else gainItem(S, p, e.item, amt);
       } else {
-        if (!e.endless) (t.looted ||= []).push(r);
-        const got = amt * e.n;
-        p.res[e.res] += got;
-        logRoll(S, `${at}: ${cellText(e)} → rolls ${amt}${e.n > 1 ? ` ×${e.n}` : ''} = ${got} ${ICON[e.res]} ${e.res}.`, 'good');
+        if (!e.endless) (t.looted ||= []).push(r);   // found: crossed off for good (unless it's Endless)
+        const found = parts.map((x, i) => {
+          if (x.item) return `${ITEMS[x.item].icon} ${x.item}, condition ${amts[i]}`;
+          p.res[x.res] += amts[i] * x.n;
+          return `${cellText(x)} → ${dice[i].join(' + ')}${x.n > 1 ? ` ×${x.n}` : ''} = ${amts[i] * x.n} ${ICON[x.res]} ${x.res}`;
+        });
+        logRoll(S, `${at}: ${found.join(' · ')}.`, 'good');
+        parts.forEach((x, i) => {
+          if (!x.item) return;
+          if (ITEMS[x.item].vehicle) {
+            t.vehicles.push({ id: x.item, cond: amts[i] });
+            log(S, `${ITEMS[x.item].icon} The ${x.item} is parked at the ${t.def.name}.`, 'good');
+          } else gainItem(S, p, x.item, amts[i]);
+        });
       }
     },
     // Scouting reveals every unexplored hex next to you, each a random location.
@@ -503,16 +513,19 @@ const Engine = (() => {
       emit(S, { type: 'scout', player: p.id, tiles: found });
       p.acted = true;
     },
-    move(S, p, { q, r }) {
-      const t = S.tiles[key(q, r)];
-      if (p.ap < 1) return 'No AP.';
-      if (!isAdjacent(p, q, r) || !t || !canEnter(p, t)) return "Can't move there.";
-      p.q = q; p.r = r; p.ap--;
-      log(S, `${p.name} moves to the ${t.def.name}${t.zombies ? ` — ${plural(t.zombies, 'zombie')} inside!` : ''}.`, t.zombies ? 'bad' : '');
-      if (t.zombies) p.queue.push({ type: 'threat' });
-      p.acted = true;
-    },
+    move: (S, p, { q, r }) => moveTo(S, p, q, r, false),
   };
+
+  // Moving: the first move each round is free (no AP, doesn't use your action); another costs 1 AP and is your action.
+  function moveTo(S, p, q, r, free) {
+    const t = S.tiles[key(q, r)];
+    if (!free && p.ap < 1) return 'No AP.';
+    if (!isAdjacent(p, q, r) || !t || !canEnter(p, t)) return "Can't move there.";
+    p.q = q; p.r = r;
+    if (free) p.freeMoved = true; else { p.ap--; p.acted = true; }
+    log(S, `${p.name} ${free ? 'walks' : 'moves on'} to the ${t.def.name}${t.zombies ? ` — ${plural(t.zombies, 'zombie')} inside!` : ''}.`, t.zombies ? 'bad' : '');
+    if (t.zombies) p.queue.push({ type: 'threat' });
+  }
 
   // Free actions: any time you're not in the middle of a decision; they don't use up your round.
   const FREE_ACTIONS = {
@@ -628,6 +641,7 @@ const Engine = (() => {
         return DECISIONS[p.pending.kind](S, p, action.choice);
       }
       if (p.pending || p.queue.length) return 'Deal with what is happening first.';
+      if (action.type === 'move' && !p.freeMoved) return moveTo(S, p, action.q, action.r, true);
       if (FREE_ACTIONS[action.type]) return FREE_ACTIONS[action.type](S, p, action);
       if (ROUND_ACTIONS[action.type]) {
         if (p.acted) return 'You have already acted this round.';
@@ -649,9 +663,9 @@ const Engine = (() => {
         case 'scavenge':
           if (busy) { say = 'Busy — deal with what is happening first.'; break; }
           if (p.ap < 1) { say = 'No AP — use ap(n) first.'; break; }
-          if (!canScavengeHere(t)) { say = 'Nothing to scavenge on this tile.'; break; }
+          if (!canScavengeHere(t)) { say = 'Nothing left to scavenge on this tile.'; break; }
           if (t.zombies) { say = 'Zombies here block scavenging — use zombies(0).'; break; }
-          S.forced = [n[0], ...(n[1] !== undefined ? [n[1]] : [])];
+          S.forced = [...n];   // table roll, then any of the amount dice
           say = `Scavenge forced: ${n.join(', ')}`;
           ROUND_ACTIONS.scavenge(S, p);
           S.forced = [];   // a looted or stash row doesn't use the second die
@@ -701,7 +715,7 @@ const Engine = (() => {
   }
 
   return {
-    ICON, RES_LABEL, key, neighbors, isNight, cellText, upkeepText, roundBanner,
+    ICON, RES_LABEL, key, neighbors, isNight, isAttack, cellText, upkeepText, roundBanner,
     tileOf, emptyAdj, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, tableView, stashText,
     fleeAdj, canShoot, canMelee, canFight, canFlee, vehicleFuel, vehicleLeft, vehicleOf, canDrive,
     createGame, start, act, timeUp, cheat,

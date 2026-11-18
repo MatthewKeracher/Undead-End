@@ -4,7 +4,7 @@
 // =====================================================================
 
 const E = Engine;
-const { ICON, RES_LABEL, key, neighbors, isNight, cellText, upkeepText, passable, canEnter, canScavengeHere, canFortifyHere,
+const { ICON, RES_LABEL, key, neighbors, isNight, isAttack, cellText, upkeepText, passable, canEnter, canScavengeHere, canFortifyHere,
   weaponOf, canShoot, canMelee, canFight, vehicleFuel, vehicleLeft } = E;
 const HEX = 120;
 
@@ -53,7 +53,7 @@ function newGame(names = ['Survivor']) {
   render();
   // the starting round's check happens straight away (after a beat so you see your starting resources)
   const game = G;
-  setTimeout(() => { if (G === game) play(E.start(G).events); }, 600);
+  setTimeout(() => { if (G === game) play([{ type: 'round', day: G.day, round: G.round }, ...E.start(G).events]); }, 600);
 }
 
 // ---------------------------------------------------------------- talking to the engine
@@ -93,7 +93,21 @@ async function show(ev) {
     case 'driveStep': sfx.drive(ev.fuel); return render();
     case 'outOfFuel': return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'fuel' ? 'fuel' : 'AP'} — stopping here.`);
     case 'die': return tone(200, 1.4, 'sawtooth', 0.12, -170);
+    case 'round': return roundBannerShow(ev);
   }
+}
+
+// A new round: a band sweeps across the middle of the board — "Day X · Round Y", with what the round brings.
+async function roundBannerShow({ day, round }) {
+  const el = $('#roundbanner'), night = isNight(round), attack = isAttack(round), check = G.checksOff ? '' : upkeepText(round);
+  el.className = night ? 'night' : 'day';
+  el.innerHTML = `<div class="rb-title">Day ${day} · Round ${round}</div>
+    <div class="rb-sub">${night ? '🌙 Night' : '☀️ Day'}${check ? ` · check ${check}` : ''}${attack ? ' · night attack' : ''}</div>`;
+  el.hidden = false;
+  if (night) tone(110, 0.9, 'sine', 0.1, -30); else [392, 523].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.06), i * 120));
+  await new Promise((res) => { const tm = setTimeout(res, skipAnim ? 0 : 1700); dismissPopup = () => { clearTimeout(tm); res(); }; });
+  dismissPopup = null;
+  el.hidden = true;
 }
 
 // Decisions that need a popup. (Fight or Flee, where to flee and driving use the action tray and the map.)
@@ -514,7 +528,7 @@ async function rollDie(slot, final, ms, onFace) {
   slot.innerHTML = dieHtml(final, 'land'); onFace?.(final); sfx.land();
 }
 
-async function scavengeShow({ name, rows: table, r, hit, amt, c }) {
+async function scavengeShow({ name, rows: table, tries, r, hit, amt, amts, dice, c }) {
   const e = hit.e;
   const pop = $('#popup');
   skipAnim = false;
@@ -533,24 +547,24 @@ async function scavengeShow({ name, rows: table, r, hit, amt, c }) {
   const rows = [...pop.querySelectorAll('.ptable li')];
   const mark = (v) => rows.forEach((li) => li.classList.toggle('hl', +li.dataset.i === v));
   await wait(150);
-  await rollDie($('#pd1'), r, 1100, mark);
+  // a crossed-off row: shake it and roll again, until the die lands on something
+  for (const [i, v] of tries.entries()) {
+    await rollDie($('#pd1'), v, i ? 700 : 1100, mark);
+    if (v === r) break;
+    rows[v - 1].classList.add('nope');
+    $('#pres').innerHTML = `<small class="muted">${v} is already looted — rolling again…</small>`;
+    tone(300, 0.15, 'triangle', 0.06, -120);
+    await wait(500);
+    rows[v - 1].classList.remove('nope');
+  }
+  $('#pres').innerHTML = '';
   rows.forEach((li) => li.classList.remove('hl'));
   rows[r - 1].classList.add('picked');
   await wait(350);
 
-  if (hit.kind === 'looted') {
-    $('#pres').innerHTML = `<div class="big bad">Already looted</div><small class="muted">Nothing left on this row.</small>`;
-    tone(300, 0.25, 'triangle', 0.07, -120); setTimeout(() => tone(200, 0.35, 'triangle', 0.07, -80), 160);
-  } else if (hit.kind === 'stash') {
+  if (hit.kind === 'stash') {
     const s = hit.stash;
     $('#pres').innerHTML = `<div class="big good jackpot">🎒 ${esc(s.owner)}'s stash</div><div class="stashgot">${E.stashText(s) || 'empty'}</div>`;
-    pop.classList.add('jackpot');
-    sfx.win(true);
-  } else if (e.item) {
-    $('#pd2').innerHTML = `<span class="muted">Condition?</span><div class="slot" id="pd2d"></div>`;
-    await rollDie($('#pd2d'), amt, 800);
-    await wait(250);
-    $('#pres').innerHTML = `<div class="big good jackpot">${ITEMS[e.item].icon} ${esc(e.item)}</div><div>${condPips(amt)}</div>`;
     pop.classList.add('jackpot');
     sfx.win(true);
   } else if (e.zombies) {
@@ -560,12 +574,26 @@ async function scavengeShow({ name, rows: table, r, hit, amt, c }) {
     await wait(250);
     await contestAnim(c);
   } else {
-    $('#pd2').innerHTML = `<span class="muted">How much?</span><div class="slot" id="pd2d"></div>${e.n > 1 ? `<span class="mult">× ${e.n}</span>` : ''}`;
-    await rollDie($('#pd2d'), amt, 800);
-    await wait(250);
-    const total = amt * e.n, big = total >= 8;
-    $('#pres').innerHTML = `<div class="big good ${big ? 'jackpot' : ''}">+<span id="pcount">0</span> ${ICON[e.res]} ${RES_LABEL[e.res]}</div>`;
-    for (let i = 1; i <= total; i++) { $('#pcount').textContent = i; sfx.count(); await wait(Math.min(70, 500 / total)); }
+    // one die per part of the row (a mix like Food + Water or Truck + Fuel has two)
+    const parts = e.parts ?? [e];
+    let big = false, shown = '';
+    for (const [i, x] of parts.entries()) {
+      const a = amts[i];
+      $('#pd2').innerHTML = `<span class="muted">${x.item ? `${esc(x.item)} condition?` : parts.length > 1 ? `How much ${x.res}?` : 'How much?'}</span>${dice[i].map((_, j) => `<div class="slot" id="pd2d${j}"></div>`).join('')}${x.n > 1 ? `<span class="mult">× ${x.n}</span>` : ''}`;
+      await Promise.all(dice[i].map((v, j) => rollDie($(`#pd2d${j}`), v, 800 + j * 150)));
+      await wait(250);
+      if (x.item) {
+        shown += `<div class="big good jackpot">${ITEMS[x.item].icon} ${esc(x.item)}</div><div>${condPips(a)}</div>`;
+        $('#pres').innerHTML = shown;
+        big = true;
+      } else {
+        const total = a * x.n;
+        big ||= total >= 8;
+        $('#pres').innerHTML = `${shown}<div class="big good ${total >= 8 ? 'jackpot' : ''}">+<span id="pcount">0</span> ${ICON[x.res]} ${RES_LABEL[x.res]}</div>`;
+        for (let k = 1; k <= total; k++) { $('#pcount').textContent = k; sfx.count(); await wait(Math.min(70, 500 / total)); }
+        shown = $('#pres').innerHTML.replace(' id="pcount"', '');
+      }
+    }
     if (big) pop.classList.add('jackpot');
     sfx.win(big);
   }
@@ -726,7 +754,7 @@ function renderClock() {
     const c = wedgeCenterDeg(r) * Math.PI / 180, a0 = c - Math.PI / 6, a1 = c + Math.PI / 6;
     const now = r === G.round;
     const off = now ? 5 : 0;
-    const icons = Object.keys(CONFIG.upkeep[r] || {}).map((res) => ICON[res]).join('') + (isNight(r) ? '🟡' : '');
+    const icons = Object.keys(CONFIG.upkeep[r] || {}).map((res) => ICON[res]).join('') + (isAttack(r) ? '🟡' : '');   // the night attack tests your Safety
     const lx = 57 * Math.cos(c), ly = 57 * Math.sin(c);
     s += `<g class="wedge ${isNight(r) ? 'night' : 'day'} ${now ? 'now' : ''}" transform="translate(${(off * Math.cos(c)).toFixed(2)} ${(off * Math.sin(c)).toFixed(2)})">
       <path d="${wedgePath(a0 + 0.015, a1 - 0.015, CLOCK_R0 + 2, CLOCK_R)}"/>
@@ -804,6 +832,7 @@ window.addEventListener('resize', applyView);
 
 // Right column (backpack + resources) runs down the board, stopping above the action dock if they'd overlap.
 function fitRightCol() {
+  if ($('#board').classList.contains('threat')) return;   // the dock is in the middle during Fight or Flee
   const b = $('#board').getBoundingClientRect(), d = $('#dock').getBoundingClientRect(), c = $('#rightcol').getBoundingClientRect();
   $('#board').style.setProperty('--dockh', d.right > c.left ? `${b.bottom - d.top}px` : '0px');
 }
@@ -812,9 +841,10 @@ dockWatch.observe($('#dock'));
 dockWatch.observe($('#board'));
 
 // Vehicles parked on a tile: a vertical column in the space right of the loot table.
+// Broken-down ones (condition 0) are greyed out until repaired.
 function vehicleSvg(x, y, vs) {
   const gap = 24, top = y - ((vs.length - 1) * gap) / 2;
-  return vs.map((v, i) => `<text x="${x}" y="${top + i * gap + 6}" class="veh">${ITEMS[v.id].icon}</text>`).join('');
+  return vs.map((v, i) => `<text x="${x}" y="${top + i * gap + 6}" class="veh ${v.cond > 0 ? '' : 'broken'}">${ITEMS[v.id].icon}</text>`).join('');
 }
 
 function pickBadge(x, y, n, big = false) {
@@ -940,6 +970,8 @@ const lootLeft = (t) => E.tableView(t).filter((row) => row.row > 1 && row.kind !
 function renderPanel() {
   const p = cur(), t = tileOf(p);
   const noAP = p.ap < 1;
+  // Fight or Flee moves to the middle of the board; back at the bottom, re-fit the right column around it
+  if ($('#board').classList.toggle('threat', mode === 'threat') === false) requestAnimationFrame(fitRightCol);
   const btn = (id, label, sub, dis) => {
     const keys = mode === 'threat' ? THREAT_KEYS : HOTKEYS;
     const hk = Object.keys(keys).find((k) => keys[k] === id);
@@ -979,8 +1011,8 @@ function renderPanel() {
   const apWarn = p.ap < 2 ? ` Fleeing costs 1 🎲 — keep some AP!` : '';
   const nextRound = G.round % 6 + 1;
   const nextUp = G.checksOff ? '' : upkeepText(nextRound);
-  if (nextUp && !isNight(nextRound)) warn = `<div class="note">Next round starts with a check: ${nextUp}</div>`;
-  if (isNight(nextRound)) {
+  if (nextUp && !isAttack(nextRound)) warn = `<div class="note">Next round starts with a check: ${nextUp}</div>`;
+  if (isAttack(nextRound)) {
     warn = `<div class="note ${isNight(G.round) ? 'bad' : ''}">🌙 Next round starts with ${nextUp ? `a ${nextUp} check and ` : ''}a night attack — 1d6 🧟 vs your 🟡 ${t.safety}.${apWarn}</div>`;
   }
 
@@ -990,10 +1022,12 @@ function renderPanel() {
     <div class="ribbon">
       ${btn('sleep', '😴 Sleep', 'Gain 2d6 AP', false)}
       ${btn('scout', '🔭 Scout', emptyAdj(p).length ? `1 AP · reveal ${emptyAdj(p).length} hex${emptyAdj(p).length === 1 ? '' : 'es'}` : 'All explored', noAP || !emptyAdj(p).length)}
-      ${btn('move', '🚶 Move', '1 AP · adjacent', noAP || !moveAdj(p).length)}
-      ${btn('scavenge', '🔍 Scavenge', !canScavengeHere(t) ? 'Nothing to find' : t.zombies ? 'Blocked by zombies' : lootLeft(t) ? `1 AP · ${lootLeft(t)} of 5 left` : '1 AP · picked clean', noAP || !canScavengeHere(t) || t.zombies > 0)}
-      ${Object.keys(ITEMS).filter((id) => ITEMS[id].vehicle && vehicleOf(p, id)).map((id) => {
-        const v = vehicleOf(p, id), fuel = vehicleFuel(v) === 'fuel';
+      ${btn('move', '🚶 Move', p.freeMoved ? '1 AP · uses your action' : 'Free move', (p.freeMoved && noAP) || !moveAdj(p).length)}
+      ${btn('scavenge', '🔍 Scavenge', !canScavengeHere(t) ? (t.def.table.length ? 'Picked clean' : 'Nothing to find') : t.zombies ? 'Blocked by zombies' : lootLeft(t) ? `1 AP · ${lootLeft(t)} of 5 left` : '1 AP · only zombies left', noAP || !canScavengeHere(t) || t.zombies > 0)}
+      ${Object.keys(ITEMS).filter((id) => ITEMS[id].vehicle && vehiclesHere(p).some((v) => v.id === id)).map((id) => {
+        const v = vehicleOf(p, id);
+        if (!v) return btn(id, `${ITEMS[id].icon} ${ITEMS[id].verb}`, 'Broken — needs a Toolkit', true);
+        const fuel = vehicleFuel(v) === 'fuel';
         return btn(id, `${ITEMS[id].icon} ${ITEMS[id].verb}`, !driveAdj(p).length ? 'Nowhere to go' : vehicleLeft(p, v) < 1 ? (fuel ? 'No fuel' : 'No AP') : `1 ${fuel ? ICON.fuel : '🎲'}/tile · cond ${v.cond}`, !canDrive(p, id));
       }).join('')}
       ${btn('fortify', '🔨 Fortify', !canFortifyHere(t) ? "Can't be fortified" : t.zombies ? 'Blocked by zombies' : t.safety >= CONFIG.maxSafety ? `Safety full (${CONFIG.maxSafety})` : '1 AP · +1d6 🟡', noAP || !canFortifyHere(t) || t.zombies > 0 || t.safety >= CONFIG.maxSafety)}
@@ -1037,7 +1071,7 @@ const THREAT_KEYS = { q: 'shoot', w: 'melee', e: 'flee' };
 const CHEATS = {
   help: 'list cheats',
   'roll(a,b,…)': 'force the next dice rolls',
-  'scavenge(r[,amount])': 'scavenge with table roll r (and amount / condition / zombie count)',
+  'scavenge(r[,a,b])': 'scavenge with table roll r (and the amount dice / condition / zombie count)',
   'sleep(n) sleep(a,b)': 'sleep and gain n AP (2–12), or force both dice',
   'fortify(n)': 'fortify with a roll of n',
   'flee(n)': 'force your next flee roll',

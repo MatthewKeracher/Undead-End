@@ -33,6 +33,42 @@ test('same seed, same game', () => {
   assert.equal(a.rng, b.rng);
 });
 
+test('every survivor starts with 6 food, water and hope', () => {
+  const S = E.createGame({ seed: 3 });
+  assert.deepEqual({ ...S.players[0].res }, { food: 6, water: 6, hope: 6, fuel: 0, ammo: 0 });
+});
+
+test('the first move each round is free; the second costs 1 AP and is your action', () => {
+  const { S, p } = game();
+  tile(S, 1, 0, 'Forest'); tile(S, 2, 0, 'Lake');
+  const ap = p.ap;
+  act(S, { type: 'move', q: 1, r: 0 });
+  assert.equal(p.ap, ap);
+  assert.equal(p.acted, false);
+  assert.equal(S.round, 2);
+  act(S, { type: 'move', q: 2, r: 0 });
+  assert.equal(p.ap, ap - 1);
+  assert.equal(S.round, 3);             // that was the round's action
+  p.ap = 0;
+  assert.ok(!act(S, { type: 'move', q: 1, r: 0 }).error);   // the free move needs no AP
+});
+
+test('a mixed row gives both parts: Truck + Fuel, Food + Water', () => {
+  const { S, p } = game();
+  S.forced = [6, 4, 3, 2];              // Farmhouse 6 = Truck + Fuel: condition 4, fuel 3 + 2
+  act(S, { type: 'scavenge' });
+  assert.equal(E.tileOf(S, p).vehicles[0].cond, 4);
+  assert.equal(p.res.fuel, 5);
+  assert.equal(E.cellText(E.tileOf(S, p).def.table[5]), 'Truck + Fuel');
+  const t = tile(S, 1, 0, 'YOLO Foods');   // 4 = Food + Water
+  act(S, { type: 'move', q: 1, r: 0 });
+  const food = p.res.food, water = p.res.water;
+  S.forced = [4, 2, 1, 5, 1];           // food 2 + 1, water 5 + 1
+  act(S, { type: 'scavenge' });
+  assert.deepEqual([p.res.food - food, p.res.water - water], [3, 6]);
+  assert.equal(E.tableView(t)[3].kind, 'looted');
+});
+
 test('sleep gains 2d6 AP up to max and ends the round', () => {
   const { S, p } = game();
   p.ap = 2; S.forced = [3, 5];
@@ -89,12 +125,12 @@ test('time up waits for an open decision, then that player sleeps', () => {
   assert.ok(a.ap > 0);
 });
 
-test('scavenge a resource: amount × multiplier', () => {
+test('scavenge a resource: 2d6 of it', () => {
   const { S, p } = game();
-  S.forced = [3, 5];                    // Farmhouse 3 = Double Food, amount 5
+  S.forced = [3, 5, 4];                 // Farmhouse 3 = Food, dice 5 + 4
   const food = p.res.food;
   act(S, { type: 'scavenge' });
-  assert.equal(p.res.food, food + 10);
+  assert.equal(p.res.food, food + 9);
   assert.equal(p.ap, 11);
 });
 
@@ -158,7 +194,7 @@ test('Wasteland: nothing to scavenge, can\'t fortify', () => {
   const { S, p } = game();
   tile(S, 1, 0, 'Wasteland');
   act(S, { type: 'move', q: 1, r: 0 });
-  assert.match(act(S, { type: 'scavenge' }).error, /Nothing to scavenge/);
+  assert.match(act(S, { type: 'scavenge' }).error, /Nothing left to scavenge/);
   assert.match(act(S, { type: 'fortify' }).error, /can't be fortified/);
 });
 
@@ -206,6 +242,22 @@ test('driving is free movement: fuel per tile, −1 condition per trip, round no
   assert.equal(S.round, 2);
 });
 
+test('a vehicle at 0 condition stays parked, broken, until a Toolkit fixes it', () => {
+  const { S, p } = game();
+  tile(S, 1, 0, 'Forest');
+  E.tileOf(S, p).vehicles.push({ id: 'Bike', cond: 1 });
+  act(S, { type: 'drive', vehicle: 'Bike' });
+  decide(S, { q: 1, r: 0 }); decide(S, 'stop');
+  const here = E.tileOf(S, p);
+  assert.equal(here.vehicles.length, 1);
+  assert.equal(here.vehicles[0].cond, 0);
+  assert.ok(act(S, { type: 'drive', vehicle: 'Bike' }).error);     // broken: won't go
+  p.items.push({ id: 'Toolkit', cond: 3 });
+  act(S, { type: 'tool', tool: 0, target: { from: 'tile', index: 0 }, amount: 2 });
+  assert.equal(here.vehicles[0].cond, 2);
+  assert.ok(!act(S, { type: 'drive', vehicle: 'Bike' }).error);    // fixed
+});
+
 test('night attack: Safety holds, or zombies break through', () => {
   const { S, p } = game();
   tile(S, 1, 0, 'Forest');              // somewhere to run
@@ -216,9 +268,15 @@ test('night attack: Safety holds, or zombies break through', () => {
   assert.equal(S.round, 6);
   assert.equal(E.tileOf(S, p).safety, 3);
   assert.equal(p.pending, null);
-  S.forced = [1, 1, 6];                 // round 1 is night too: 6 vs Safety 3
+  S.forced = [1, 1];                    // round 1 is night, but there's no attack
   act(S, { type: 'sleep' });
-  assert.equal(E.tileOf(S, p).zombies, 3);
+  assert.equal(S.round, 1);
+  assert.equal(E.tileOf(S, p).safety, 3);
+  E.tileOf(S, p).safety = 2;
+  S.round = 5;
+  S.forced = [1, 1, 6];                 // next round 6: 6 zombies vs Safety 2
+  act(S, { type: 'sleep' });
+  assert.equal(E.tileOf(S, p).zombies, 4);
   assert.equal(p.pending.kind, 'threat');
 });
 
@@ -243,18 +301,26 @@ test('state survives a JSON round trip and plays on identically', () => {
 });
 
 // ---------------------------------------------------------------- depletion & stashes
-test('found results are crossed off; rolling them again finds nothing (AP still spent)', () => {
+test('found results are crossed off; landing on one rolls again until it finds something', () => {
   const { S, p } = game();
-  S.forced = [2, 3];                    // Farmhouse 2 = Food
+  S.forced = [2, 3, 3];                 // Farmhouse 2 = Food
   act(S, { type: 'scavenge' });
   assert.deepEqual([...E.tileOf(S, p).looted], [2]);
-  const food = p.res.food, ap = p.ap;
-  S.forced = [2];
+  const food = p.res.food;
+  S.forced = [2, 2, 3, 4, 4];           // 2 (looted), 2 (looted), then 3 = Food: 4 + 4
   const { events } = act(S, { type: 'scavenge' });
-  assert.equal(p.res.food, food);
-  assert.equal(p.ap, ap - 1);
-  assert.equal(events.find((e) => e.type === 'scavenge').hit.kind, 'looted');
-  assert.ok(S.log.at(-1).msg.includes('already looted') || S.log.some((l) => l.msg.includes('already looted')));
+  const ev = events.find((e) => e.type === 'scavenge');
+  assert.deepEqual([...ev.tries], [2, 2, 3]);
+  assert.equal(p.res.food, food + 8);
+  assert.ok(S.log.some((l) => l.msg.includes('2 (looted), 2 (looted), then 3')));
+});
+
+test('a tile with every row crossed off (zombies cleared too) can\'t be scavenged', () => {
+  const { S, p } = game();
+  const t = E.tileOf(S, p);
+  t.looted = [1, 2, 3, 4, 5, 6];
+  assert.equal(E.canScavengeHere(t), false);
+  assert.match(act(S, { type: 'scavenge' }).error, /Nothing left/);
 });
 
 test('an Endless row is never crossed off', () => {
@@ -263,9 +329,9 @@ test('an Endless row is never crossed off', () => {
   act(S, { type: 'move', q: 1, r: 0 });
   assert.equal(t.def.table[1].endless, true);
   const water = p.res.water;
-  S.forced = [2, 3]; act(S, { type: 'scavenge' });
-  S.forced = [2, 4]; act(S, { type: 'scavenge' });
-  assert.equal(p.res.water, water + 7);
+  S.forced = [2, 3, 1]; act(S, { type: 'scavenge' });
+  S.forced = [2, 4, 2]; act(S, { type: 'scavenge' });
+  assert.equal(p.res.water, water + 10);
   assert.equal(E.tableView(t)[1].kind, 'res');
   assert.equal(E.cellText(t.def.table[1]), 'Water ∞');
 });
@@ -278,8 +344,8 @@ test('zombies are crossed off once they come, and drift back when nobody is ther
   S.forced = [1, 2];                    // 2 zombies, absorbed by Safety
   act(S, { type: 'scavenge' });
   assert.equal(E.tableView(home)[0].kind, 'looted');
-  S.forced = [1];
-  act(S, { type: 'scavenge' });         // rolling the cleared row finds nothing
+  S.forced = [1, 4, 2, 2];
+  act(S, { type: 'scavenge' });         // the cleared row is rolled again: 4 = Water
   assert.equal(home.zombies, 0);
   // still here, or still has Safety: they stay away
   act(S, { type: 'move', q: 1, r: 0 });
@@ -359,11 +425,9 @@ test('a stash on a Wasteland can be scavenged for; other rolls find nothing', ()
   act(S, { type: 'drop', item: 0 });
   assert.equal(E.canScavengeHere(t), true);
   const row = t.stashes[0].row, other = [2, 3, 4, 5, 6].find((x) => x !== row);
-  S.forced = [other];
-  act(S, { type: 'scavenge' });
-  assert.equal(p.items.length, 0);
-  S.forced = [row];
-  act(S, { type: 'scavenge' });
+  S.forced = [other, row];              // an empty row is rolled again — and lands on the stash
+  const { events } = act(S, { type: 'scavenge' });
+  assert.deepEqual([...events.find((e) => e.type === 'scavenge').tries], [other, row]);
   assert.equal(p.items[0].id, 'Axe');
   assert.equal(E.canScavengeHere(t), false);
 });

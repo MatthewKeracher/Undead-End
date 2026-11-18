@@ -20,12 +20,14 @@
 //
 //  Results you can write in a table (capitals don't matter):
 //    'Zombies'                                   1d6 zombies arrive
-//    'Food'  'Water'  'Hope'  'Fuel'  'Ammo'     gain 1d6 of it
-//    'Double Food'  'Triple Ammo'  …             gain 1d6 × 2 (Double), × 3 (Triple), × 4 (Quadruple)
+//    'Food'  'Water'  'Hope'  'Fuel'  'Ammo'     gain 2d6 of it (CONFIG.lootDice in data.js)
+//    'Double Food'  'Triple Ammo'  …             × 2 (Double), × 3 (Triple), × 4 (Quadruple) — use sparingly
 //    'Axe'  'Handgun'  'Body Armor'  'Truck'  'Bike'  'Toolkit'  'Radio'
 //                                                an item card (the names in ITEMS, data.js)
 //    'Endless Water'  'Endless Double Food'  …   put Endless in front of any result and it
 //                                                never runs out (shown with ∞)
+//    'Food + Water'  'Truck + Fuel'  …           a mix: each part rolls its own 1d6
+//                                                (at most one item; no Zombies in a mix)
 //
 //  Scouting reveals a random location from this list (not the start tile),
 //  so a location with count: 3 is three times as common as one without.
@@ -33,26 +35,26 @@
 // Themed: each place leans on what you'd really find there, with at most three rows of any one thing.
 const LOCATIONS = [
   { name: 'Farmhouse',      icon: '🏚️', start: true,
-    table: ['Zombies', 'Food',         'Double Food',  'Water',        'Axe',          'Truck'] },
+    table: ['Zombies',       'Food',          'Food',          'Water',         'Axe',           'Truck + Fuel'] },
 
   // food & drink
-  { name: 'YOLO Foods',     icon: '🛒', table: ['Zombies', 'Food',         'Double Food',  'Double Food',  'Water',        'Double Water'] },
-  { name: 'Lake',           icon: '🏞️', table: ['Zombies', 'Endless Water', 'Double Water', 'Triple Water', 'Food',        'Hope'] },
-  { name: 'Forest',         icon: '🌲', table: ['Zombies', 'Food',         'Double Food',  'Water',        'Axe',          'Hope'] },
-  { name: 'Pub',            icon: '🍺', table: ['Zombies', 'Hope',         'Double Hope',  'Food',         'Water',        'Double Water'] },
+  { name: 'YOLO Foods',     icon: '🛒', table: ['Zombies',       'Food',          'Food',          'Food + Water',  'Water',         'Water'] },
+  { name: 'Lake',           icon: '🏞️', table: ['Zombies',       'Endless Water', 'Water',         'Water',         'Food',          'Hope'] },
+  { name: 'Forest',         icon: '🌲', table: ['Zombies',       'Food',          'Food',          'Water',         'Axe',           'Hope'] },
+  { name: 'Pub',            icon: '🍺', table: ['Zombies',       'Hope',          'Hope',          'Food',          'Water',         'Water'] },
   // hope
-  { name: 'Church',         icon: '⛪', table: ['Zombies', 'Hope',         'Double Hope',  'Hope',         'Food',         'Water'] },
-  { name: 'Hospital',       icon: '🏥', table: ['Zombies', 'Hope',         'Double Hope',  'Double Hope',  'Water',        'Food'] },
-  { name: 'Pharmacy',       icon: '💊', table: ['Zombies', 'Hope',         'Hope',         'Water',        'Double Water', 'Food'] },
-  { name: 'School',         icon: '🏫', table: ['Zombies', 'Food',         'Water',        'Hope',         'Double Hope',  'Bike'] },
+  { name: 'Church',         icon: '⛪', table: ['Zombies',       'Hope',          'Hope',          'Hope',          'Food',          'Water'] },
+  { name: 'Hospital',       icon: '🏥', table: ['Zombies',       'Hope',          'Hope',          'Hope',          'Water',         'Food'] },
+  { name: 'Pharmacy',       icon: '💊', table: ['Zombies',       'Hope',          'Hope',          'Water',         'Water',         'Food'] },
+  { name: 'School',         icon: '🏫', table: ['Zombies',       'Food + Water',  'Hope',          'Hope',          'Food',          'Bike'] },
   // weapons
-  { name: 'Police Station', icon: '🚓', table: ['Zombies', 'Handgun',      'Handgun',      'Ammo',         'Double Ammo',  'Body Armor'] },
-  { name: 'Gun Shop',       icon: '🎯', table: ['Zombies', 'Handgun',      'Ammo',         'Double Ammo',  'Triple Ammo',  'Body Armor'] },
-  { name: 'Army Checkpoint', icon: '⛺', table: ['Zombies', 'Handgun',     'Handgun',      'Double Ammo',  'Food',         'Water'] },
+  { name: 'Police Station', icon: '🚓', table: ['Zombies',       'Handgun',       'Handgun',       'Ammo',          'Ammo',          'Body Armor'] },
+  { name: 'Gun Shop',       icon: '🎯', table: ['Zombies',       'Handgun',       'Ammo',          'Ammo',          'Ammo',          'Body Armor'] },
+  { name: 'Army Checkpoint', icon: '⛺', table: ['Zombies',       'Handgun',       'Handgun',       'Ammo',          'Food + Water',  'Ammo'] },
   // tools & travel
-  { name: 'Hardware Store', icon: '🔨', table: ['Zombies', 'Toolkit',      'Toolkit',      'Axe',          'Axe',          'Fuel'] },
-  { name: 'Petrol Station', icon: '⛽', table: ['Zombies', 'Fuel',         'Double Fuel',  'Water',        'Toolkit',      'Truck'] },
-  { name: 'Campsite',       icon: '⛺', table: ['Zombies', 'Food',         'Water',        'Fuel',         'Axe',          'Bike'] },
+  { name: 'Hardware Store', icon: '🔨', table: ['Zombies',       'Toolkit',       'Toolkit',       'Axe',           'Axe',           'Fuel'] },
+  { name: 'Petrol Station', icon: '⛽', table: ['Zombies',       'Fuel',          'Fuel',          'Food + Water',  'Toolkit',       'Truck + Fuel'] },
+  { name: 'Campsite',       icon: '⛺', table: ['Zombies',       'Food + Water',  'Fuel',          'Hope',          'Axe',           'Bike'] },
 
   // Wasteland: nothing to find and nowhere to hide.
   { name: 'Wasteland',      icon: '🏜️', fortify: false, count: 3 },

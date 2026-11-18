@@ -9,17 +9,19 @@ const CONFIG = {
   trackGain: 1,           // max AP gained per food / water check paid
   trackLoss: 2,           // max AP lost per food / water check missed (0 = death)
   startMaxAP: 12,         // max AP at the start (food & water missed lower it; paid raises it back, up to 12)
-  startRes: { food: 0, water: 0, hope: 0, fuel: 0, ammo: 0 },   // food, water, hope are rolled 1d6 at start; AP starts full
+  startRes: { food: 6, water: 6, hope: 6, fuel: 0, ammo: 0 },   // what every survivor starts with; AP starts full
   startSafety: 0,         // Safety on the starting tile
   maxSafety: 6,           // most Safety any tile can hold
   maxItems: 6,            // backpack size
   maxCondition: 6,        // most condition any item can have
+  lootDice: 2,            // a resource find rolls this many d6 (item condition and zombie counts stay 1d6)
 
   // TESTING: items every new game starts with in the backpack (full condition). Set to [] to turn off.
   testStartItems: [],
   testStartVehicles: [],   // parked on the start tile
   testStartRes: {},        // added to the starting rolls
-  nightRounds: [1, 6],
+  nightRounds: [1, 6],    // dark on the clock
+  attackRounds: [6],      // rounds that start with a night attack
   roundSeconds: 30,       // round timer: act within this or you sleep (online always; single player optional)
 
   // What each round of the clock calls for (checked at the END of the round).
@@ -54,6 +56,13 @@ function parseResult(text, where) {
   // 'Endless …' never runs out: the row is never crossed off
   const endless = t.startsWith('endless ');
   if (endless) t = t.slice(8);
+  // a mix, e.g. 'Food + Water' or 'Truck + Fuel': each part rolls its own 1d6
+  if (t.includes('+')) {
+    const parts = t.split('+').map((x) => parseResult(x, where));
+    if (parts.some((x) => x.zombies || x.parts || x.endless)) throw new Error(`${where}: "${text}" — a mix can't include Zombies (and put Endless at the front).`);
+    if (parts.filter((x) => x.item).length > 1) throw new Error(`${where}: "${text}" — a mix can have at most one item.`);
+    return { parts, ...(endless && { endless }) };
+  }
   const [first, ...rest] = t.split(' ');
   const n = MULTIPLIERS[first] && rest.length ? MULTIPLIERS[first] : 1;
   const res = n > 1 ? rest.join(' ') : t;

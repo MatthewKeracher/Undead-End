@@ -104,7 +104,7 @@ The log's note box becomes **text chat** with the same rules: same tile by defau
 - **Vehicles:** the **Truck carries the driver + up to 3 passengers** from the same tile (each passenger accepts; the trip costs them nothing). The **Bike is solo**. Parked vehicles **belong to nobody** — anyone on the tile can take one, so leaving it unguarded is a risk.
 ### 6a. Loot tables: depletion and stashes *(decided — built in single player, see DESIGN.md)*
 
-**Depletion — permanent.** When a scavenge roll finds a result (resource or item), that row of the tile's table is **crossed off for good**. Rolling a looted row gives **nothing — the AP is wasted**. Row 1 (Zombies) never depletes. A tile with every row looted is effectively wasteland that can still spawn zombies.
+**Depletion — permanent.** When a scavenge roll finds a result (resource or item), that row of the tile's table is **crossed off for good**. Landing on a looted row **rolls again** until the die finds something. Zombies are crossed off too once they come, and drift back when the tile has no Safety and nobody on it. A tile with every row crossed off can't be scavenged.
 - Shared world: a row looted by anyone is looted for everyone. "Last seen" shows the table as you last saw it, so a tile you remember as full may have been stripped since.
 - **The world is allowed to run dry** *(decided for now)*: with no restocking, the map only ever gets emptier (~720 tiles × 5 rows ≈ 3,600 results). When it's stripped, an admin types **`reset()`** in chat to generate a fresh world. Restocking or world growth can be revisited later.
 
