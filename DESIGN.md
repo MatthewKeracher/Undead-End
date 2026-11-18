@@ -32,7 +32,7 @@ Living rules document for the digital version. Updated as rules are clarified.
 | Scout | 1 AP | Reveal **every** unexplored hex adjacent to your location (up to 6). Not allowed if all are already explored. |
 | Move | free / 1 AP | Move to an adjacent hex — explored or not: an **unexplored hex is revealed as you step in** (driving and fleeing too). If it turns out to be impassable (a Mountain), you're blocked and nothing is spent; when fleeing, pick another way (none left = caught). **The first move each round is free** (no AP, doesn't use your action); a second move costs 1 AP and **is** your action. |
 | Scavenge | 1 AP | Roll 1d6 on the tile's 6-entry table (see Tiles). |
-| Fortify | 1 AP | Roll 1d6 and add it to SAFETY at current location (max 6). |
+| Fortify | 1 AP | Roll 1d6 and add it to SAFETY at current location (up to that place's max — see Tiles). |
 
 ## Resources
 - Each player keeps their **own** resources.
@@ -53,8 +53,9 @@ Checked at the **start** of the round, before anyone acts (on night rounds, the 
 
 ### Failing a check
 - **Max AP:** each player has a max AP (starts at **12**, the most it can be).
-  - Every **food or water check paid → max AP +1** (up to 12).
-  - Every **food or water check missed → max AP −2** (current AP drops to fit). **Max AP 0 → death.**
+  - **Water** check paid → **max AP +2**; missed → **max AP −2**.
+  - **Food** check paid → **max AP +1**; missed → **max AP −1**.
+  - Max AP can't go above 12; when it drops, current AP drops to fit. **Max AP 0 → death.** (`CONFIG.trackGain` / `trackLoss`)
   - Sleep can't take you above your max. Players never lose turns.
 - **Having to give Hope without having it → the player dies** (the night Hope check when you have 0 Hope). Reaching 0 Hope by itself is survivable.
 
@@ -65,7 +66,8 @@ Checked at the **start** of the round, before anyone acts (on night rounds, the 
 
 ## Night
 - Rounds **1 and 6** are night.
-- At the **start of round 6** (before anyone acts), each occupied tile is attacked by **1d6 zombies** (same contest as scavenging, below). Round 1 is still night (and has the Hope check) but **no attack** (`CONFIG.attackRounds`).
+- At the **start of round 6** (before anyone acts), each occupied tile is attacked by **1d6 zombies** (same contest as scavenging, below). Round 1 is still night (and has the Hope check) but **no attack** (`CONFIG.attackRounds`)…
+- …**unless it's a bad night.** As round 2 starts each day, a **secret 1d6** is rolled: on a **1–2** the clock shows a 🟡 on round 1 and **round 1 brings a second attack**, straight after round 6's (`CONFIG.badNightOn`). The roll itself is never shown — just the warning.
 - Fighting or fleeing zombies **never uses up your action** for the round — whether they came from a night attack or another player's scavenge. You deal with them, then still act.
 
 ## Zombies
@@ -115,7 +117,7 @@ Repeat until the tile is clear, you escape, or you die.
 
 ## Tiles
 - A tile can be any real-world location (e.g. hospital, petrol station, farm).
-- **Depletion:** when a scavenge roll finds a result (resource or item), that row is **crossed off for good** — unless it's marked **Endless** (∞) in `locations.js`, e.g. the Lake's water. If the d6 lands on a crossed-off row, it's **rolled again automatically** until it lands on something (still a plain d6 each time). A tile with every row crossed off — cleared Zombies included — can't be scavenged ("Picked clean").
+- **Depletion:** when a scavenge roll finds a result (resource or item), that row is **crossed off for good** — unless it's marked **Endless** (∞) in `locations.js`, e.g. the Lake's water. If the d6 lands on a crossed-off row, it's **rolled again automatically** (still a plain d6 each time) — **1 roll plus up to 2 rerolls**; if they all land on crossed-off rows, **you find nothing** and the AP is spent (`CONFIG.maxRerolls`). A tile with every row crossed off — cleared Zombies included — can't be scavenged ("Picked clean").
 - **Stashes:** dropped items — and everything a survivor carried when they die — become **"NAME's stash"** on a row of that tile's table. A stash covers a looted row if there is one, otherwise a random row (2–6); up to 5 per tile (your own stash on a tile grows; with all 5 rows taken, things join the oldest). Roll its number to claim it: all its resources, plus its items up to your backpack space (choose which; the rest stay). Once emptied, the row underneath shows again.
   - A tile with no table (Wasteland) only has empty rows — so it can be scavenged just for a stash left there *(placeholder)*.
 - Each tile has a **d6 scavenge table**:
@@ -124,7 +126,7 @@ Repeat until the tile is clear, you escape, or you die.
   - Every resource result gives **2d6** of that resource (`CONFIG.lootDice`). Tables use plain rows ("Food", "Water"); "Double"/"Triple" still work (× 2 / × 3) but are no longer used. Item condition and zombie counts stay **1d6**. A **mix** (e.g. "Food + Water", "Truck + Fuel") gives each part, each rolled separately. *(For now, Zombies only ever appear on a 1 — no tile has extra Zombies results.)*
 - Tiles differ in what their 5 results give.
 - **Wasteland** tiles have **no scavenge table** (Scavenge is blocked) and **cannot be fortified** (Safety stays 0, so night attacks hit in full). Zombies only reach them at night. They're the most common tile *(placeholder: 3 in the scouting pool)*.
-- **Outdoor** places — **Forest, Lake, Campsite** — **can't be fortified** either (Safety stays 0): night attacks hit in full, and cleared zombies drift back as soon as you leave.
+- **Max Safety differs by place** (`safety:` in `locations.js`): **0 outdoors** — Forest, Lake, Campsite, Wasteland, Mountain can't be fortified (night attacks hit in full; cleared zombies drift back as soon as you leave) — and **3–8 indoors**: Pharmacy & Petrol Station 3, YOLO Foods 4, Farmhouse, Pub & Hardware Store 5, Hospital, School & Gun Shop 6, Church & Army Checkpoint 7, Police Station 8. At 7–8 a single night attack (max 6) can't break through.
 - **Mountain** tiles are **impassable wasteland**: nobody can move, flee or drive onto or through them. Scouting still reveals them, so they shape the map *(placeholder: 2 in the scouting pool)*.
 
 ## Open questions
@@ -136,7 +138,7 @@ Repeat until the tile is clear, you escape, or you die.
 ## Prototype placeholders (in `data.js` and `locations.js`, change freely)
 - Game starts Day 1, Round 2 (first morning).
 - Each player starts with **full AP (12)**, **6** each of Food, Water and Hope, 0 Fuel and 0 Ammo (`CONFIG.startRes`), and an **Axe at condition 3** (`CONFIG.startItems`).
-- A tile holds at most **6 Safety**. Safety belongs to the tile and is shared by everyone on it; it does not decay.
+- A tile holds as much Safety as its place allows (default **5**, `CONFIG.maxSafety`) — and at most **6 zombies** (`CONFIG.maxZombies`). Safety belongs to the tile and is shared by everyone on it; it does not decay.
 - Scouting reveals a random tile from the tile list for each unexplored neighbour; the scout stays put.
 - Sharing resources with a player on the same tile is free (doesn't use the round).
 - Player health / death

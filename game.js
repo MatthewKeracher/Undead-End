@@ -4,7 +4,7 @@
 // =====================================================================
 
 const E = Engine;
-const { ICON, RES_LABEL, key, neighbors, isNight, isAttack, cellText, upkeepText, passable, canEnter, canScavengeHere, canFortifyHere,
+const { ICON, RES_LABEL, key, neighbors, isNight, cellText, upkeepText, passable, canEnter, canScavengeHere, canFortifyHere,
   weaponOf, canShoot, canMelee, canFight, vehicleFuel, vehicleLeft } = E;
 const HEX = 120;
 
@@ -48,6 +48,7 @@ const PENDING_MODE = { threat: 'threat', fleeTo: 'flee', drive: 'drive' };
 function newGame(names = ['Survivor']) {
   G = E.createGame({ names, checksOff });
   $('#popup').hidden = true; busy = false;
+  if (paused) togglePause();
   logSeen = 0; mode = null; modalKey = null; selected = null; justRevealed = []; camInit = false; logShown = Infinity; // forces log reset on next render
   prevStats = {};
   render();
@@ -100,10 +101,11 @@ async function show(ev) {
 
 // A new round: a band sweeps across the middle of the board — "Day X · Round Y", with what the round brings.
 async function roundBannerShow({ day, round }) {
-  const el = $('#roundbanner'), night = isNight(round), attack = isAttack(round), check = G.checksOff ? '' : upkeepText(round);
+  const el = $('#roundbanner'), night = isNight(round), attack = E.attackDue(G, round), check = G.checksOff ? '' : upkeepText(round);
+  const omen = round === 2 && G.badNight ? ' · <b class="omen">🌘 bad night coming</b>' : '';
   el.className = night ? 'night' : 'day';
   el.innerHTML = `<div class="rb-title">Day ${day} · Round ${round}</div>
-    <div class="rb-sub">${night ? '🌙 Night' : '☀️ Day'}${check ? ` · check ${check}` : ''}${attack ? ' · night attack' : ''}</div>`;
+    <div class="rb-sub">${night ? '🌙 Night' : '☀️ Day'}${check ? ` · check ${check}` : ''}${attack ? ' · night attack' : ''}${omen}</div>`;
   el.hidden = false;
   if (night) tone(110, 0.9, 'sine', 0.1, -30); else [392, 523].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.06), i * 120));
   await new Promise((res) => { const tm = setTimeout(res, skipAnim ? 0 : 1700); dismissPopup = () => { clearTimeout(tm); res(); }; });
@@ -122,11 +124,11 @@ async function ask() {
   if (d.kind === 'stash') return send({ type: 'decide', choice: await stashPrompt(d) });
 }
 
-// ---------------------------------------------------------------- round timer (optional in single player)
+// ---------------------------------------------------------------- round timer (optional in single player: cheat timer(on))
 // CONFIG.roundSeconds to act each round, or you sleep — as online. Paused while animations play.
 // Acting ends the round straight away (you're the only survivor), so the clock only bites if you hesitate.
-let timerOn = false;
-try { timerOn = localStorage.getItem('roundTimer') === '1'; } catch { /* storage unavailable */ }
+let timerOn = true;   // on by default; timer(off) turns it off (remembered)
+try { timerOn = localStorage.getItem('roundTimer') !== '0'; } catch { /* storage unavailable */ }
 const timer = { game: null, day: 0, round: 0, left: 0, fired: false };
 const fullTime = () => CONFIG.roundSeconds * 1000;
 function tickTimer(dt) {
@@ -134,7 +136,7 @@ function tickTimer(dt) {
   if (timer.game !== G || timer.day !== G.day || timer.round !== G.round) {   // new game or new round: full time again
     Object.assign(timer, { game: G, day: G.day, round: G.round, left: fullTime(), fired: false });
   }
-  if (timerOn && !busy && !G.over && !timer.fired) {
+  if (timerOn && !busy && !paused && !G.over && !timer.fired) {
     const before = Math.ceil(timer.left / 1000);
     timer.left = Math.max(0, timer.left - dt);
     const s = Math.ceil(timer.left / 1000);
@@ -156,15 +158,23 @@ function renderTimer() {
   const el = $('#timer');
   if (!timerOn || !G || G.over) { el.innerHTML = ''; el.className = ''; return; }
   const s = Math.ceil(timer.left / 1000);
-  el.className = `${s <= 10 ? 'low' : ''} ${busy ? 'paused' : ''}`;
+  el.className = `${s <= 10 ? 'low' : ''} ${busy || paused ? 'paused' : ''}`;
   el.innerHTML = `⏱️ <b>${s}s</b><span class="bar"><i style="width:${(100 * timer.left / fullTime()).toFixed(1)}%"></i></span>`;
 }
+// Pause (single player only — online the clock is shared): stops the round timer and covers the board.
+let paused = false;
+function togglePause() {
+  if (!G || G.over) return;
+  paused = !paused;
+  $('#pauseveil').hidden = !paused;
+  tone(paused ? 330 : 494, 0.12, 'triangle', 0.06);
+  renderTimer();
+}
+
 function setTimer(on) {
   timerOn = on;
   try { localStorage.setItem('roundTimer', on ? '1' : '0'); } catch { /* storage unavailable */ }
   Object.assign(timer, { left: fullTime(), fired: false });   // a fresh 30 s when switched on
-  $('#timerbtn').classList.toggle('on', on);
-  $('#timerbtn').innerHTML = `⏱️<span class="lbl"> Timer ${on ? 'on' : 'off'}</span>`;
   renderTimer();
 }
 
@@ -417,6 +427,7 @@ function act(name) {
   if (mode === 'threat') { if (['shoot', 'melee', 'flee'].includes(name)) send({ type: 'decide', choice: name }); return; }
   if (p.pending) return;
   if (name === 'move') { mode = mode === name ? null : name; return render(); }
+  if (name === 'pause') return togglePause();
   if (ITEMS[name]?.vehicle) return send({ type: 'drive', vehicle: name });
   send({ type: name });
 }
@@ -552,9 +563,9 @@ async function scavengeShow({ name, rows: table, tries, r, hit, amt, amts, dice,
   // a crossed-off row: shake it and roll again, until the die lands on something
   for (const [i, v] of tries.entries()) {
     await rollDie($('#pd1'), v, i ? 700 : 1100, mark);
-    if (v === r) break;
+    if (i === tries.length - 1) break;
     rows[v - 1].classList.add('nope');
-    $('#pres').innerHTML = `<small class="muted">${v} is already looted — rolling again…</small>`;
+    $('#pres').innerHTML = `<small class="muted">${v} is already looted — rolling again (${i + 1}/${CONFIG.maxRerolls})…</small>`;
     tone(300, 0.15, 'triangle', 0.06, -120);
     await wait(500);
     rows[v - 1].classList.remove('nope');
@@ -564,7 +575,12 @@ async function scavengeShow({ name, rows: table, tries, r, hit, amt, amts, dice,
   rows[r - 1].classList.add('picked');
   await wait(350);
 
-  if (hit.kind === 'stash') {
+  if (hit.kind === 'looted') {   // out of rerolls
+    rows[r - 1].classList.remove('picked');
+    rows[r - 1].classList.add('nope');
+    $('#pres').innerHTML = `<div class="big bad">You found nothing</div><small class="muted">Every roll landed on a looted row.</small>`;
+    tone(300, 0.25, 'triangle', 0.07, -120); setTimeout(() => tone(200, 0.35, 'triangle', 0.07, -80), 160);
+  } else if (hit.kind === 'stash') {
     const s = hit.stash;
     $('#pres').innerHTML = `<div class="big good jackpot">🎒 ${esc(s.owner)}'s stash</div><div class="stashgot">${E.stashText(s) || 'empty'}</div>`;
     pop.classList.add('jackpot');
@@ -614,7 +630,7 @@ async function popupHold(ms = 3000) {
 // Animate zombies contesting Safety in the popup: yellow pips burst, then black ones fill in.
 async function contestAnim(c) {
   const el = $('#pres');
-  const max = CONFIG.maxSafety;
+  const max = c.slots ?? CONFIG.maxZombies;   // circles for Safety and zombies alike
   el.innerHTML = `<div class="cpips">${[...Array(max)].map((_, i) =>
     `<i class="${i < c.before.safety ? 'on' : i < c.before.safety + c.before.zombies ? 'zed' : ''}"></i>`).join('')}</div><div id="ctext"></div>`;
   const pips = [...el.querySelectorAll('.cpips i')];
@@ -637,8 +653,8 @@ async function contestAnim(c) {
   if (c.left) { $('#popup').classList.add('zombie'); sfx.zombie(); } else sfx.win(false);
 }
 
-async function fortifyShow({ name, r, before, after }) {
-  const pop = $('#popup'), max = CONFIG.maxSafety;
+async function fortifyShow({ name, r, before, after, max }) {
+  const pop = $('#popup');
   skipAnim = false;
   pop.className = '';
   pop.innerHTML = `<div class="pcard">
@@ -681,7 +697,7 @@ async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
   noise(0.25, 0.3, 700); tone(90, 0.6, 'square', 0.12, -40);
   await wait(500);
   $('#pres').innerHTML = newMax > 0
-    ? `<div class="big bad">Max AP ${oldMax} → ${newMax}</div><small class="muted">Each ${res} you have at a check raises it by ${CONFIG.trackGain}; each one missed costs ${CONFIG.trackLoss}.</small>`
+    ? `<div class="big bad">Max AP ${oldMax} → ${newMax}</div><small class="muted">Each ${res} check you pay raises it by ${CONFIG.trackGain[res]}; each one missed costs ${CONFIG.trackLoss[res]}.</small>`
     : `<div class="big bad">Max AP 0</div>`;
   await popupHold(newMax > 0 ? 2600 : 1500);
 }
@@ -756,7 +772,7 @@ function renderClock() {
     const c = wedgeCenterDeg(r) * Math.PI / 180, a0 = c - Math.PI / 6, a1 = c + Math.PI / 6;
     const now = r === G.round;
     const off = now ? 5 : 0;
-    const icons = Object.keys(CONFIG.upkeep[r] || {}).map((res) => ICON[res]).join('') + (isAttack(r) ? '🟡' : '');   // the night attack tests your Safety
+    const icons = Object.keys(CONFIG.upkeep[r] || {}).map((res) => ICON[res]).join('') + (E.attackDue(G, r) ? '🟡' : '');   // a night attack tests your Safety (round 1 only on a bad night)
     const lx = 57 * Math.cos(c), ly = 57 * Math.sin(c);
     s += `<g class="wedge ${isNight(r) ? 'night' : 'day'} ${now ? 'now' : ''}" transform="translate(${(off * Math.cos(c)).toFixed(2)} ${(off * Math.sin(c)).toFixed(2)})">
       <path d="${wedgePath(a0 + 0.015, a1 - 0.015, CLOCK_R0 + 2, CLOCK_R)}"/>
@@ -798,13 +814,14 @@ function tableSvg(x, y, t) {
   return s;
 }
 
-// Safety pips along the bottom of the hex: filled = current Safety, hollow = room to fortify.
-function safetySvg(x, y, n, z = 0) {
-  const max = CONFIG.maxSafety, gap = 17;
+// Safety pips along the bottom of the hex: filled = current Safety, hollow = room to fortify, black = zombies.
+// There's a circle for every zombie a tile can hold; the last (beyond max Safety) only ever holds zombies.
+function safetySvg(x, y, t) {
+  const top = E.maxSafetyOf(t), max = Math.max(CONFIG.maxZombies, top), gap = max > 6 ? 15 : 17, n = t.safety, z = t.zombies;
   let s = '';
   for (let i = 0; i < max; i++) {
     const cx = x + (i - (max - 1) / 2) * gap;
-    s += `<circle cx="${cx}" cy="${y}" r="6.5" class="pip ${i < n ? 'on' : i < n + z ? 'zed' : ''}"/>`;
+    s += `<circle cx="${cx}" cy="${y}" r="${max > 6 ? 6 : 6.5}" class="pip ${i < n ? 'on' : i < n + z ? 'zed' : ''} ${i >= top ? 'zonly' : ''}"/>`;
   }
   return s;
 }
@@ -883,7 +900,7 @@ function renderMap() {
       <polygon points="${hexPoints(x, y, HEX - (isHere ? 4 : 2))}" ${isHere ? `style="stroke:${p.color}"` : ''}/>
       <text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>
       ${tableSvg(x, y + 4, t)}
-      ${passable(t) ? safetySvg(x, y + HEX * 0.64, t.safety, t.zombies) : ''}
+      ${passable(t) ? safetySvg(x, y + HEX * 0.64, t) : ''}
       ${vehicleSvg(x + HEX * 0.69, y + 4, [...(t.vehicles || []), ...(isHere && driving() ? [driving().v] : [])])}
       ${target ? pickBadge(x, y - HEX * 0.8, pickNumber(p, q, r)) : ''}</g>`;
     if (isHere) hereSvg = g; else svg += g;   // draw current tile last so its border sits on top
@@ -1015,8 +1032,8 @@ function renderPanel() {
   const apWarn = p.ap < 2 ? ` Fleeing costs 1 🎲 — keep some AP!` : '';
   const nextRound = G.round % 6 + 1;
   const nextUp = G.checksOff ? '' : upkeepText(nextRound);
-  if (nextUp && !isAttack(nextRound)) warn = `<div class="note">Next round starts with a check: ${nextUp}</div>`;
-  if (isAttack(nextRound)) {
+  if (nextUp && !E.attackDue(G, nextRound)) warn = `<div class="note">Next round starts with a check: ${nextUp}</div>`;
+  if (E.attackDue(G, nextRound)) {
     warn = `<div class="note ${isNight(G.round) ? 'bad' : ''}">🌙 Next round starts with ${nextUp ? `a ${nextUp} check and ` : ''}a night attack — 1d6 🧟 vs your 🟡 ${t.safety}.${apWarn}</div>`;
   }
 
@@ -1024,6 +1041,7 @@ function renderPanel() {
     ${warn}
     ${noAP ? `<div class="note bad">Out of AP — you must sleep.</div>` : ''}
     <div class="ribbon">
+      ${btn('pause', '⏸ Pause', 'Stop the clock', false)}
       ${btn('sleep', '😴 Sleep', 'Gain 2d6 AP', false)}
       ${btn('scout', '🔭 Scout', emptyAdj(p).length ? `1 AP · reveal ${emptyAdj(p).length} hex${emptyAdj(p).length === 1 ? '' : 'es'}` : 'All explored', noAP || !emptyAdj(p).length)}
       ${btn('move', '🚶 Move', p.freeMoved ? '1 AP · uses your action' : 'Free move', (p.freeMoved && noAP) || !moveAdj(p).length)}
@@ -1034,7 +1052,7 @@ function renderPanel() {
         const fuel = vehicleFuel(v) === 'fuel';
         return btn(id, `${ITEMS[id].icon} ${ITEMS[id].verb}`, !driveAdj(p).length ? 'Nowhere to go' : vehicleLeft(p, v) < 1 ? (fuel ? 'No fuel' : 'No AP') : `1 ${fuel ? ICON.fuel : '🎲'}/tile · cond ${v.cond}`, !canDrive(p, id));
       }).join('')}
-      ${btn('fortify', '🔨 Fortify', !canFortifyHere(t) ? "Can't be fortified" : t.zombies ? 'Blocked by zombies' : t.safety >= CONFIG.maxSafety ? `Safety full (${CONFIG.maxSafety})` : '1 AP · +1d6 🟡', noAP || !canFortifyHere(t) || t.zombies > 0 || t.safety >= CONFIG.maxSafety)}
+      ${btn('fortify', '🔨 Fortify', !canFortifyHere(t) ? "Can't be fortified" : t.zombies ? 'Blocked by zombies' : t.safety >= E.maxSafetyOf(t) ? `Safety full (${E.maxSafetyOf(t)})` : `1 AP · +1d6 🟡 (max ${E.maxSafetyOf(t)})`, noAP || !canFortifyHere(t) || t.zombies > 0 || t.safety >= E.maxSafetyOf(t))}
     </div>`;
 
   renderLog();
@@ -1068,7 +1086,7 @@ $('#actions').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   if (b.dataset.act) act(b.dataset.act);
 });
-const HOTKEYS = { r: 'sleep', s: 'scout', w: 'move', a: 'scavenge', f: 'fortify', e: 'Truck', b: 'Bike' };
+const HOTKEYS = { r: 'sleep', s: 'scout', w: 'move', a: 'scavenge', f: 'fortify', e: 'Truck', b: 'Bike', p: 'pause' };
 const THREAT_KEYS = { q: 'shoot', w: 'melee', e: 'flee' };
 // Backspace cancels / goes back (Esc still works too, but full-screen Chrome can take it for itself).
 const isBack = (e) => e.key === 'Backspace' || e.key === 'Escape';
@@ -1088,6 +1106,8 @@ const CHEATS = {
   'ap(n) maxap(n) food(n) water(n) hope(n) fuel(n) ammo(n)': 'set a value',
   'round(n) day(n)': 'jump the clock (no checks run)',
   'checks() checks(on|off)': 'toggle the food / water / hope checks',
+  'badnight() badnight(on|off)': 'toggle a bad night (round 1 attacks too)',
+  'timer() timer(on|off)': 'the 30 s round timer: act in time or you sleep (remembered)',
   'reset()': 'start a fresh world (admin-only once online)',
 };
 async function runCheat(cmd, args) {
@@ -1096,6 +1116,11 @@ async function runCheat(cmd, args) {
   if (busy || modalKey) return say('Busy — finish the current popup first.');
   if (cmd === 'help') { G.log.push({ msg: '🛠️ Cheats: ' + Object.entries(CHEATS).map(([k, v]) => `${k} — ${v}`).join(' · '), cls: 'cheat' }); return setLog(true); }
   if (cmd === 'reset') { newGame(['Survivor']); return say('World reset'); }
+  if (cmd === 'timer') {
+    const v = String(n[0] ?? '').toLowerCase();
+    setTimer(v === 'off' ? false : v === 'on' ? true : !timerOn);
+    return say(`Round timer ${timerOn ? `ON — act within ${CONFIG.roundSeconds} s or you sleep` : 'OFF'}`);
+  }
   const res = E.cheat(G, cur().id, cmd, n);
   checksOff = G.checksOff;
   say(res.say);
@@ -1133,6 +1158,8 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.target.matches?.('input, textarea')) { if (e.key === 'Escape') e.target.blur(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key.toLowerCase() === 'p' && G && !G.over) { e.preventDefault(); togglePause(); return; }   // pause / resume, any time
+  if (paused) return;   // nothing else while paused
   if (modalKey) { modalKey(e); return; }
   if (busy) { e.preventDefault(); popupInput(); return; }   // skip an animation — even the one where you die
   if (G.over) { if (e.key === 'Enter') { e.preventDefault(); newGame(['Survivor']); } return; }
@@ -1174,6 +1201,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 $('#newgame').onclick = () => { if (!busy) newGame(['Survivor']); };
+$('#pauseveil').addEventListener('click', togglePause);
 $('#popup').addEventListener('click', () => { if (!modalKey) popupInput(); });
 $('#pack').addEventListener('click', (e) => {
   if (e.target.closest('[data-packtoggle]')) { $('#pack').classList.toggle('open'); return; }
@@ -1209,7 +1237,6 @@ playersBox.addEventListener('toggle', () => { try { localStorage.setItem('player
 
 function toggleMute() { muted = !muted; $('#mute').textContent = muted ? '🔇' : '🔊'; }
 $('#mute').onclick = toggleMute;
-$('#timerbtn').onclick = () => setTimer(!timerOn);
 setTimer(timerOn);
 let lastTick = performance.now();
 setInterval(() => { const now = performance.now(); tickTimer(now - lastTick); lastTick = now; }, 100);

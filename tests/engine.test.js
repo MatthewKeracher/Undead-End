@@ -318,6 +318,7 @@ test('night attack: Safety holds, or zombies break through', () => {
   assert.equal(S.round, 6);
   assert.equal(E.tileOf(S, p).safety, 3);
   assert.equal(p.pending, null);
+  S.badNight = false;                   // (a good night)
   S.forced = [1, 1];                    // round 1 is night, but there's no attack
   act(S, { type: 'sleep' });
   assert.equal(S.round, 1);
@@ -328,6 +329,77 @@ test('night attack: Safety holds, or zombies break through', () => {
   act(S, { type: 'sleep' });
   assert.equal(E.tileOf(S, p).zombies, 4);
   assert.equal(p.pending.kind, 'threat');
+});
+
+test('a bad night: round 1 attacks too (after round 6), so two attacks back to back', () => {
+  const { S, p } = game();
+  tile(S, 1, 0, 'Forest');
+  E.tileOf(S, p).safety = 6;
+  S.badNight = true;
+  assert.equal(E.attackDue(S, 1), true);
+  S.round = 5;
+  S.forced = [1, 1, 2];                 // round 6: 2 zombies, absorbed
+  act(S, { type: 'sleep' });
+  S.forced = [1, 1, 3];                 // round 1 on a bad night: 3 more
+  act(S, { type: 'sleep' });
+  assert.equal(E.tileOf(S, p).safety, 1);
+  assert.equal(S.log.filter((l) => l.msg.includes('in the night')).length, 2);
+});
+
+test('the bad-night roll happens secretly as round 2 starts: roughly 1 in 3', () => {
+  let bad = 0;
+  for (let seed = 1; seed <= 600; seed++) {
+    const S = E.createGame({ seed, checksOff: true });
+    E.start(S);                         // the game starts at round 2
+    if (S.badNight) bad++;
+    assert.ok(!S.log.some((l) => l.dice && l.msg.includes('bad night')));   // no dice shown for it
+  }
+  assert.ok(bad > 150 && bad < 250, `${bad} bad nights in 600`);
+});
+
+test('max AP: water ±2, food ±1', () => {
+  const { S, p } = game({ checksOff: false });
+  p.maxAP = 6; p.ap = 6; p.res.water = 0; p.res.food = 5;
+  S.round = 3;                          // round 4: water check — missed
+  S.forced = [1, 1]; act(S, { type: 'sleep' });
+  assert.equal(p.maxAP, 4);
+  p.res.water = 5;
+  S.round = 1;                          // round 2: water check — paid
+  S.badNight = false;
+  S.forced = [1, 1]; act(S, { type: 'sleep' });
+  assert.equal(p.maxAP, 6);
+  S.forced = [1, 1]; act(S, { type: 'sleep' });   // round 3: food check — paid
+  assert.equal(p.maxAP, 7);
+  p.res.food = 0;
+  S.round = 4;                          // round 5: food check — missed
+  S.forced = [1, 1]; act(S, { type: 'sleep' });
+  assert.equal(p.maxAP, 6);
+});
+
+test('Safety tops out at 5; a tile still holds up to 6 zombies', () => {
+  const { S, p } = game();
+  const t = E.tileOf(S, p);
+  t.safety = 3;
+  S.forced = [6];
+  act(S, { type: 'fortify' });
+  assert.equal(t.safety, 5);
+  assert.match(act(S, { type: 'fortify' }).error, /full \(5\)/);
+  E.cheat(S, 0, 'zombies', [9]);
+  assert.equal(t.zombies, 6);
+});
+
+test('each place has its own max Safety: outdoors 0, up to 8 for a stronghold', () => {
+  const { S, p } = game();
+  assert.equal(E.maxSafetyOf(tile(S, 1, 0, 'Lake')), 0);
+  assert.equal(E.canFortifyHere(S.tiles['1,0']), false);
+  const police = tile(S, 0, 1, 'Police Station');
+  assert.equal(E.maxSafetyOf(police), 8);
+  act(S, { type: 'move', q: 0, r: 1 });
+  S.forced = [6]; act(S, { type: 'fortify' });
+  p.acted = false;
+  S.forced = [6]; act(S, { type: 'fortify' });
+  assert.equal(police.safety, 8);
+  assert.equal(E.maxSafetyOf(tile(S, 2, 0, 'Pharmacy')), 3);
 });
 
 test('missing water costs max AP; max AP 0 is death', () => {
@@ -363,6 +435,21 @@ test('found results are crossed off; landing on one rolls again until it finds s
   assert.deepEqual([...ev.tries], [2, 2, 3]);
   assert.equal(p.res.food, food + 8);
   assert.ok(S.log.some((l) => l.msg.includes('2 (looted), 2 (looted), then 3')));
+});
+
+test('1 roll + 2 rerolls: then you find nothing (AP still spent)', () => {
+  const { S, p } = game();
+  const t = E.tileOf(S, p);
+  t.looted = [2, 3, 4, 5];              // only Zombies and Truck + Fuel left
+  const ap = p.ap, food = p.res.food;
+  S.forced = [2, 3, 4];                 // three tries, all looted
+  const { events } = act(S, { type: 'scavenge' });
+  const ev = events.find((e) => e.type === 'scavenge');
+  assert.deepEqual([...ev.tries], [2, 3, 4]);
+  assert.equal(ev.hit.kind, 'looted');
+  assert.equal(p.ap, ap - 1);
+  assert.equal(p.res.food, food);
+  assert.ok(S.log.some((l) => l.msg.includes('finds nothing')));
 });
 
 test('a tile with every row crossed off (zombies cleared too) can\'t be scavenged', () => {

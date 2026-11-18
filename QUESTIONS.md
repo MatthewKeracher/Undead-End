@@ -87,7 +87,7 @@ Current behaviour is noted in *italics* where the game already does something as
 - [x] **30 s run out during a Fight/Flee** (or other 10 s decision)?
   > Answer: The round waits for open decisions to finish before the next round starts.
 - [x] **Single player: use the 30 s timer?**
-  > Answer: Optional setting, off by default.
+  > Answer: Yes, on by default; the cheat timer(off) turns it off.
 - [x] **Night attack Fight/Flee** (start of round) — does it also use your action for that round, like being caught by another player's zombies?
   > Answer: No — zombie attacks never use up your round.
 

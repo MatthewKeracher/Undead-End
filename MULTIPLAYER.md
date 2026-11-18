@@ -37,7 +37,7 @@ Taking turns one player at a time doesn't scale (100 players × 30 s = 50 min pe
 - **Zombie fights don't use your action:** if a night attack, or another player's scavenge, brings zombies onto your tile, you face Fight/Flee — then still take your action for the round (if the 30 s aren't up).
 - **Pending decisions** (Fight/Flee, armor reroll, backpack full, A/D food/water loss) get their **own 10 s timer**. If time runs out on **Fight/Flee**: **Fight if you have a usable weapon, otherwise Flee**.
 - **Round end waits for open decisions:** if the 30 s run out mid-fight, the next round (and its checks / night attack) starts once every open decision has finished (≤ 10 s more).
-- **Single player:** the 30 s timer is an **optional setting** (off by default — then the round ends when you act, as now).
+- **Single player:** the 30 s timer is **on by default**; the cheat `timer(off)` turns it off (then the round only ends when you act).
 
 ## 3. World & fog of war
 
@@ -180,7 +180,7 @@ The same engine then runs in the browser for single player and on the server for
 ## 9. Roadmap
 
 1. **Engine refactor** (pure rules + events + per-player view) — single player keeps working. *(Done: `engine.js` + `tests/`. Per-player view waits for fog of war in step 3.)*
-2. **Real-time rounds + 30 s timer** in single player (proves the round flow). *(Done: optional ⏱️ timer, off by default.)*
+2. **Real-time rounds + 30 s timer** in single player (proves the round flow). *(Done: on by default; `timer(off)` to turn it off.)*
 3. **Server + world + fog of war**, text chat only; small playtests.
 4. **Persistence** (reconnect grace, death → respawn), **depletion & stashes** in loot tables, **leaderboard**.
 5. **Proximity voice** (LiveKit, tile rooms).

@@ -20,6 +20,8 @@ const Engine = (() => {
   const isAdjacent = (p, q, r) => neighbors(p.q, p.r).some(([a, b]) => a === q && b === r);
   const isNight = (r) => CONFIG.nightRounds.includes(r);
   const isAttack = (r) => CONFIG.attackRounds.includes(r);   // a night attack starts this round
+  // …plus round 1 when a bad night is coming (see startOfRound)
+  const attackDue = (S, r) => isAttack(r) || (r === 1 && S.badNight);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
   // ---------------------------------------------------------------- dice
@@ -56,7 +58,8 @@ const Engine = (() => {
   // Tiles with zombies can only be entered by a player carrying a weapon.
   const canEnter = (p, t) => passable(t) && (!t.zombies || !!weaponOf(p));
   const moveAdj = (S, p) => neighbors(p.q, p.r).filter(([q, r]) => { const t = S.tiles[key(q, r)]; return !t || canEnter(p, t); });
-  const canFortifyHere = (t) => t.def.fortify;
+  const maxSafetyOf = (t) => t.def.safety ?? CONFIG.maxSafety;   // each location has its own (0 = outdoors)
+  const canFortifyHere = (t) => maxSafetyOf(t) > 0;
 
   // ---------------------------------------------------------------- loot tables
   // Found results are crossed off for good (t.looted: row numbers). Zombies are crossed off too once
@@ -85,7 +88,7 @@ const Engine = (() => {
   const canMelee = (p) => !!weaponOf(p, 'ap') && p.ap >= 1;
   const canFight = (p) => canShoot(p) || canMelee(p);
   // After a failed flee (and no armor reroll) you're caught: no more fleeing this encounter.
-  const canFlee = (S, p, t) => !p.caught && p.ap >= 1 && fleeAdj(S, p).length > 0 && t.zombies < 6;
+  const canFlee = (S, p, t) => !p.caught && p.ap >= 1 && fleeAdj(S, p).length > 0 && t.zombies < CONFIG.maxZombies;
 
   // Vehicles sit on tiles (not in the backpack). Truck: 1 fuel per tile. Bike: 1 AP per tile.
   const vehicleFuel = (v) => ITEMS[v.id].uses;                 // 'fuel' | 'ap'
@@ -138,7 +141,7 @@ const Engine = (() => {
   function createGame({ names = ['Survivor'], seed = (Math.random() * 2 ** 32) >>> 0, autoEnd = true, checksOff = false } = {}) {
     const S = {
       seed, rng: seed | 0, day: CONFIG.startDay, round: CONFIG.startRound, tiles: {}, players: [],
-      log: [], events: [], rolls: [], forced: [], autoEnd, timesUp: false, checksOff, over: null,
+      log: [], events: [], rolls: [], forced: [], autoEnd, timesUp: false, checksOff, badNight: false, over: null,
     };
     S.tiles[key(0, 0)] = newTile(START_TILE, CONFIG.startSafety);
     for (const id of CONFIG.testStartVehicles || []) S.tiles[key(0, 0)].vehicles.push({ id, cond: CONFIG.maxCondition });
@@ -204,8 +207,10 @@ const Engine = (() => {
   const timeUp = (S) => run(S, () => { S.timesUp = true; });
 
   // Everything that happens at the START of a round, before anyone acts:
-  // 1) this round's resource check, 2) the night attack (CONFIG.attackRounds).
-  // Food & water feed max AP: each check paid → +trackGain (max 12); each missed → −trackLoss. Max AP 0 = death.
+  // 1) this round's resource check, 2) the night attack (CONFIG.attackRounds, or round 1 on a bad night).
+  // As round 2 starts, a secret 1d6 decides whether the coming night is a bad one (CONFIG.badNightOn).
+  // Food & water feed max AP: each check paid → +trackGain[res] (max 12); each missed → −trackLoss[res]. Max AP 0 = death.
+  // (Water: ±2, food: ±1.)
   // A Hope check you can't pay is death.
   // Zombies drift back into a tile's table once it has no Safety and nobody is on it.
   function restockZombies(S) {
@@ -218,6 +223,10 @@ const Engine = (() => {
   function startOfRound(S) {
     const r = S.round;
     restockZombies(S);
+    if (r === 2) {   // secret: only the result shows (a 🟡 on round 1 of the clock)
+      S.badNight = d6(S) <= CONFIG.badNightOn;
+      if (S.badNight) log(S, '🌘 Something stirs… a bad night is coming: zombies after midnight too (round 1).', 'bad');
+    }
     if (S.checksOff && Object.keys(CONFIG.upkeep[r] || {}).length) log(S, `Round ${r} check skipped (cheat: checks off)`, 'cheat');
     const up = S.checksOff ? {} : CONFIG.upkeep[r] || {};
     if (Object.keys(up).length) log(S, `Round ${r} check — ${upkeepText(r)}`, 'phase');
@@ -230,13 +239,13 @@ const Engine = (() => {
           p.res[res] -= n;
           if (body && p.maxAP < CONFIG.maxAP) {
             const oldMax = p.maxAP;
-            p.maxAP = Math.min(CONFIG.maxAP, p.maxAP + CONFIG.trackGain);
+            p.maxAP = Math.min(CONFIG.maxAP, p.maxAP + CONFIG.trackGain[res]);
             log(S, `${p.name} uses ${n} ${ICON[res]} ${res} — max AP ${oldMax} → ${p.maxAP}.`, 'good');
           } else log(S, `${p.name} uses ${n} ${ICON[res]} ${res}.`);
         } else if (body) {
           const oldMax = p.maxAP, oldAp = p.ap;
           p.res[res] = 0;
-          p.maxAP = Math.max(0, p.maxAP - CONFIG.trackLoss);
+          p.maxAP = Math.max(0, p.maxAP - CONFIG.trackLoss[res]);
           p.ap = Math.min(p.ap, p.maxAP);
           emit(S, { type: 'maxApLoss', player: p.id, res, oldMax, newMax: p.maxAP, oldAp, newAp: p.ap });
           log(S, `${p.name} has no ${res}! Max AP ${oldMax} → ${p.maxAP}.`, 'bad');
@@ -252,16 +261,17 @@ const Engine = (() => {
     }
     if (S.over) return;
     emit(S, { type: 'checks', stats: Object.fromEntries(S.players.map((p) => [p.id, statsOf(p)])) });
-    if (isAttack(r)) nightAttack(S);
+    if (attackDue(S, r)) nightAttack(S);
   }
 
   // ---------------------------------------------------------------- zombies
   // 1d6 zombies arrive: each one cancels (and uses up) a point of Safety; the rest
-  // fill the tile's circles as zombies, up to 6.
+  // fill the tile's circles as zombies, up to CONFIG.maxZombies (6).
   function zombieContest(t, n) {
     const absorbed = Math.min(t.safety, n), left = n - absorbed;
-    const zombies = Math.min(CONFIG.maxSafety, (t.zombies || 0) + left);
-    return { n, absorbed, left, before: { safety: t.safety, zombies: t.zombies || 0 }, after: { safety: t.safety - absorbed, zombies } };
+    const zombies = Math.min(CONFIG.maxZombies, (t.zombies || 0) + left);
+    const slots = Math.max(CONFIG.maxZombies, maxSafetyOf(t));   // circles to draw: Safety and zombies share them
+    return { n, absorbed, left, slots, before: { safety: t.safety, zombies: t.zombies || 0 }, after: { safety: t.safety - absorbed, zombies } };
   }
   function applyContest(t, c) { t.safety = c.after.safety; t.zombies = c.after.zombies; }
   function contestText(c) {
@@ -470,12 +480,13 @@ const Engine = (() => {
       if (p.ap < 1) return 'No AP.';
       if (!canFortifyHere(t)) return "This tile can't be fortified.";
       if (t.zombies) return 'Zombies here block fortifying.';
-      if (t.safety >= CONFIG.maxSafety) return `Safety is full (${CONFIG.maxSafety}).`;
+      const max = maxSafetyOf(t);
+      if (t.safety >= max) return `Safety is full (${max}).`;
       p.ap--;
       const r = roll(S), before = t.safety;
-      t.safety = Math.min(CONFIG.maxSafety, t.safety + r);
-      emit(S, { type: 'fortify', player: p.id, k: key(p.q, p.r), name: t.def.name, r, before, after: t.safety });
-      logRoll(S, `${p.name} fortifies the ${t.def.name} — rolls ${r}: 🟡 ${before} → ${t.safety}${before + r > CONFIG.maxSafety ? ` (max ${CONFIG.maxSafety})` : ''}.`, 'good');
+      t.safety = Math.min(max, t.safety + r);
+      emit(S, { type: 'fortify', player: p.id, k: key(p.q, p.r), name: t.def.name, r, before, after: t.safety, max });
+      logRoll(S, `${p.name} fortifies the ${t.def.name} — rolls ${r}: 🟡 ${before} → ${t.safety}${before + r > max ? ` (max ${max})` : ''}.`, 'good');
       p.acted = true;
     },
     scavenge(S, p) {
@@ -485,12 +496,12 @@ const Engine = (() => {
       if (t.zombies) return 'Zombies here block scavenging.';
       p.ap--;
       p.acted = true;
-      // roll 1d6 for the row; a crossed-off row is rolled again until the die lands on something
+      // roll 1d6 for the row; a crossed-off row is rolled again — up to CONFIG.maxRerolls times, then you find nothing
       const rows = tableView(t), tries = [];
-      do tries.push(roll(S, tries.length > 0)); while (rows[tries.at(-1) - 1].kind === 'looted');
+      do tries.push(roll(S, tries.length > 0)); while (rows[tries.at(-1) - 1].kind === 'looted' && tries.length <= CONFIG.maxRerolls);
       const r = tries.at(-1), hit = rows[r - 1], e = hit.e;
       // then dice for each part: a resource rolls CONFIG.lootDice d6; zombies and an item's condition roll 1d6
-      const parts = hit.kind === 'stash' ? [] : e.parts ?? [e];
+      const parts = hit.kind === 'stash' || hit.kind === 'looted' ? [] : e.parts ?? [e];
       const dice = parts.map((x) => Array.from({ length: x.res ? CONFIG.lootDice : 1 }, () => roll(S, true)));
       const amts = dice.map((d) => d.reduce((a, b) => a + b, 0)), amt = amts[0] ?? null;
       const c = hit.kind === 'zombies' ? zombieContest(t, amt) : null;
@@ -502,6 +513,8 @@ const Engine = (() => {
         applyContest(t, c);
         logRoll(S, `${at}: 🧟 ${plural(amt, 'zombie')}! ${contestText(c)}`, c.left ? 'bad' : 'good');
         if (t.zombies) p.queue.push({ type: 'threat' });
+      } else if (hit.kind === 'looted') {
+        logRoll(S, `${p.name} scavenges the ${t.def.name} — rolls ${tries.join(', ')}: all looted — finds nothing.`, 'bad');
       } else if (hit.kind === 'stash') {
         claimStash(S, p, t, hit.stash, at);
       } else {
@@ -714,10 +727,10 @@ const Engine = (() => {
         case 'flee': S.forced.push(n[0] ?? 6); say = `Next flee roll forced: ${n[0]}`; break;
         case 'night': S.forced = [n[0] ?? 6]; say = `Night attack: ${n[0]} zombies`; nightAttack(S); break;
         case 'zombies':
-          t.zombies = Math.max(0, Math.min(6, n[0] ?? 0)); say = `Zombies here: ${t.zombies}`;
+          t.zombies = Math.max(0, Math.min(CONFIG.maxZombies, n[0] ?? 0)); say = `Zombies here: ${t.zombies}`;
           if (t.zombies) p.queue.push({ type: 'threat' });
           break;
-        case 'safety': t.safety = Math.max(0, Math.min(CONFIG.maxSafety, n[0] ?? 0)); say = `Safety here: ${t.safety}`; break;
+        case 'safety': t.safety = Math.max(0, Math.min(maxSafetyOf(t), n[0] ?? 0)); say = `Safety here: ${t.safety}`; break;
         case 'item': {
           const item = Object.keys(ITEMS).find((k) => k.toLowerCase().replace(/\s/g, '') === String(n[0] ?? '').toLowerCase().replace(/\s/g, ''));
           if (!item) { say = `Unknown item. Items: ${Object.keys(ITEMS).join(', ')}`; break; }
@@ -733,6 +746,11 @@ const Engine = (() => {
           S.checksOff = v === 'off' ? true : v === 'on' ? false : !S.checksOff;
           say = `Resource checks ${S.checksOff ? 'OFF — no food, water or hope is taken' : 'ON'}`; break;
         }
+        case 'badnight': {
+          const v = String(n[0] ?? '').toLowerCase();
+          S.badNight = v === 'off' ? false : v === 'on' ? true : !S.badNight;
+          say = `Bad night ${S.badNight ? 'ON — round 1 attacks too' : 'OFF'}`; break;
+        }
         case 'round': S.round = Math.max(1, Math.min(6, n[0] ?? 1)); say = `Round ${S.round}`; break;
         case 'day': S.day = Math.max(1, n[0] ?? 1); say = `Day ${S.day}`; break;
         default: say = `Unknown cheat "${cmd}" — try help()`;
@@ -742,8 +760,8 @@ const Engine = (() => {
   }
 
   return {
-    ICON, RES_LABEL, key, neighbors, isNight, isAttack, cellText, upkeepText, roundBanner,
-    tileOf, emptyAdj, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, tableView, stashText,
+    ICON, RES_LABEL, key, neighbors, isNight, isAttack, attackDue, cellText, upkeepText, roundBanner,
+    tileOf, emptyAdj, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText,
     fleeAdj, canShoot, canMelee, canFight, canFlee, vehicleFuel, vehicleLeft, vehicleOf, canDrive,
     createGame, start, act, timeUp, cheat,
   };

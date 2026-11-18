@@ -25,8 +25,8 @@ Or open `index.html` in a browser — no build step or install needed.
 | Shift+Enter | Keep attacking until clear |
 | T | Use tool |
 | Tab | Open / close the log & note box |
+| P | Pause / resume (single player) |
 | M | Mute |
-| ⏱️ button | Round timer on/off: act within 30 s or you sleep (as online) |
 
 ## Files
 
@@ -40,4 +40,4 @@ Or open `index.html` in a browser — no build step or install needed.
 - `tests/` — rules tests: `node --test`
 - `style.css`, `index.html` — layout and styling
 
-Testing cheats can be typed into the log's note box, e.g. `scavenge(1)`, `sleep(6)`, `item(axe)`, `checks()` (toggle resource checks), `help()`.
+Testing cheats can be typed into the log's note box, e.g. `scavenge(1)`, `sleep(6)`, `item(axe)`, `checks()` (toggle resource checks), `timer(on)` / `timer(off)` (30 s round timer), `help()`.

@@ -6,15 +6,17 @@ const CONFIG = {
   startDay: 1,
   startRound: 2,          // 1 = first night round; 2 = first morning
   maxAP: 12,              // highest max AP can grow to
-  trackGain: 1,           // max AP gained per food / water check paid
-  trackLoss: 2,           // max AP lost per food / water check missed (0 = death)
+  trackGain: { food: 1, water: 2 },   // max AP gained per check paid
+  trackLoss: { food: 1, water: 2 },   // max AP lost per check missed (max AP 0 = death)
   startMaxAP: 12,         // max AP at the start (food & water missed lower it; paid raises it back, up to 12)
   startRes: { food: 6, water: 6, hope: 6, fuel: 0, ammo: 0 },   // what every survivor starts with; AP starts full
   startItems: [{ id: 'Axe', cond: 3 }],                          // …and carries
   startSafety: 0,         // Safety on the starting tile
-  maxSafety: 6,           // most Safety any tile can hold
+  maxSafety: 5,           // most Safety a tile can hold, unless its location says otherwise (safety: 0–8 in locations.js)
+  maxZombies: 6,          // most zombies a tile can hold — and that many can't be outrun
   maxItems: 6,            // backpack size
   maxCondition: 6,        // most condition any item can have
+  maxRerolls: 2,          // landing on a crossed-off row rolls again — up to this many times, then you find nothing
   lootDice: 2,            // a resource find rolls this many d6 (item condition and zombie counts stay 1d6)
 
   // TESTING: items every new game starts with in the backpack (full condition). Set to [] to turn off.
@@ -23,6 +25,7 @@ const CONFIG = {
   testStartRes: {},        // added to the starting rolls
   nightRounds: [1, 6],    // dark on the clock
   attackRounds: [6],      // rounds that start with a night attack
+  badNightOn: 2,          // as round 2 starts, a secret 1d6: this or less means a bad night — round 1 attacks too
   roundSeconds: 30,       // round timer: act within this or you sleep (online always; single player optional)
 
   // What each round of the clock calls for (checked at the END of the round).
@@ -83,7 +86,10 @@ function loadLocations(list) {
     if (!Number.isInteger(count) || count < 1) errors.push(`${where}: count must be a whole number, 1 or more.`);
     const table = raw.map((x, r) => { try { return parseResult(x, `${where}, roll ${r + 1}`); } catch (e) { errors.push(e.message); return null; } });
     if (loc.start && loc.passable === false) errors.push(`${where}: the start tile can't be impassable.`);
-    return { name: loc.name, icon: loc.icon || '', start: !!loc.start, fortify: loc.fortify !== false, passable: loc.passable !== false, count, table };
+    // most Safety it can be fortified to: safety: N, or 0 (also fortify: false) for outdoors
+    const safety = loc.fortify === false ? 0 : loc.safety ?? CONFIG.maxSafety;
+    if (!Number.isInteger(safety) || safety < 0 || safety > 12) errors.push(`${where}: safety must be a whole number from 0 (outdoors) to 12.`);
+    return { name: loc.name, icon: loc.icon || '', start: !!loc.start, safety, fortify: safety > 0, passable: loc.passable !== false, count, table };
   });
   const starts = tiles.filter((t) => t && t.start);
   if (starts.length !== 1) errors.push(`Exactly one location needs start: true (found ${starts.length}).`);
