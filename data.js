@@ -9,7 +9,7 @@ const CONFIG = {
   trackGain: { food: 1, water: 2 },   // max AP gained per check paid
   trackLoss: { food: 1, water: 2 },   // max AP lost per check missed (max AP 0 = death)
   startMaxAP: 12,         // max AP at the start (food & water missed lower it; paid raises it back, up to 12)
-  startRes: { food: 6, water: 6, hope: 6, fuel: 0, ammo: 0 },   // what every survivor starts with; AP starts full
+  startRes: { food: 4, water: 6, hope: 3, fuel: 0, ammo: 0 },   // what every survivor starts with; AP starts full
   startItems: [{ id: 'Axe', cond: 3 }],                          // …and carries
   startSafety: 0,         // Safety on the starting tile
   maxSafety: 5,           // most Safety a tile can hold, unless its location says otherwise (safety: 0–8 in locations.js)
@@ -26,7 +26,7 @@ const CONFIG = {
   nightRounds: [1, 6],    // dark on the clock
   attackRounds: [6],      // rounds that start with a night attack
   badNightOn: 2,          // as round 2 starts, a secret 1d6: this or less means a bad night — round 1 attacks too
-  roundSeconds: 30,       // round timer: act within this or you sleep (online always; single player optional)
+  roundSeconds: 30,       // round timer: act within this or lose 1 AP (online always; single player: on by default)
 
   // What each round of the clock calls for (checked at the END of the round).
   upkeep: {

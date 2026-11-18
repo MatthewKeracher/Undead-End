@@ -34,9 +34,9 @@ test('same seed, same game', () => {
   assert.equal(a.rng, b.rng);
 });
 
-test('every survivor starts with 6 food, water and hope, and an Axe at condition 3', () => {
+test('every survivor starts with 4 food, 6 water, 3 hope, and an Axe at condition 3', () => {
   const S = E.createGame({ seed: 3 });
-  assert.deepEqual({ ...S.players[0].res }, { food: 6, water: 6, hope: 6, fuel: 0, ammo: 0 });
+  assert.deepEqual({ ...S.players[0].res }, { food: 4, water: 6, hope: 3, fuel: 0, ammo: 0 });
   assert.deepEqual([...S.players[0].items].map((it) => ({ ...it })), [{ id: 'Axe', cond: 3 }]);
 });
 
@@ -95,21 +95,35 @@ test('one round action per round when rounds are timed', () => {
   assert.equal(S.round, 3);
 });
 
-test('time up: anyone who has not acted sleeps', () => {
+test('time up: anyone who has not acted loses 1 AP', () => {
   const { S, p } = game({ autoEnd: false, names: ['A', 'B'] });
   const [a, b] = S.players;
   a.ap = 5; b.ap = 5;
   S.forced = [1, 1];
   E.act(S, 0, { type: 'sleep' });       // A sleeps (+2)
-  S.forced = [2, 2];
-  E.timeUp(S);                          // B didn't choose → sleeps (+4)
+  E.timeUp(S);                          // B didn't choose → −1 AP
   assert.equal(a.ap, 7);
-  assert.equal(b.ap, 9);
+  assert.equal(b.ap, 4);
   assert.equal(S.round, 3);
-  assert.ok(S.log.some((l) => l.msg.includes("B didn't choose in time")));
+  assert.ok(S.log.some((l) => l.msg.includes("B didn't act in time — loses 1")));
 });
 
-test('time up waits for an open decision, then that player sleeps', () => {
+test('time up mid-drive: you stop where you are, and lose 1 AP', () => {
+  const { S, p } = game({ autoEnd: false });
+  tile(S, 1, 0, 'Forest'); tile(S, 2, 0, 'Lake');
+  E.tileOf(S, p).vehicles.push({ id: 'Truck', cond: 4 });
+  p.res.fuel = 5; p.ap = 3;
+  act(S, { type: 'drive', vehicle: 'Truck' });
+  decide(S, { q: 1, r: 0 });
+  E.timeUp(S);
+  assert.equal(p.pending, null);
+  assert.deepEqual([p.q, p.r], [1, 0]);
+  assert.equal(E.tileOf(S, p).vehicles[0].cond, 3);   // parked here, −1 for the trip
+  assert.equal(p.ap, 2);                              // 3 − 1
+  assert.equal(S.round, 3);
+});
+
+test('time up waits for an open decision, then that player loses 1 AP', () => {
   const { S } = game({ autoEnd: false, names: ['A', 'B'] });
   const [a, b] = S.players;
   E.act(S, 0, { type: 'sleep' });

@@ -75,11 +75,11 @@ Current behaviour is noted in *italics* where the game already does something as
 
 ### Rounds
 - [x] **30 s timer runs out:** auto-Sleep, or do nothing?
-  > Answer: Auto-Sleep (disconnected players too).
+  > Answer: You lose 1 AP and the round moves on (disconnected players too). *(Changed from auto-Sleep.)*
 - [x] **Free actions** (drive, use tool, drop item, talk) allowed any time during the 30 s?
   > Answer: Yes — live, any time during the 30 s, before or after your action.
 - [x] **Resolution order within a round** — proposed: start-of-round checks & night attack → Fortify → Scavenge → Scout → Move. OK?
-  > Answer: No fixed order. Rounds are real-time: each action resolves the moment it's chosen, so order = who acts first. Co-op by coordinating timing, competition by racing. After 30 s the round ends and anyone undecided Sleeps.
+  > Answer: No fixed order. Rounds are real-time: each action resolves the moment it's chosen, so order = who acts first. Co-op by coordinating timing, competition by racing. After 30 s the round ends and anyone undecided loses 1 AP.
 - [x] **Fight/Flee decisions inside a round:** how long a timer (e.g. 10 s), and what's the default if you don't choose?
   > Answer: 10 s. Default: Fight if you have a usable weapon, otherwise Flee.
 - [x] **Zombies brought onto your tile by another player's action** — does your Fight/Flee use your round's action?
@@ -99,7 +99,7 @@ Current behaviour is noted in *italics* where the game already does something as
 - [x] **Offline survivors:** stay on the map (and can die), or vanish while you're away?
   > Answer: Logging off kills your survivor and ends their run (loot drops on the tile, days go on the leaderboard).
 - [x] **Accidental disconnects:** grace period to reconnect before the survivor dies (e.g. 2 rounds / 60 s, auto-Sleeping meanwhile)?
-  > Answer: 60 s grace period, auto-Sleeping meanwhile.
+  > Answer: 60 s grace period; each round missed meanwhile costs 1 AP.
 - [x] **Safety decay** in a world that never resets?
   > Answer: No — Safety persists for now.
 - [x] **World reset:** never, weekly, or when everyone is dead?

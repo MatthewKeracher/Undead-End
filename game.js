@@ -72,7 +72,7 @@ async function play(events) {
   for (const ev of events) if (ev.player === undefined || ev.player === cur().id) await show(ev);
   busy = false;
   const d = cur().pending;
-  if (d) mode = PENDING_MODE[d.kind] ?? null;
+  mode = d ? PENDING_MODE[d.kind] ?? null : null;   // whatever was going on (e.g. a drive cut short by the timer) is over
   render();
   if (G.over) return showGameOver();
   await ask();
@@ -125,7 +125,7 @@ async function ask() {
 }
 
 // ---------------------------------------------------------------- round timer (optional in single player: cheat timer(on))
-// CONFIG.roundSeconds to act each round, or you sleep — as online. Paused while animations play.
+// CONFIG.roundSeconds to act each round, or you lose 1 AP — as online. Paused while animations play.
 // Acting ends the round straight away (you're the only survivor), so the clock only bites if you hesitate.
 let timerOn = true;   // on by default; timer(off) turns it off (remembered)
 try { timerOn = localStorage.getItem('roundTimer') !== '0'; } catch { /* storage unavailable */ }
@@ -147,8 +147,8 @@ function tickTimer(dt) {
       if (!cur().pending) mode = null;   // stop picking a hex — but keep Fight or Flee etc. on screen
       const res = E.timeUp(G);
       tone(220, 0.4, 'sawtooth', 0.08, -80);
-      // mid-decision (e.g. Fight or Flee), the engine waits for it, then you sleep
-      toast(res.events.length ? "⏱️ Time's up — you sleep." : "⏱️ Time's up — deal with this, then you sleep.");
+      // mid-decision (e.g. Fight or Flee), the engine waits for it, then you lose the AP
+      toast(cur().pending ? "⏱️ Time's up — deal with this, then you lose 1 AP." : "⏱️ Time's up — you lose 1 AP.");
       if (res.events.length) play(res.events); else render();
     }
   }
@@ -1107,7 +1107,7 @@ const CHEATS = {
   'round(n) day(n)': 'jump the clock (no checks run)',
   'checks() checks(on|off)': 'toggle the food / water / hope checks',
   'badnight() badnight(on|off)': 'toggle a bad night (round 1 attacks too)',
-  'timer() timer(on|off)': 'the 30 s round timer: act in time or you sleep (remembered)',
+  'timer() timer(on|off)': 'the 30 s round timer: act in time or lose 1 AP (remembered)',
   'reset()': 'start a fresh world (admin-only once online)',
 };
 async function runCheat(cmd, args) {
@@ -1119,7 +1119,7 @@ async function runCheat(cmd, args) {
   if (cmd === 'timer') {
     const v = String(n[0] ?? '').toLowerCase();
     setTimer(v === 'off' ? false : v === 'on' ? true : !timerOn);
-    return say(`Round timer ${timerOn ? `ON — act within ${CONFIG.roundSeconds} s or you sleep` : 'OFF'}`);
+    return say(`Round timer ${timerOn ? `ON — act within ${CONFIG.roundSeconds} s or lose 1 AP` : 'OFF'}`);
   }
   const res = E.cheat(G, cur().id, cmd, n);
   checksOff = G.checksOff;

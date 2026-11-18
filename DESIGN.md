@@ -137,7 +137,7 @@ Repeat until the tile is clear, you escape, or you die.
 
 ## Prototype placeholders (in `data.js` and `locations.js`, change freely)
 - Game starts Day 1, Round 2 (first morning).
-- Each player starts with **full AP (12)**, **6** each of Food, Water and Hope, 0 Fuel and 0 Ammo (`CONFIG.startRes`), and an **Axe at condition 3** (`CONFIG.startItems`).
+- Each player starts with **full AP (12)**, **4 Food, 6 Water and 3 Hope**, 0 Fuel and 0 Ammo (`CONFIG.startRes`), and an **Axe at condition 3** (`CONFIG.startItems`).
 - A tile holds as much Safety as its place allows (default **5**, `CONFIG.maxSafety`) — and at most **6 zombies** (`CONFIG.maxZombies`). Safety belongs to the tile and is shared by everyone on it; it does not decay.
 - Scouting reveals a random tile from the tile list for each unexplored neighbour; the scout stays put.
 - Sharing resources with a player on the same tile is free (doesn't use the round).

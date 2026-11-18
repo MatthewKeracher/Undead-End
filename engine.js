@@ -146,7 +146,7 @@ const Engine = (() => {
     S.tiles[key(0, 0)] = newTile(START_TILE, CONFIG.startSafety);
     for (const id of CONFIG.testStartVehicles || []) S.tiles[key(0, 0)].vehicles.push({ id, cond: CONFIG.maxCondition });
     names.forEach((name, i) => {
-      // full AP, CONFIG.startRes (6 food, water and hope) and CONFIG.startItems (an Axe)
+      // full AP, CONFIG.startRes (4 food, 6 water, 3 hope) and CONFIG.startItems (an Axe)
       const p = {
         id: i, name, color: COLORS[i % COLORS.length], q: 0, r: 0, ap: CONFIG.startMaxAP, maxAP: CONFIG.startMaxAP,
         res: { ...CONFIG.startRes }, items: [], dead: false, acted: false, freeMoved: false, caught: false, pending: null, queue: [],
@@ -185,8 +185,25 @@ const Engine = (() => {
         while (!p.dead && !p.pending && p.queue.length && !S.over) { STEPS[p.queue.shift().type](S, p); progressed = true; }
       }
       if (S.over) return;
-      // time's up: anyone who hasn't acted sleeps — those mid-decision once it's done (the round waits for them)
-      if (S.timesUp) for (const p of S.players) if (!p.dead && !p.acted && !busyPlayer(p)) { log(S, `⏱️ ${p.name} didn't choose in time and sleeps.`); sleep(S, p); }
+      // time's up: anyone who hasn't acted loses 1 AP — those mid-decision once it's done (the round waits for them).
+      // A drive in progress stops where it is (unless it's an escape that hasn't left the zombies yet).
+      if (S.timesUp) {
+        for (const p of S.players) {
+          const d = p.pending;
+          if (!p.dead && d?.kind === 'drive' && !(d.flee && !d.steps)) {
+            log(S, `⏱️ Time's up — ${p.name} stops the ${ITEMS[d.v.id].icon} ${d.v.id} here.`, 'bad');
+            endDrive(S, p);
+            progressed = true;
+          }
+        }
+        for (const p of S.players) {
+          if (p.dead || p.acted || busyPlayer(p)) continue;
+          const lost = Math.min(1, p.ap);
+          p.ap -= lost; p.acted = true;
+          log(S, `⏱️ ${p.name} didn't act in time${lost ? ' — loses 1 🎲 AP' : ''}.`, 'bad');
+          emit(S, { type: 'timeout', player: p.id, lost });
+        }
+      }
       if ((S.autoEnd || S.timesUp) && roundDone(S)) { S.timesUp = false; endRound(S); continue; }
       if (!progressed) return;
     }
@@ -203,7 +220,7 @@ const Engine = (() => {
     startOfRound(S);
   }
 
-  // The 30 s timer ran out (multiplayer, or the optional single-player timer). See settle().
+  // The 30 s timer ran out: anyone who hasn't acted loses 1 AP and the round ends. See settle().
   const timeUp = (S) => run(S, () => { S.timesUp = true; });
 
   // Everything that happens at the START of a round, before anyone acts:

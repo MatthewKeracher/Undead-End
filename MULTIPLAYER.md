@@ -29,7 +29,7 @@ Taking turns one player at a time doesn't scale (100 players × 30 s = 50 min pe
    - **Co-op** comes from timing: talk it through on proximity voice — "I'll fortify now, then you scavenge", "scout north, then I'll move there".
    - **Competition** comes from racing: grab the scavenge first, scout a hex before a rival, move in or out before zombies arrive.
    - Other players' results show up live on your screen (log, toast, the hex changing) but don't block you with a popup.
-3. **Round end:** after **30 s** (or as soon as every living player has acted), the round ends. **Anyone who hasn't acted Sleeps** (2d6 AP). Disconnected players also auto-Sleep (during any reconnect grace period — see §4).
+3. **Round end:** after **30 s** (or as soon as every living player has acted), the round ends. **Anyone who hasn't acted loses 1 AP** (no free Sleep). Disconnected players are treated the same during the reconnect grace period — see §4.
 
 - The 6-round day clock is **global** — everyone is on the same day/round, so night falls for everyone at once.
 - **Free actions** (drive, use tool, drop item, give, talk) happen **live**, **any time during the 30 s — before or after your action**. Drive somewhere and act there, or act and then drive off, hand items over, or repair.
@@ -58,7 +58,7 @@ Taking turns one player at a time doesn't scale (100 players × 30 s = 50 min pe
 
 - The world **runs continuously**; players join and leave.
 - **Logging off kills your survivor** and ends their run *(decided)* — the same as any death: everything they carried drops on the tile, their days survived go on the leaderboard, and next time you join you start a new survivor. A run lasts exactly as long as you stay.
-  - **Accidental disconnects** (dropped connection, closed tab by mistake): a **60 s grace period** to reconnect before the survivor dies, auto-Sleeping meanwhile. Reconnect in time and you carry on. *(decided)*
+  - **Accidental disconnects** (dropped connection, closed tab by mistake): a **60 s grace period** to reconnect before the survivor dies (each round missed meanwhile costs 1 AP, like any round you don't act in). Reconnect in time and you carry on. *(decided)*
 - **Death:** your survivor is gone; you **respawn as a new survivor** on a random safe tile with a fresh fog of war.
   - **Everything they carried drops on the tile** — all resources and all backpack items and becomes **"USERNAME's stash"** on that tile's loot table (see §6a) — unless another player killed them, in which case the killer takes it straight away (§6c).
   - Your **days survived** goes on the leaderboard (§6b).
