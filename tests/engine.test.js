@@ -91,7 +91,7 @@ test('time up waits for an open decision, then that player sleeps', () => {
 
 test('scavenge a resource: amount × multiplier', () => {
   const { S, p } = game();
-  S.forced = [4, 5];                    // Farmhouse 4 = Double Food, amount 5
+  S.forced = [3, 5];                    // Farmhouse 3 = Double Food, amount 5
   const food = p.res.food;
   act(S, { type: 'scavenge' });
   assert.equal(p.res.food, food + 10);
@@ -170,12 +170,16 @@ test('Mountain: impassable on foot and by vehicle', () => {
   assert.ok(act(S, { type: 'drive', vehicle: 'Truck' }).error);   // nowhere passable to go
 });
 
-test('scout reveals a random tile next to you', () => {
+test('scout reveals every unexplored hex next to you', () => {
   const { S, p } = game();
-  const { events } = act(S, { type: 'scout', q: 0, r: 1 });
-  assert.ok(S.tiles['0,1']);
-  assert.equal(events.find((e) => e.type === 'scout').k, '0,1');
-  assert.match(act(S, { type: 'scout', q: 3, r: 3 }).error, /next to you/);
+  tile(S, 1, 0, 'Forest');              // already explored: stays as it is
+  const ap = p.ap;
+  const { events } = act(S, { type: 'scout' });
+  assert.equal(Object.keys(S.tiles).length, 7);
+  assert.equal(S.tiles['1,0'].def.name, 'Forest');
+  assert.equal(events.find((e) => e.type === 'scout').tiles.length, 5);
+  assert.equal(p.ap, ap - 1);
+  assert.match(act(S, { type: 'scout' }).error, /already explored/);
 });
 
 test('backpack full: choose what to destroy', () => {
@@ -233,7 +237,7 @@ test('state survives a JSON round trip and plays on identically', () => {
   tile(S, 1, 0, 'Forest');
   act(S, { type: 'scavenge' });
   const copy = JSON.parse(JSON.stringify(S));
-  const a = act(S, { type: 'scout', q: 0, r: 1 }), b = E.act(copy, 0, { type: 'scout', q: 0, r: 1 });
+  const a = act(S, { type: 'scout' }), b = E.act(copy, 0, { type: 'scout' });
   assert.deepEqual(a.events, b.events);
   assert.deepEqual(JSON.parse(JSON.stringify(S)), JSON.parse(JSON.stringify(copy)));
 });
@@ -253,14 +257,36 @@ test('found results are crossed off; rolling them again finds nothing (AP still 
   assert.ok(S.log.at(-1).msg.includes('already looted') || S.log.some((l) => l.msg.includes('already looted')));
 });
 
-test('zombies never run out', () => {
+test('an Endless row is never crossed off', () => {
+  const { S, p } = game();
+  const t = tile(S, 1, 0, 'Lake');      // Lake 2 = Endless Water
+  act(S, { type: 'move', q: 1, r: 0 });
+  assert.equal(t.def.table[1].endless, true);
+  const water = p.res.water;
+  S.forced = [2, 3]; act(S, { type: 'scavenge' });
+  S.forced = [2, 4]; act(S, { type: 'scavenge' });
+  assert.equal(p.res.water, water + 7);
+  assert.equal(E.tableView(t)[1].kind, 'res');
+  assert.equal(E.cellText(t.def.table[1]), 'Water ∞');
+});
+
+test('zombies are crossed off once they come, and drift back when nobody is there and there is no Safety', () => {
   const { S, p } = game();
   tile(S, 1, 0, 'Forest');
-  E.tileOf(S, p).safety = 6;
-  S.forced = [1, 2];
+  const home = E.tileOf(S, p);
+  home.safety = 6;
+  S.forced = [1, 2];                    // 2 zombies, absorbed by Safety
   act(S, { type: 'scavenge' });
-  assert.equal(E.tableView(E.tileOf(S, p))[0].kind, 'zombies');
-  assert.deepEqual([...E.tileOf(S, p).looted], []);
+  assert.equal(E.tableView(home)[0].kind, 'looted');
+  S.forced = [1];
+  act(S, { type: 'scavenge' });         // rolling the cleared row finds nothing
+  assert.equal(home.zombies, 0);
+  // still here, or still has Safety: they stay away
+  act(S, { type: 'move', q: 1, r: 0 });
+  assert.equal(E.tableView(home)[0].kind, 'looted');   // Safety 4 left
+  home.safety = 0;
+  act(S, { type: 'sleep' });            // next round starts: no Safety, nobody there
+  assert.equal(E.tableView(home)[0].kind, 'zombies');
 });
 
 test('dropping an item leaves it in your stash, on a looted row if there is one', () => {

@@ -57,16 +57,18 @@ const Engine = (() => {
   const canFortifyHere = (t) => t.def.fortify;
 
   // ---------------------------------------------------------------- loot tables
-  // Found results are crossed off for good (t.looted: row numbers). Zombies never run out.
-  // A survivor's stash covers a row until it's emptied (t.stashes). A tile with no table
-  // (e.g. Wasteland) has only empty rows — so it can only be scavenged for a stash left there.
+  // Found results are crossed off for good (t.looted: row numbers). Zombies are crossed off too once
+  // they've come, but drift back (see restockZombies). A survivor's stash covers a row until it's
+  // emptied (t.stashes). A tile with no table (e.g. Wasteland) has only empty rows — so it can only be
+  // scavenged for a stash left there.
   const stashAt = (t, row) => (t.stashes || []).find((s) => s.row === row);
+  const rowEntry = (t, row) => t.def.table[row - 1] ?? (row === 1 ? { zombies: 1 } : null);
   function lootRow(t, row) {
     const stash = stashAt(t, row);
     if (stash) return { kind: 'stash', stash };
-    const e = t.def.table[row - 1] ?? (row === 1 ? { zombies: 1 } : null);
-    if (e?.zombies) return { kind: 'zombies', e };
+    const e = rowEntry(t, row);
     if (!e || (t.looted || []).includes(row)) return { kind: 'looted', e };
+    if (e.zombies) return { kind: 'zombies', e };
     return { kind: e.item ? 'item' : 'res', e };
   }
   const tableView = (t) => [1, 2, 3, 4, 5, 6].map((row) => ({ row, ...lootRow(t, row) }));
@@ -90,9 +92,10 @@ const Engine = (() => {
 
   function cellText(e) {
     if (e.zombies) return e.zombies > 1 ? `Zombies ×${e.zombies}` : 'Zombies';
-    if (e.item) return e.item;
+    const forever = e.endless ? ' ∞' : '';   // an Endless row never runs out
+    if (e.item) return e.item + forever;
     const mult = { 2: 'Double', 3: 'Triple', 4: 'Quadruple' }[e.n];
-    return e.n > 1 ? (mult ? `${mult} ${RES_LABEL[e.res]}` : `${RES_LABEL[e.res]} ×${e.n}`) : RES_LABEL[e.res];
+    return (e.n > 1 ? (mult ? `${mult} ${RES_LABEL[e.res]}` : `${RES_LABEL[e.res]} ×${e.n}`) : RES_LABEL[e.res]) + forever;
   }
   const upkeepText = (r) => Object.entries(CONFIG.upkeep[r] || {}).map(([res, n]) => `${n} ${ICON[res]}`).join(' ');
   const roundBanner = (S) => `Day ${S.day}, Round ${S.round} — ${isNight(S.round) ? '🌙 Night' : '☀️ Day'}`;
@@ -181,8 +184,17 @@ const Engine = (() => {
   // 1) this round's resource check, 2) the night attack on night rounds.
   // Food & water feed max AP: each check paid → +trackGain (max 12); each missed → −trackLoss. Max AP 0 = death.
   // A Hope check you can't pay is death.
+  // Zombies drift back into a tile's table once it has no Safety and nobody is on it.
+  function restockZombies(S) {
+    for (const [k, t] of Object.entries(S.tiles)) {
+      if (!t.looted?.length || t.safety > 0 || S.players.some((p) => !p.dead && key(p.q, p.r) === k)) continue;
+      t.looted = t.looted.filter((row) => !rowEntry(t, row)?.zombies);
+    }
+  }
+
   function startOfRound(S) {
     const r = S.round;
+    restockZombies(S);
     if (S.checksOff && Object.keys(CONFIG.upkeep[r] || {}).length) log(S, `Round ${r} check skipped (cheat: checks off)`, 'cheat');
     const up = S.checksOff ? {} : CONFIG.upkeep[r] || {};
     if (Object.keys(up).length) log(S, `Round ${r} check — ${upkeepText(r)}`, 'phase');
@@ -453,6 +465,7 @@ const Engine = (() => {
       emit(S, { type: 'scavenge', player: p.id, k: key(p.q, p.r), name: t.def.name, rows: snap(rows), r, hit: snap(hit), amt, c });
       const at = `${p.name} scavenges the ${t.def.name} — rolls ${r}`;
       if (c) {
+        (t.looted ||= []).push(r);   // these zombies have come; the row is clear until they drift back
         applyContest(t, c);
         logRoll(S, `${at}: 🧟 ${plural(amt, 'zombie')}! ${contestText(c)}`, c.left ? 'bad' : 'good');
         if (t.zombies) p.queue.push({ type: 'threat' });
@@ -461,28 +474,33 @@ const Engine = (() => {
       } else if (hit.kind === 'stash') {
         claimStash(S, p, t, hit.stash, at);
       } else if (e.item) {
-        (t.looted ||= []).push(r);   // found: crossed off for good
+        if (!e.endless) (t.looted ||= []).push(r);   // found: crossed off for good (unless it's Endless)
         logRoll(S, `${at}: ${ITEMS[e.item].icon} ${e.item}, condition ${amt}.`, 'good');
         if (ITEMS[e.item].vehicle) {
           t.vehicles.push({ id: e.item, cond: amt });
           log(S, `${ITEMS[e.item].icon} The ${e.item} is parked at the ${t.def.name}.`, 'good');
         } else gainItem(S, p, e.item, amt);
       } else {
-        (t.looted ||= []).push(r);
+        if (!e.endless) (t.looted ||= []).push(r);
         const got = amt * e.n;
         p.res[e.res] += got;
         logRoll(S, `${at}: ${cellText(e)} → rolls ${amt}${e.n > 1 ? ` ×${e.n}` : ''} = ${got} ${ICON[e.res]} ${e.res}.`, 'good');
       }
     },
-    scout(S, p, { q, r }) {
-      const k = key(q, r);
+    // Scouting reveals every unexplored hex next to you, each a random location.
+    scout(S, p) {
+      const around = emptyAdj(S, p);
       if (p.ap < 1) return 'No AP.';
-      if (!isAdjacent(p, q, r) || S.tiles[k]) return 'Scout an unexplored hex next to you.';
-      const def = TILES[Math.floor(rand(S) * TILES.length)];
-      S.tiles[k] = newTile(def);
+      if (!around.length) return 'Everything around you is already explored.';
       p.ap--;
-      log(S, `${p.name} scouts and discovers a ${def.icon} ${def.name}.`);
-      emit(S, { type: 'scout', player: p.id, k, name: def.name, icon: def.icon });
+      const found = around.map(([q, r]) => {
+        const def = TILES[Math.floor(rand(S) * TILES.length)], k = key(q, r);
+        S.tiles[k] = newTile(def);
+        return { k, name: def.name, icon: def.icon };
+      });
+      const names = found.map((f) => `${/^[aeiou]/i.test(f.name) ? 'an' : 'a'} ${f.icon} ${f.name}`);
+      log(S, `${p.name} scouts and discovers ${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}.`);
+      emit(S, { type: 'scout', player: p.id, tiles: found });
       p.acted = true;
     },
     move(S, p, { q, r }) {

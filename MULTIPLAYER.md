@@ -52,7 +52,7 @@ Taking turns one player at a time doesn't scale (100 players × 30 s = 50 min pe
   - So information goes stale: a tile you fortified yesterday may be overrun now. Radio reports from other players become valuable.
 - **Other players are only visible** on tiles you can currently see (your tile + adjacent) — not across the whole map.
 - **Spawning:** new and respawning players start on a **random safe tile** — passable, no zombies, no other players — with only that tile scouted. *(decided)*
-- **Scouting into a tile someone else already found:** you get the same tile (the layout is fixed), it just appears on your map.
+- **Scouting** reveals every hex around you on *your* map. A tile someone else already found is the same tile (the layout is fixed) — it just appears on your map.
 
 ## 4. Persistence & joining
 

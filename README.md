@@ -13,13 +13,13 @@ Or open `index.html` in a browser — no build step or install needed.
 | Key | Action |
 |---|---|
 | R | Sleep (gain 2d6 AP) |
-| S | Scout |
+| S | Scout (reveals every hex around you) |
 | W | Move |
 | A | Scavenge |
 | F | Fortify |
 | E / B | Drive truck / Ride bike (when one is on your tile) |
 | Enter | Confirm selected action |
-| A Q E D X Z | Pick a neighbouring hex (scout / move / flee / drive) |
+| A Q E D X Z | Pick a neighbouring hex (move / flee / drive) |
 | Q / W / E | Shoot / Melee / Flee (when zombies are on your tile) |
 | Shift+Enter | Keep attacking until clear |
 | T | Use tool |

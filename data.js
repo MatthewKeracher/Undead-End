@@ -49,15 +49,18 @@ const ITEMS = {
 // ('Double Food', 'Axe', …) and turned into { zombies } / { res, n } / { item } here.
 const MULTIPLIERS = { double: 2, triple: 3, quadruple: 4 };
 function parseResult(text, where) {
-  const t = String(text).trim().toLowerCase().replace(/\s+/g, ' ');
+  let t = String(text).trim().toLowerCase().replace(/\s+/g, ' ');
   if (t === 'zombies') return { zombies: 1 };
+  // 'Endless …' never runs out: the row is never crossed off
+  const endless = t.startsWith('endless ');
+  if (endless) t = t.slice(8);
   const [first, ...rest] = t.split(' ');
   const n = MULTIPLIERS[first] && rest.length ? MULTIPLIERS[first] : 1;
   const res = n > 1 ? rest.join(' ') : t;
-  if (['food', 'water', 'hope', 'fuel', 'ammo'].includes(res)) return { res, n };
+  if (['food', 'water', 'hope', 'fuel', 'ammo'].includes(res)) return { res, n, ...(endless && { endless }) };
   const item = Object.keys(ITEMS).find((id) => id.toLowerCase() === t);
-  if (item) return { item };
-  throw new Error(`${where}: "${text}" isn't a result I know. Use Zombies, Food/Water/Hope/Fuel/Ammo (optionally Double/Triple/Quadruple), or an item: ${Object.keys(ITEMS).join(', ')}.`);
+  if (item) return { item, ...(endless && { endless }) };
+  throw new Error(`${where}: "${text}" isn't a result I know. Use Zombies, Food/Water/Hope/Fuel/Ammo (optionally Double/Triple/Quadruple, and/or Endless), or an item: ${Object.keys(ITEMS).join(', ')}.`);
 }
 function loadLocations(list) {
   const errors = [];

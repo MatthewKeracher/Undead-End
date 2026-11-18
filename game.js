@@ -17,17 +17,17 @@ const d6 = () => 1 + Math.floor(Math.random() * 6);   // only for the tumbling d
 //   Z X        bottom-left, bottom-right
 const PICK_DIRS = [[-1, 0], [0, -1], [1, -1], [1, 0], [0, 1], [-1, 1]];
 const PICK_KEYS = ['a', 'q', 'e', 'd', 'x', 'z'];
-const PICK_MODES = ['scout', 'move', 'flee', 'drive'];
+const PICK_MODES = ['move', 'flee', 'drive'];
 function pickNumber(p, q, r) {
   const i = PICK_DIRS.findIndex(([a, b]) => p.q + a === q && p.r + b === r);
   return i < 0 ? null : PICK_KEYS[i].toUpperCase();
 }
 
 let G = null;        // game state (owned by the engine)
-let mode = null;     // 'scout' | 'move' while picking a hex; mirrors the decision being made: 'threat' | 'flee' | 'drive'
+let mode = null;     // 'move' while picking a hex; mirrors the decision being made: 'threat' | 'flee' | 'drive'
 let modalKey = null;  // when set, receives all key presses (shooting, backpack-full prompt)
 let checksOff = false;   // cheat: skip the food / water / hope checks (kept across new games until reload)
-let justRevealed = null;  // tile key to highlight after scouting
+let justRevealed = [];    // tile keys to highlight after scouting, in reveal order
 let camInit = false;
 
 const cur = () => G.players[0];   // the survivor on this screen
@@ -48,7 +48,7 @@ const PENDING_MODE = { threat: 'threat', fleeTo: 'flee', drive: 'drive' };
 function newGame(names = ['Survivor']) {
   G = E.createGame({ names, checksOff });
   $('#popup').hidden = true; busy = false;
-  logSeen = 0; mode = null; modalKey = null; selected = null; justRevealed = null; camInit = false; logShown = Infinity; // forces log reset on next render
+  logSeen = 0; mode = null; modalKey = null; selected = null; justRevealed = []; camInit = false; logShown = Infinity; // forces log reset on next render
   prevStats = {};
   render();
   // the starting round's check happens straight away (after a beat so you see your starting resources)
@@ -401,31 +401,30 @@ function act(name) {
   const p = cur();
   if (mode === 'threat') { if (['shoot', 'melee', 'flee'].includes(name)) send({ type: 'decide', choice: name }); return; }
   if (p.pending) return;
-  if (name === 'scout' || name === 'move') { mode = mode === name ? null : name; return render(); }
+  if (name === 'move') { mode = mode === name ? null : name; return render(); }
   if (ITEMS[name]?.vehicle) return send({ type: 'drive', vehicle: name });
   send({ type: name });
 }
 
-// A hex picked on the map (or with A Q E D X Z) while scouting, moving, fleeing or driving.
+// A hex picked on the map (or with A Q E D X Z) while moving, fleeing or driving.
 function clickHex(q, r) {
   if (busy || !mode) return;
   const p = cur(), t = G.tiles[key(q, r)];
   if (!neighbors(p.q, p.r).some(([a, b]) => a === q && b === r)) return;
-  if (mode === 'scout' && !t) send({ type: 'scout', q, r });
-  else if (mode === 'move' && canEnter(p, t)) send({ type: 'move', q, r });
+  if (mode === 'move' && canEnter(p, t)) send({ type: 'move', q, r });
   else if (mode === 'flee' && passable(t) && !t.zombies) send({ type: 'decide', choice: { q, r } });
   else if (mode === 'drive' && passable(t)) send({ type: 'decide', choice: { q, r } });
 }
 
-// A new location: highlight it and pause so the player can take it in before the round moves on.
+// New locations: they appear one after another around you, then pause so the player can take them in.
 async function revealShow(ev) {
-  justRevealed = ev.k;
+  justRevealed = ev.tiles.map((x) => x.k);
   renderMap();
-  toast(`🔭 Discovered: ${ev.icon} ${ev.name}`);
-  tone(520, 0.15, 'triangle', 0.07); setTimeout(() => tone(780, 0.25, 'triangle', 0.07), 120);
-  await new Promise((res) => { const tm = setTimeout(res, 2800); dismissPopup = () => { clearTimeout(tm); res(); }; });
+  toast(`🔭 Discovered: ${ev.tiles.map((x) => `${x.icon} ${x.name}`).join(', ')}`);
+  ev.tiles.forEach((_, i) => setTimeout(() => tone(520 + i * 60, 0.15, 'triangle', 0.07), i * 120));
+  await new Promise((res) => { const tm = setTimeout(res, 2800 + ev.tiles.length * 120); dismissPopup = () => { clearTimeout(tm); res(); }; });
   dismissPopup = null;
-  justRevealed = null;
+  justRevealed = [];
 }
 
 // ---------------------------------------------------------------- scavenge popup + sound
@@ -756,15 +755,14 @@ const shortName = (n) => (n.length > 9 ? `${n.slice(0, 8)}…` : n);
 const rowText = (row) => (row.kind === 'stash' ? `🎒 ${shortName(row.stash.owner)}'s stash` : row.e ? cellText(row.e) : '—');
 const rowClass = (row) => ({ zombies: 'z', item: 'it', looted: 'looted', stash: 'stash' }[row.kind] || '');
 
-// Result 1 is always Zombies on every tile, so it isn't listed — only results 2–6.
+// All six results, including 1 (Zombies) — it's crossed off while the tile is clear of them.
 function tableSvg(x, y, t) {
   if (!t.def.passable) return `<text x="${x}" y="${y + 4}" class="empty">Impassable</text>`;
   if (!canScavengeHere(t)) return `<text x="${x}" y="${y + 4}" class="empty">Nothing to scavenge</text>`;
-  const ch = 20, w = HEX, h = ch * 5;
+  const ch = 18, w = HEX, h = ch * 6;
   let s = `<rect x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" rx="3" class="tbl"/>`;
   E.tableView(t).forEach((row, i) => {
-    if (i === 0) return;
-    const ty = y - h / 2 + (i - 1) * ch + ch / 2 + 4;
+    const ty = y - h / 2 + i * ch + ch / 2 + 4;
     s += `<text x="${x - w / 2 + 8}" y="${ty}" class="cell ${rowClass(row)}"><tspan class="n">${i + 1}</tspan>  ${esc(rowText(row))}</text>`;
   });
   return s;
@@ -836,9 +834,7 @@ function renderMap() {
   let svg = '';
   for (const [k, [q, r]] of fog) {
     const [x, y] = pix(q, r);
-    const target = mode === 'scout' && adj.has(k);
-    svg += `<g class="hex fog ${target ? 'target' : ''}" data-k="${k}">
-      <polygon points="${hexPoints(x, y, HEX - 2)}"/>${target ? pickBadge(x, y, pickNumber(p, q, r), true) : ''}</g>`;
+    svg += `<g class="hex fog" data-k="${k}"><polygon points="${hexPoints(x, y, HEX - 2)}"/></g>`;
   }
 
   let hereSvg = '';
@@ -849,7 +845,7 @@ function renderMap() {
     const danger = t.def.table.filter((e) => e.zombies).length;
     const isHere = q === p.q && r === p.r;
     const target = adj.has(k) && ((mode === 'move' && canEnter(p, t)) || (mode === 'flee' && passable(t) && !t.zombies) || (mode === 'drive' && passable(t)));
-    const g = `<g class="hex tile d${Math.min(danger, 4)} ${t.def.table.length ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${k === justRevealed ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''}" data-k="${k}">
+    const g = `<g class="hex tile d${Math.min(danger, 4)} ${t.def.table.length ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${justRevealed.includes(k) ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''}" data-k="${k}" ${justRevealed.includes(k) ? `style="--i:${justRevealed.indexOf(k)}"` : ''}>
       <polygon points="${hexPoints(x, y, HEX - (isHere ? 4 : 2))}" ${isHere ? `style="stroke:${p.color}"` : ''}/>
       <text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>
       ${tableSvg(x, y + 4, t)}
@@ -865,7 +861,6 @@ function renderMap() {
   cameraTo(cx, cy);
 
   $('#hint').textContent = mode === 'flee' || mode === 'threat' || mode === 'drive' ? ''
-    : mode === 'scout' ? 'Press A Q E D X Z or click a highlighted hex to scout it. (Esc to cancel)'
     : mode === 'move' ? 'Press A Q E D X Z or click a highlighted tile to move there. (Esc to cancel)' : '';
 }
 
@@ -994,7 +989,7 @@ function renderPanel() {
     ${noAP ? `<div class="note bad">Out of AP — you must sleep.</div>` : ''}
     <div class="ribbon">
       ${btn('sleep', '😴 Sleep', 'Gain 2d6 AP', false)}
-      ${btn('scout', '🔭 Scout', '1 AP · reveal hex', noAP || !emptyAdj(p).length)}
+      ${btn('scout', '🔭 Scout', emptyAdj(p).length ? `1 AP · reveal ${emptyAdj(p).length} hex${emptyAdj(p).length === 1 ? '' : 'es'}` : 'All explored', noAP || !emptyAdj(p).length)}
       ${btn('move', '🚶 Move', '1 AP · adjacent', noAP || !moveAdj(p).length)}
       ${btn('scavenge', '🔍 Scavenge', !canScavengeHere(t) ? 'Nothing to find' : t.zombies ? 'Blocked by zombies' : lootLeft(t) ? `1 AP · ${lootLeft(t)} of 5 left` : '1 AP · picked clean', noAP || !canScavengeHere(t) || t.zombies > 0)}
       ${Object.keys(ITEMS).filter((id) => ITEMS[id].vehicle && vehicleOf(p, id)).map((id) => {

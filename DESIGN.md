@@ -29,7 +29,7 @@ Living rules document for the digital version. Updated as rules are clarified.
 | Action | Cost | Effect |
 |---|---|---|
 | Sleep | free | Gain 2d6 AP |
-| Scout | 1 AP | Reveal a new hex adjacent to current location. Not allowed if no empty adjacent space. |
+| Scout | 1 AP | Reveal **every** unexplored hex adjacent to your location (up to 6). Not allowed if all are already explored. |
 | Move | 1 AP | Move to an adjacent revealed hex. *(details TBD)* |
 | Scavenge | 1 AP | Roll 1d6 on the tile's 6-entry table (see Tiles). |
 | Fortify | 1 AP | Roll 1d6 and add it to SAFETY at current location (max 6). |
@@ -70,6 +70,7 @@ Checked at the **start** of the round, before anyone acts (on night rounds, the 
 
 ## Zombies
 - Zombies arrive two ways: a **scavenge roll of 1** (and any other Zombies results on a tile's table), or the **night attack**.
+- **Scavenge zombies are finite:** once a Zombies row has been rolled, it's crossed off — rolling it again finds nothing. It **comes back** when the tile has **no Safety and no survivor on it** (checked at the start of each round *(placeholder)*). So clearing a tile makes it safe to scavenge while you stay, and fortifying keeps it clear after you leave. Night attacks are unaffected.
 - The number arriving is always **1d6**.
 - **Contest Safety:** each zombie cancels one point of the tile's Safety (that Safety is used up). Leftover zombies fill the tile's 6 circles as **black circles** — a tile holds at most 6 zombies.
 - A tile with zombies on it blocks **scavenging** and **fortifying** *(fortify block is a placeholder)*.
@@ -114,11 +115,11 @@ Repeat until the tile is clear, you escape, or you die.
 
 ## Tiles
 - A tile can be any real-world location (e.g. hospital, petrol station, farm).
-- **Depletion:** when a scavenge roll finds a result (resource or item), that row is **crossed off for good**. Rolling a looted row finds **nothing — the AP is still spent**. Zombies never run out.
+- **Depletion:** when a scavenge roll finds a result (resource or item), that row is **crossed off for good** — unless it's marked **Endless** (∞) in `locations.js`, e.g. the Lake's water. Rolling a looted row finds **nothing — the AP is still spent**. Zombies never run out.
 - **Stashes:** dropped items — and everything a survivor carried when they die — become **"NAME's stash"** on a row of that tile's table. A stash covers a looted row if there is one, otherwise a random row (2–6); up to 5 per tile (your own stash on a tile grows; with all 5 rows taken, things join the oldest). Roll its number to claim it: all its resources, plus its items up to your backpack space (choose which; the rest stay). Once emptied, the row underneath shows again.
   - A tile with no table (Wasteland) only has empty rows — so it can be scavenged just for a stash left there *(placeholder)*.
 - Each tile has a **d6 scavenge table**:
-  - **1 is always Zombies.**
+  - **1 is always Zombies** (finite — see Zombies).
   - Results 2–6 are the tile's 5 themed items/resources.
   - Every resource result gives **1d6** of that resource (so tables just say "Food", "Double Food"); a doubled result (e.g. "Double Food") gives **1d6 × 2**. *(For now, Zombies only ever appear on a 1 — no tile has extra Zombies results.)*
 - Tiles differ in what their 5 results give.
@@ -135,7 +136,7 @@ Repeat until the tile is clear, you escape, or you die.
 - Game starts Day 1, Round 2 (first morning).
 - Each player starts with **full AP (12)** and **1d6** each of Food, Water and Hope; 0 Fuel and 0 Ammo.
 - A tile holds at most **6 Safety**. Safety belongs to the tile and is shared by everyone on it; it does not decay.
-- Scouting reveals a random tile from the tile list; the scout stays put.
+- Scouting reveals a random tile from the tile list for each unexplored neighbour; the scout stays put.
 - Sharing resources with a player on the same tile is free (doesn't use the round).
 - Player health / death
 - Item card list and effects

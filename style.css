@@ -104,7 +104,7 @@ body:not(.log-open) #panel { display: none; }
 .hex .veh { font-size: 18px; }
 .hex .pip { fill: #0006; stroke: #f2c94c66; stroke-width: 1.5; }
 .hex .pip.zed { fill: #0b0b0b; stroke: #c0392b; stroke-width: 2; }
-.tile.revealed { animation: reveal .7s cubic-bezier(.2, 1.4, .5, 1); transform-box: fill-box; transform-origin: center; }
+.tile.revealed { animation: reveal .7s cubic-bezier(.2, 1.4, .5, 1) backwards; animation-delay: calc(var(--i, 0) * 120ms); transform-box: fill-box; transform-origin: center; }   /* a ripple when several appear */
 .tile.revealed polygon { stroke: #fff; stroke-width: 4; animation: revealglow 1.4s ease-in-out infinite alternate; }
 @keyframes reveal { from { transform: scale(.3) rotate(-30deg); opacity: 0; } }
 @keyframes revealglow { from { filter: drop-shadow(0 0 4px #fff8); } to { filter: drop-shadow(0 0 18px #fffc); } }
