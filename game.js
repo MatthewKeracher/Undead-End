@@ -40,6 +40,9 @@ const cur = () => G.players[G.turn];
 const tileOf = (p) => G.tiles[key(p.q, p.r)];
 const emptyAdj = (p) => neighbors(p.q, p.r).filter(([q, r]) => !G.tiles[key(q, r)]);
 const tileAdj = (p) => neighbors(p.q, p.r).filter(([q, r]) => G.tiles[key(q, r)]);
+// Impassable tiles (e.g. Mountain) can't be moved, fled or driven onto.
+const passable = (t) => !!t && t.def.passable;
+const driveAdj = (p) => tileAdj(p).filter(([q, r]) => passable(G.tiles[key(q, r)]));
 // Items
 // A weapon's `uses` says what each attack spends: 'ammo' (gun: 1 ammo per shot) or 'ap' (melee: 1 AP per swing).
 // With several of the same kind, the one with the lowest condition is used first.
@@ -47,10 +50,12 @@ const weaponOf = (p, uses) => p.items
   .filter((it) => ITEMS[it.id]?.weapon && it.cond > 0 && (!uses || ITEMS[it.id].uses === uses))
   .sort((a, b) => a.cond - b.cond)[0];
 // Tiles with zombies can only be entered by a player carrying a weapon.
-const canEnter = (p, t) => !t.zombies || !!weaponOf(p);
+const canEnter = (p, t) => passable(t) && (!t.zombies || !!weaponOf(p));
 const moveAdj = (p) => tileAdj(p).filter(([q, r]) => canEnter(p, G.tiles[key(q, r)]));
 // Fleeing: only to an adjacent, already-scouted tile with no zombies.
-const fleeAdj = (p) => neighbors(p.q, p.r).filter(([q, r]) => { const t = G.tiles[key(q, r)]; return t && !t.zombies; });
+const canScavengeHere = (t) => t.def.table.length > 0;   // tiles without a table (e.g. Wasteland) have nothing to find
+const canFortifyHere = (t) => t.def.fortify;
+const fleeAdj = (p) => neighbors(p.q, p.r).filter(([q, r]) => { const t = G.tiles[key(q, r)]; return passable(t) && !t.zombies; });
 const playersAt = (q, r) => G.players.filter((p) => p.q === q && p.r === r);
 
 function log(msg, cls = '') { G.log.push({ msg, cls }); }
@@ -131,7 +136,8 @@ async function endRound() {
 // Food & water feed max AP: each check paid → +trackGain (max 12); each missed → −trackLoss. Max AP 0 = death.
 async function startOfRound() {
   const r = G.round;
-  const up = CONFIG.upkeep[r] || {};
+  if (checksOff && Object.keys(CONFIG.upkeep[r] || {}).length) log(`Round ${r} check skipped (cheat: checks off)`, 'cheat');
+  const up = checksOff ? {} : CONFIG.upkeep[r] || {};
   if (Object.keys(up).length) log(`Round ${r} check — ${upkeepText(r)}`, 'phase');
   for (const p of G.players) {
     if (p.dead) continue;
@@ -333,7 +339,7 @@ async function fleeAttempt(p, t) {
   const opts = [['foot', '🏃 On foot', '1 hex', fleeAdj(p).length > 0]];
   for (const id of Object.keys(ITEMS).filter((k) => ITEMS[k].vehicle)) {
     const v = vehicleOf(p, id);
-    if (v) opts.push([id, `${ITEMS[id].icon} ${id}`, `1 ${vehicleFuel(v) === 'fuel' ? ICON.fuel : '🎲'} per tile`, vehicleLeft(p, v) > 0]);
+    if (v) opts.push([id, `${ITEMS[id].icon} ${id}`, `1 ${vehicleFuel(v) === 'fuel' ? ICON.fuel : '🎲'} per tile`, vehicleLeft(p, v) > 0 && driveAdj(p).length > 0]);
   }
   let how = 'foot';
   if (opts.length > 1) how = await chooseEscape(opts);
@@ -480,7 +486,7 @@ const vehicleFuel = (v) => ITEMS[v.id].uses;                 // 'fuel' | 'ap'
 const vehicleLeft = (p, v) => (vehicleFuel(v) === 'fuel' ? p.res.fuel : p.ap);
 const vehiclesHere = (p) => (tileOf(p).vehicles ||= []);
 const vehicleOf = (p, id) => vehiclesHere(p).filter((v) => v.id === id && v.cond > 0).sort((a, b) => a.cond - b.cond)[0];
-const canDrive = (p, id) => { const v = vehicleOf(p, id); return !!v && vehicleLeft(p, v) > 0 && tileAdj(p).length > 0; };
+const canDrive = (p, id) => { const v = vehicleOf(p, id); return !!v && vehicleLeft(p, v) > 0 && driveAdj(p).length > 0; };
 
 async function driveTrip(p, v, flee = false) {
   const def = ITEMS[v.id];
@@ -503,7 +509,7 @@ async function driveTrip(p, v, flee = false) {
 
 function driveStep(q, r) {
   const { p, v } = driving, t = G.tiles[key(q, r)];
-  if (!t || vehicleLeft(p, v) < 1) return;
+  if (!passable(t) || vehicleLeft(p, v) < 1) return;
   if (vehicleFuel(v) === 'fuel') p.res.fuel--; else p.ap--;
   p.q = q; p.r = r;
   driving.steps++;
@@ -609,6 +615,7 @@ function dropItem(i) {
 
 // ---------------------------------------------------------------- actions
 let forced = [];   // cheat: queued values for the next game rolls (see cheats below)
+let checksOff = false;   // cheat: skip the food / water / hope checks (kept across new games until reload)
 function roll(label, keep = false) {
   if (!keep) rolls = [];
   const value = forced.length ? forced.shift() : d6();
@@ -627,15 +634,15 @@ async function act(name) {
   if (busy || mode === 'flee' || modalKey || G.over) return;
   const p = cur(), t = tileOf(p);
 
-  if (name === 'sleep') {
-    const r = roll('Sleep');
+  if (name === 'sleep') {   // 2d6 AP
+    const dice = [roll('Sleep'), roll('Sleep', true)], r = dice[0] + dice[1];
     const before = p.ap;
     render();
     busy = true;
-    await sleepShow(p, r);
+    await sleepShow(p, dice);
     busy = false;
     p.ap = Math.min(p.maxAP, p.ap + r);
-    logRoll(`${p.name} sleeps and gains ${p.ap - before} 🎲 AP${before + r > p.maxAP ? ` (rolled ${r}, max ${p.maxAP})` : ''}.`);
+    logRoll(`${p.name} sleeps — rolls ${dice[0]} + ${dice[1]} — and gains ${p.ap - before} 🎲 AP${before + r > p.maxAP ? ` (max ${p.maxAP})` : ''}.`);
     return nextTurn();
   }
   if (ITEMS[name]?.vehicle) {   // driving is free movement: it doesn't use up your turn
@@ -647,7 +654,7 @@ async function act(name) {
   if (p.ap < 1) return;
 
   if (name === 'fortify') {
-    if (t.safety >= CONFIG.maxSafety || t.zombies) return;
+    if (!canFortifyHere(t) || t.safety >= CONFIG.maxSafety || t.zombies) return;
     p.ap--;
     const r = roll('Fortify');
     const before = t.safety;
@@ -662,7 +669,7 @@ async function act(name) {
   }
 
   if (name === 'scavenge') {
-    if (t.zombies) return;
+    if (!canScavengeHere(t) || t.zombies) return;
     p.ap--;
     const r = roll('Scavenge');
     const e = t.def.table[r - 1];
@@ -705,7 +712,7 @@ function clickHex(q, r) {
 
   if (mode === 'drive') return driveStep(q, r);
   if (mode === 'flee') {
-    if (!G.tiles[k] || G.tiles[k].zombies) return;
+    if (!passable(G.tiles[k]) || G.tiles[k].zombies) return;
     log(`${p.name} flees to the ${G.tiles[k].def.name}.`, 'bad');
     p.q = q; p.r = r;
     fleeDone?.();
@@ -964,19 +971,20 @@ async function maxApLossShow(p, res) {
   await popupHold(newMax > 0 ? 2600 : 1500);
 }
 
-// Sleep: roll the die, then the AP dial fills segment by segment.
-async function sleepShow(p, r) {
+// Sleep: roll both dice, then the AP dial fills segment by segment.
+async function sleepShow(p, dice) {
+  const r = dice[0] + dice[1];
   const pop = $('#popup'), from = p.ap, to = Math.min(p.maxAP, p.ap + r);
   skipAnim = false;
   pop.className = 'sleep';
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>😴 Sleeping</small><h2>Rest &amp; recover</h2></div>
-    <div class="prow"><div class="slot" id="pd2d"></div><div class="bigap" id="bigap">${apGauge(from, '', p.maxAP)}</div></div>
+    <div class="prow"><div class="dicecol"><div class="slot" id="pd2a"></div><div class="slot" id="pd2b"></div></div><div class="bigap" id="bigap">${apGauge(from, '', p.maxAP)}</div></div>
     <div class="presult" id="pres"></div>
     <small class="pskip">click or press any key</small></div>`;
   pop.hidden = false;
   await wait(150);
-  await rollDie($('#pd2d'), r, 900);
+  await Promise.all([rollDie($('#pd2a'), dice[0], 900), rollDie($('#pd2b'), dice[1], 1050)]);
   await wait(250);
   for (let a = from + 1; a <= to; a++) {
     $('#bigap').innerHTML = apGauge(a, '', p.maxAP, -1, a - 1);
@@ -984,7 +992,7 @@ async function sleepShow(p, r) {
     await wait(260);
   }
   const wasted = from + r - to;
-  $('#pres').innerHTML = `<div class="big good">+${to - from} AP</div>${wasted > 0 ? `<small class="muted">${wasted} wasted — max AP ${p.maxAP}</small>` : ''}`;
+  $('#pres').innerHTML = `<div class="big good">+${to - from} AP</div><small class="muted">${dice[0]} + ${dice[1]} = ${r}</small>${wasted > 0 ? '<br>' : ''}${wasted > 0 ? `<small class="muted">${wasted} wasted — max AP ${p.maxAP}</small>` : ''}`;
   sfx.win(to >= p.maxAP);
   await popupHold(1600);
 }
@@ -1067,6 +1075,8 @@ function cellText(e) {
 
 // Result 1 is always Zombies on every tile, so it isn't listed — only results 2–6.
 function tableSvg(x, y, def) {
+  if (!def.passable) return `<text x="${x}" y="${y + 4}" class="empty">Impassable</text>`;
+  if (!def.table.length) return `<text x="${x}" y="${y + 4}" class="empty">Nothing to scavenge</text>`;
   const ch = 20, w = HEX, h = ch * 5;
   let s = `<rect x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" rx="3" class="tbl"/>`;
   def.table.forEach((e, i) => {
@@ -1095,7 +1105,7 @@ function cameraTo(x, y) {
   if (cam.anim) cancelAnimationFrame(cam.anim);
   const sx = cam.x, sy = cam.y, t0 = performance.now(), dur = 350;
   const step = (now) => {
-    const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    const k = Math.max(0, Math.min(1, (now - t0) / dur)), e = 1 - Math.pow(1 - k, 3);   // frame time can precede t0
     cam.x = sx + (cam.tx - sx) * e; cam.y = sy + (cam.ty - sy) * e;
     applyView();
     cam.anim = k < 1 ? requestAnimationFrame(step) : null;
@@ -1105,11 +1115,20 @@ function cameraTo(x, y) {
 function applyView() {
   const svg = $('#map'), b = svg.getBoundingClientRect();
   if (!b.width || !b.height) return;
-  const z = Math.min(1, b.width / 520);              // zoom out a little on narrow screens
+  const z = Math.min(1, b.width / 520, b.height / 480);   // zoom out a little on small screens
   const w = b.width / z, h = b.height / z;
   svg.setAttribute('viewBox', `${cam.x - w / 2} ${cam.y - h / 2} ${w} ${h}`);
 }
 window.addEventListener('resize', applyView);
+
+// Right column (backpack + resources) runs down the board, stopping above the action dock if they'd overlap.
+function fitRightCol() {
+  const b = $('#board').getBoundingClientRect(), d = $('#dock').getBoundingClientRect(), c = $('#rightcol').getBoundingClientRect();
+  $('#board').style.setProperty('--dockh', d.right > c.left ? `${b.bottom - d.top}px` : '0px');
+}
+const dockWatch = new ResizeObserver(fitRightCol);
+dockWatch.observe($('#dock'));
+dockWatch.observe($('#board'));
 
 // Vehicles parked on a tile: a vertical column in the space right of the loot table.
 function vehicleSvg(x, y, vs) {
@@ -1146,12 +1165,12 @@ function renderMap() {
     const t = G.tiles[k];
     const danger = t.def.table.filter((e) => e.zombies).length;
     const isHere = q === p.q && r === p.r;
-    const target = adj.has(k) && ((mode === 'move' && canEnter(p, t)) || (mode === 'flee' && !t.zombies) || mode === 'drive');
-    const g = `<g class="hex tile d${Math.min(danger, 4)} ${k === G.justRevealed ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''}" data-k="${k}">
+    const target = adj.has(k) && ((mode === 'move' && canEnter(p, t)) || (mode === 'flee' && passable(t) && !t.zombies) || (mode === 'drive' && passable(t)));
+    const g = `<g class="hex tile d${Math.min(danger, 4)} ${canScavengeHere(t) ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${k === G.justRevealed ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''}" data-k="${k}">
       <polygon points="${hexPoints(x, y, HEX - (isHere ? 4 : 2))}" ${isHere ? `style="stroke:${p.color}"` : ''}/>
       <text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>
       ${tableSvg(x, y + 4, t.def)}
-      ${safetySvg(x, y + HEX * 0.64, t.safety, t.zombies)}
+      ${passable(t) ? safetySvg(x, y + HEX * 0.64, t.safety, t.zombies) : ''}
       ${vehicleSvg(x + HEX * 0.69, y + 4, [...(t.vehicles || []), ...(isHere && driving ? [driving.v] : [])])}
       ${target ? pickBadge(x, y - HEX * 0.8, pickNumber(p, q, r)) : ''}</g>`;
     if (isHere) hereSvg = g; else svg += g;   // draw current tile last so its border sits on top
@@ -1186,11 +1205,13 @@ function apGauge(ap, flash, max, losing = -1, gaining = -1, losingEnd = losing +
     <text y="8" class="num">${ap}</text><text y="26" class="lbl">AP</text><text y="40" class="maxl">max ${max}</text></svg>`;
 }
 
-// Backpack: 6 slots down the left side of the board. ✕ arms, second click destroys.
+// Backpack: 6 slots in the top-right column of the board. ✕ arms, second click destroys.
 let dropArmed = -1;
 function renderPack() {
   const p = cur();
-  let h = `<div class="packhead">Backpack ${p.items.length}/${CONFIG.maxItems}</div>`;
+  // the header folds the backpack away on small screens (see style.css)
+  let h = `<button type="button" class="packhead" data-packtoggle><span class="packname"><span class="word">Backpack</span><span class="bag">🎒</span> ${p.items.length}/${CONFIG.maxItems}</span>`
+    + `<span class="packicons">${p.items.map((it) => ITEMS[it.id].icon).join('')}</span><span class="caret"></span></button>`;
   for (let i = 0; i < CONFIG.maxItems; i++) {
     const it = p.items[i];
     h += it
@@ -1202,7 +1223,7 @@ function renderPack() {
   $('#pack').innerHTML = h;
 }
 
-// Players pane (bottom-right): everyone in the game, then who's on your tile.
+// Players section (collapsible, top of the right panel): everyone in the game, then who's on your tile.
 function renderPlayers() {
   const p = cur();
   const row = (o, sub) => `<div class="prow-pl ${o.dead ? 'dead' : ''} ${o === p ? 'me' : ''}">
@@ -1215,7 +1236,7 @@ function renderPlayers() {
     ${here.map((o) => row(o, o.dead ? '☠️' : `🎲 ${o.ap}`)).join('')}`;
 }
 
-// Resource counter in the header; values that changed since last render flash green/red.
+// Resource tray under the backpack; values that changed since last render flash green/red.
 let prevStats = {};
 function renderStats() {
   const p = cur();
@@ -1276,7 +1297,7 @@ function renderPanel() {
   let warn = '';
   const apWarn = p.ap < 2 ? ` Fleeing costs 1 🎲 — keep some AP!` : '';
   const nextRound = G.round % 6 + 1;
-  const nextUp = upkeepText(nextRound);
+  const nextUp = checksOff ? '' : upkeepText(nextRound);
   if (nextUp && !isNight(nextRound)) warn = `<div class="note">Next round starts with a check: ${nextUp}</div>`;
   if (isNight(nextRound)) {
     warn = `<div class="note ${isNight(G.round) ? 'bad' : ''}">🌙 Next round starts with ${nextUp ? `a ${nextUp} check and ` : ''}a night attack — 1d6 🧟 vs your 🟡 ${t.safety}.${apWarn}</div>`;
@@ -1286,15 +1307,15 @@ function renderPanel() {
     ${warn}
     ${noAP ? `<div class="note bad">Out of AP — you must sleep.</div>` : ''}
     <div class="ribbon">
-      ${btn('sleep', '😴 Sleep', 'Gain 1d6 AP', false)}
+      ${btn('sleep', '😴 Sleep', 'Gain 2d6 AP', false)}
       ${btn('scout', '🔭 Scout', '1 AP · reveal hex', noAP || !emptyAdj(p).length)}
       ${btn('move', '🚶 Move', '1 AP · adjacent', noAP || !moveAdj(p).length)}
-      ${btn('scavenge', '🔍 Scavenge', t.zombies ? 'Blocked by zombies' : '1 AP · roll d6', noAP || t.zombies > 0)}
+      ${btn('scavenge', '🔍 Scavenge', !canScavengeHere(t) ? 'Nothing to find' : t.zombies ? 'Blocked by zombies' : '1 AP · roll d6', noAP || !canScavengeHere(t) || t.zombies > 0)}
       ${Object.keys(ITEMS).filter((id) => ITEMS[id].vehicle && vehicleOf(p, id)).map((id) => {
         const v = vehicleOf(p, id), fuel = vehicleFuel(v) === 'fuel';
-        return btn(id, `${ITEMS[id].icon} ${ITEMS[id].verb}`, !tileAdj(p).length ? 'Nowhere to go' : vehicleLeft(p, v) < 1 ? (fuel ? 'No fuel' : 'No AP') : `1 ${fuel ? ICON.fuel : '🎲'}/tile · cond ${v.cond}`, !canDrive(p, id));
+        return btn(id, `${ITEMS[id].icon} ${ITEMS[id].verb}`, !driveAdj(p).length ? 'Nowhere to go' : vehicleLeft(p, v) < 1 ? (fuel ? 'No fuel' : 'No AP') : `1 ${fuel ? ICON.fuel : '🎲'}/tile · cond ${v.cond}`, !canDrive(p, id));
       }).join('')}
-      ${btn('fortify', '🔨 Fortify', t.zombies ? 'Blocked by zombies' : t.safety >= CONFIG.maxSafety ? `Safety full (${CONFIG.maxSafety})` : '1 AP · +1d6 🟡', noAP || t.zombies > 0 || t.safety >= CONFIG.maxSafety)}
+      ${btn('fortify', '🔨 Fortify', !canFortifyHere(t) ? "Can't be fortified" : t.zombies ? 'Blocked by zombies' : t.safety >= CONFIG.maxSafety ? `Safety full (${CONFIG.maxSafety})` : '1 AP · +1d6 🟡', noAP || !canFortifyHere(t) || t.zombies > 0 || t.safety >= CONFIG.maxSafety)}
     </div>`;
 
   renderLog();
@@ -1336,7 +1357,7 @@ const CHEATS = {
   help: 'list cheats',
   'roll(a,b,…)': 'force the next dice rolls',
   'scavenge(r[,amount])': 'scavenge with table roll r (and amount / condition / zombie count)',
-  'sleep(n)': 'sleep and gain n AP',
+  'sleep(n) sleep(a,b)': 'sleep and gain n AP (2–12), or force both dice',
   'fortify(n)': 'fortify with a roll of n',
   'flee(n)': 'force your next flee roll',
   'night(n)': 'night attack now with n zombies',
@@ -1345,6 +1366,8 @@ const CHEATS = {
   'item(name[,cond])': 'add an item (vehicles park on your tile)',
   'ap(n) maxap(n) food(n) water(n) hope(n) fuel(n) ammo(n)': 'set a value',
   'round(n) day(n)': 'jump the clock (no checks run)',
+  'checks() checks(on|off)': 'toggle the food / water / hope checks',
+  'reset()': 'start a fresh world (admin-only once online)',
 };
 async function runCheat(cmd, args) {
   const p = cur(), t = tileOf(p), n = args.map((a) => (isNaN(+a) ? a : +a));
@@ -1355,13 +1378,19 @@ async function runCheat(cmd, args) {
     case 'roll': forced.push(...n.filter((v) => typeof v === 'number')); say(`Next rolls forced: ${forced.join(', ')}`); break;
     case 'scavenge':
       if (p.ap < 1) return say('No AP — use ap(n) first.');
+      if (!canScavengeHere(t)) return say('Nothing to scavenge on this tile.');
       if (t.zombies) return say('Zombies here block scavenging — use zombies(0).');
       forced = [n[0], ...(n[1] !== undefined ? [n[1]] : [])]; say(`Scavenge forced: ${n.join(', ')}`);
       if (n[1] === undefined) forced.push(d6());
       await act('scavenge'); break;
-    case 'sleep': forced = [n[0] ?? 6]; say(`Sleep forced: ${n[0]}`); await act('sleep'); break;
+    case 'sleep': {   // sleep(8) splits the total over the two dice; sleep(3,5) sets each die
+      const total = Math.max(2, Math.min(12, n[0] ?? 12));
+      forced = n.length > 1 ? [n[0], n[1]] : [Math.min(6, total - 1), total - Math.min(6, total - 1)];
+      say(`Sleep forced: ${forced.join(' + ')}`); await act('sleep'); break;
+    }
     case 'fortify':
       if (p.ap < 1) return say('No AP — use ap(n) first.');
+      if (!canFortifyHere(t)) return say("This tile can't be fortified.");
       forced = [n[0] ?? 6]; say(`Fortify forced: ${n[0]}`); await act('fortify'); break;
     case 'flee': forced.push(n[0] ?? 6); say(`Next flee roll forced: ${n[0]}`); break;
     case 'night': forced = [n[0] ?? 6]; say(`Night attack: ${n[0]} zombies`); await nightAttack(); render(); if (G.over) showGameOver(); break;
@@ -1378,6 +1407,10 @@ async function runCheat(cmd, args) {
     case 'ap': p.ap = Math.max(0, Math.min(p.maxAP, n[0] ?? 0)); say(`AP: ${p.ap}`); render(); break;
     case 'maxap': p.maxAP = Math.max(1, Math.min(CONFIG.maxAP, n[0] ?? CONFIG.maxAP)); p.ap = Math.min(p.ap, p.maxAP); say(`Max AP: ${p.maxAP}`); render(); break;
     case 'food': case 'water': case 'hope': case 'fuel': case 'ammo': p.res[cmd] = Math.max(0, n[0] ?? 0); say(`${cmd}: ${p.res[cmd]}`); render(); break;
+    case 'reset': newGame(['Survivor']); say('World reset'); break;
+    case 'checks':
+      { const v = String(n[0] ?? '').toLowerCase(); checksOff = v === 'off' ? true : v === 'on' ? false : !checksOff; }
+      say(`Resource checks ${checksOff ? 'OFF — no food, water or hope is taken' : 'ON'}`); render(); break;
     case 'round': G.round = Math.max(1, Math.min(6, n[0] ?? 1)); say(`Round ${G.round}`); render(); break;
     case 'day': G.day = Math.max(1, n[0] ?? 1); say(`Day ${G.day}`); render(); break;
     default: say(`Unknown cheat "${cmd}" — try help()`);
@@ -1456,6 +1489,7 @@ document.addEventListener('keydown', (e) => {
 $('#newgame').onclick = () => { if (!busy) newGame(['Survivor']); };
 $('#popup').addEventListener('click', () => { if (!modalKey) popupInput(); });
 $('#pack').addEventListener('click', (e) => {
+  if (e.target.closest('[data-packtoggle]')) { $('#pack').classList.toggle('open'); return; }
   const u = e.target.closest('[data-use]'); if (u) { useTool(+u.dataset.use); return; }
   const b = e.target.closest('[data-drop]'); if (!b) return;
   const i = +b.dataset.drop;
@@ -1470,7 +1504,7 @@ function updateUnread() {
   if (logOpen()) logSeen = G.log.length;
   const n = G.log.slice(logSeen).filter((l) => l.cls !== 'phase').length;
   const open = logOpen();
-  $('#logtoggle').innerHTML = `📜 ${open ? 'Hide' : 'Show'} log${!open && n ? ` <span class="unread">${n > 99 ? '99+' : n}</span>` : ''}`;
+  $('#logtoggle').innerHTML = `📜<span class="lbl"> ${open ? 'Hide' : 'Show'} log</span>${!open && n ? ` <span class="unread">${n > 99 ? '99+' : n}</span>` : ''}`;
 }
 function setLog(open) {
   document.body.classList.toggle('log-open', open);
@@ -1482,6 +1516,9 @@ function setLog(open) {
 const logOpen = () => document.body.classList.contains('log-open');
 $('#logtoggle').onclick = () => setLog(!logOpen());
 try { setLog(localStorage.getItem('logOpen') === '1'); } catch { setLog(false); }
+const playersBox = $('#playersbox');
+try { playersBox.open = localStorage.getItem('playersOpen') !== '0'; } catch { /* storage unavailable */ }
+playersBox.addEventListener('toggle', () => { try { localStorage.setItem('playersOpen', playersBox.open ? '1' : '0'); } catch { /* storage unavailable */ } });
 
 function toggleMute() { muted = !muted; $('#mute').textContent = muted ? '🔇' : '🔊'; }
 $('#mute').onclick = toggleMute;

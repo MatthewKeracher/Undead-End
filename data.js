@@ -32,11 +32,6 @@ const CONFIG = {
   },
 };
 
-// Scavenge table helpers
-const Z = (n = 1) => ({ zombies: n });     // zombies
-const R = (res, n = 1) => ({ res, n });   // resource: food, water, hope, fuel, ammo
-const I = (item) => ({ item });           // item card (condition rolled 1d6 when found)
-
 // Item cards. Condition = uses left; at 0 the item breaks.
 const ITEMS = {
   Handgun: { icon: '🔫', weapon: true, uses: 'ammo', verb: 'Fire', desc: 'Fight: no AP; 1 condition per round; each 🟢 ammo fired kills 1 zombie.' },
@@ -49,24 +44,40 @@ const ITEMS = {
   Toolkit: { icon: '🧰', tool: true, desc: 'Use any time (free): transfer some of its condition to another item. Destroyed at 0.' },
 };
 
-// Each tile has a d6 table: entries are results 1–6. Result 1 is always zombies (and for now, only 1).
-const START_TILE = {
-  name: 'Farmhouse', icon: '🏚️',
-  table: [Z(), R('food'), R('water'), R('food', 2), I('Axe'), I('Truck')],
-};
-
-const TILES = [
-  { name: 'Supermarket',    icon: '🛒', table: [Z(), R('water'), R('food', 2), R('water', 2), R('food'), R('hope')] },
-  { name: 'Petrol Station', icon: '⛽', table: [Z(), R('fuel', 2), I('Toolkit'), I('Truck'), R('water'), R('fuel')] },
-  { name: 'Hospital',       icon: '🏥', table: [Z(), R('water'), R('hope'), R('water'), R('hope', 2), R('food')] },
-  { name: 'Police Station', icon: '🚓', table: [Z(), R('ammo'), R('ammo', 3), I('Handgun'), R('ammo', 2), I('Body Armor')] },
-  { name: 'Hardware Store', icon: '🔨', table: [Z(), I('Toolkit'), I('Axe'), R('ammo'), R('water'), I('Handgun')] },
-  { name: 'School',         icon: '🏫', table: [Z(), R('food'), R('food'), R('water'), R('hope', 2), I('Bike')] },
-  { name: 'Church',         icon: '⛪', table: [Z(), R('hope', 2), R('hope'), R('water'), R('food'), R('water')] },
-  { name: 'Pharmacy',       icon: '💊', table: [Z(), R('water'), R('hope'), R('water', 2), R('food'), R('hope')] },
-  { name: 'Gun Shop',       icon: '🎯', table: [Z(), R('ammo'), R('ammo', 2), R('ammo', 3), I('Handgun'), I('Body Armor')] },
-  { name: 'Forest',         icon: '🌲', table: [Z(), R('food'), R('water'), I('Axe'), R('food'), R('hope')] },
-  { name: 'Lake',           icon: '🏞️', table: [Z(), R('water', 2), R('water', 2), R('food'), R('hope'), R('water')] },
-  { name: 'Pub',            icon: '🍺', table: [Z(), R('food'), R('hope', 2), R('hope'), R('food'), R('water')] },
-  { name: 'Campsite',       icon: '⛺', table: [Z(), R('fuel'), R('food'), R('water'), I('Bike'), I('Toolkit')] },
-];
+// Tiles are read from LOCATIONS (locations.js): each table entry is written as words
+// ('Double Food', 'Axe', …) and turned into { zombies } / { res, n } / { item } here.
+const MULTIPLIERS = { double: 2, triple: 3, quadruple: 4 };
+function parseResult(text, where) {
+  const t = String(text).trim().toLowerCase().replace(/\s+/g, ' ');
+  if (t === 'zombies') return { zombies: 1 };
+  const [first, ...rest] = t.split(' ');
+  const n = MULTIPLIERS[first] && rest.length ? MULTIPLIERS[first] : 1;
+  const res = n > 1 ? rest.join(' ') : t;
+  if (['food', 'water', 'hope', 'fuel', 'ammo'].includes(res)) return { res, n };
+  const item = Object.keys(ITEMS).find((id) => id.toLowerCase() === t);
+  if (item) return { item };
+  throw new Error(`${where}: "${text}" isn't a result I know. Use Zombies, Food/Water/Hope/Fuel/Ammo (optionally Double/Triple/Quadruple), or an item: ${Object.keys(ITEMS).join(', ')}.`);
+}
+function loadLocations(list) {
+  const errors = [];
+  const tiles = list.map((loc, i) => {
+    const where = `Location ${i + 1}${loc.name ? ` (${loc.name})` : ''}`;
+    if (!loc.name) errors.push(`${where}: missing a name.`);
+    const raw = loc.table ?? [];   // no table = nothing to scavenge
+    if (!Array.isArray(raw) || (raw.length && raw.length !== 6)) { errors.push(`${where}: the table needs exactly 6 results (rolls 1–6), or leave it out for nothing to scavenge.`); return null; }
+    const count = loc.count ?? 1;
+    if (!Number.isInteger(count) || count < 1) errors.push(`${where}: count must be a whole number, 1 or more.`);
+    const table = raw.map((x, r) => { try { return parseResult(x, `${where}, roll ${r + 1}`); } catch (e) { errors.push(e.message); return null; } });
+    if (loc.start && loc.passable === false) errors.push(`${where}: the start tile can't be impassable.`);
+    return { name: loc.name, icon: loc.icon || '', start: !!loc.start, fortify: loc.fortify !== false, passable: loc.passable !== false, count, table };
+  });
+  const starts = tiles.filter((t) => t && t.start);
+  if (starts.length !== 1) errors.push(`Exactly one location needs start: true (found ${starts.length}).`);
+  if (tiles.filter((t) => t && !t.start).length < 1) errors.push('Add at least one location without start: true, for scouting.');
+  if (errors.length) {   // show the problems on the page instead of a blank screen
+    document.body.insertAdjacentHTML('afterbegin', `<pre style="position:fixed;inset:16px auto auto 16px;z-index:99;max-width:calc(100% - 32px);white-space:pre-wrap;padding:12px 16px;background:#3a0d0d;color:#ffd6cf;border:1px solid #e86a5a;border-radius:8px;font:13px/1.5 ui-monospace,monospace">locations.js has problems:\n• ${errors.map((e) => e.replace(/&/g, '&amp;').replace(/</g, '&lt;')).join('\n• ')}</pre>`);
+    throw new Error(`locations.js: ${errors.join(' | ')}`);
+  }
+  return { start: starts[0], tiles: tiles.filter((t) => !t.start).flatMap((t) => Array(t.count).fill(t)) };
+}
+const { start: START_TILE, tiles: TILES } = loadLocations(LOCATIONS);

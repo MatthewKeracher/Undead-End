@@ -12,7 +12,7 @@ Or open `index.html` in a browser — no build step or install needed.
 
 | Key | Action |
 |---|---|
-| R | Sleep (gain 1d6 AP) |
+| R | Sleep (gain 2d6 AP) |
 | S | Scout |
 | W | Move |
 | A | Scavenge |
@@ -31,8 +31,9 @@ Or open `index.html` in a browser — no build step or install needed.
 - `DESIGN.md` — the rules as they currently stand, plus open questions
 - `MULTIPLAYER.md` — plan for online multiplayer, voice and the Radio
 - `QUESTIONS.md` — every open rules question, with space for answers
-- `data.js` — rules numbers, tiles and items (edit freely)
+- `locations.js` — every location and its d6 scavenge table (edit freely)
+- `data.js` — rules numbers and items (edit freely)
 - `game.js` — game engine and UI
 - `style.css`, `index.html` — layout and styling
 
-Testing cheats can be typed into the log's note box, e.g. `scavenge(1)`, `sleep(6)`, `item(axe)`, `help()`.
+Testing cheats can be typed into the log's note box, e.g. `scavenge(1)`, `sleep(6)`, `item(axe)`, `checks()` (toggle resource checks), `help()`.

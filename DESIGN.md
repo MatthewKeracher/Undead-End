@@ -23,12 +23,12 @@ Living rules document for the digital version. Updated as rules are clarified.
 
 ## Action Points (AP)
 - Players spend AP to take actions.
-- **Sleep** is free: the player gains **1d6 AP**, up to their current **max AP** (see Failing a check).
+- **Sleep** is free: the player gains **2d6 AP**, up to their current **max AP** (see Failing a check).
 
 ## Actions
 | Action | Cost | Effect |
 |---|---|---|
-| Sleep | free | Gain 1d6 AP |
+| Sleep | free | Gain 2d6 AP |
 | Scout | 1 AP | Reveal a new hex adjacent to current location. Not allowed if no empty adjacent space. |
 | Move | 1 AP | Move to an adjacent revealed hex. *(details TBD)* |
 | Scavenge | 1 AP | Roll 1d6 on the tile's 6-entry table (see Tiles). |
@@ -66,6 +66,7 @@ Checked at the **start** of the round, before anyone acts (on night rounds, the 
 ## Night
 - Rounds **1 and 6** are night.
 - At the **start** of each night round (before anyone acts), each occupied tile is attacked by **1d6 zombies** (same contest as scavenging, below).
+- Fighting or fleeing zombies **never uses up your action** for the round — whether they came from a night attack or another player's scavenge. You deal with them, then still act.
 
 ## Zombies
 - Zombies arrive two ways: a **scavenge roll of 1** (and any other Zombies results on a tile's table), or the **night attack**.
@@ -118,6 +119,8 @@ Repeat until the tile is clear, you escape, or you die.
   - Results 2–6 are the tile's 5 themed items/resources.
   - Every resource result gives **1d6** of that resource (so tables just say "Food", "Double Food"); a doubled result (e.g. "Double Food") gives **1d6 × 2**. *(For now, Zombies only ever appear on a 1 — no tile has extra Zombies results.)*
 - Tiles differ in what their 5 results give.
+- **Wasteland** tiles have **no scavenge table** (Scavenge is blocked) and **cannot be fortified** (Safety stays 0, so night attacks hit in full). Zombies only reach them at night. They're the most common tile *(placeholder: 3 in the scouting pool)*.
+- **Mountain** tiles are **impassable wasteland**: nobody can move, flee or drive onto or through them. Scouting still reveals them, so they shape the map *(placeholder: 2 in the scouting pool)*.
 
 ## Open questions
 - Round 6: water or hope?
@@ -125,7 +128,7 @@ Repeat until the tile is clear, you escape, or you die.
 - Item cards and their fuel/ammo use
 - Starting tile list and their d6 tables (prototype uses placeholders)
 
-## Prototype placeholders (in `data.js`, change freely)
+## Prototype placeholders (in `data.js` and `locations.js`, change freely)
 - Game starts Day 1, Round 2 (first morning).
 - Each player starts with **full AP (12)** and **1d6** each of Food, Water and Hope; 0 Fuel and 0 Ammo.
 - A tile holds at most **6 Safety**. Safety belongs to the tile and is shared by everyone on it; it does not decay.
