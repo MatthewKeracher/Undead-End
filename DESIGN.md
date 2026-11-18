@@ -30,7 +30,7 @@ Living rules document for the digital version. Updated as rules are clarified.
 |---|---|---|
 | Sleep | free | Gain 2d6 AP |
 | Scout | 1 AP | Reveal **every** unexplored hex adjacent to your location (up to 6). Not allowed if all are already explored. |
-| Move | free / 1 AP | Move to an adjacent revealed hex. **The first move each round is free** (no AP, doesn't use your action); a second move costs 1 AP and **is** your action. |
+| Move | free / 1 AP | Move to an adjacent hex — explored or not: an **unexplored hex is revealed as you step in** (driving and fleeing too). If it turns out to be impassable (a Mountain), you're blocked and nothing is spent; when fleeing, pick another way (none left = caught). **The first move each round is free** (no AP, doesn't use your action); a second move costs 1 AP and **is** your action. |
 | Scavenge | 1 AP | Roll 1d6 on the tile's 6-entry table (see Tiles). |
 | Fortify | 1 AP | Roll 1d6 and add it to SAFETY at current location (max 6). |
 
@@ -124,6 +124,7 @@ Repeat until the tile is clear, you escape, or you die.
   - Every resource result gives **2d6** of that resource (`CONFIG.lootDice`). Tables use plain rows ("Food", "Water"); "Double"/"Triple" still work (× 2 / × 3) but are no longer used. Item condition and zombie counts stay **1d6**. A **mix** (e.g. "Food + Water", "Truck + Fuel") gives each part, each rolled separately. *(For now, Zombies only ever appear on a 1 — no tile has extra Zombies results.)*
 - Tiles differ in what their 5 results give.
 - **Wasteland** tiles have **no scavenge table** (Scavenge is blocked) and **cannot be fortified** (Safety stays 0, so night attacks hit in full). Zombies only reach them at night. They're the most common tile *(placeholder: 3 in the scouting pool)*.
+- **Outdoor** places — **Forest, Lake, Campsite** — **can't be fortified** either (Safety stays 0): night attacks hit in full, and cleared zombies drift back as soon as you leave.
 - **Mountain** tiles are **impassable wasteland**: nobody can move, flee or drive onto or through them. Scouting still reveals them, so they shape the map *(placeholder: 2 in the scouting pool)*.
 
 ## Open questions
@@ -134,7 +135,7 @@ Repeat until the tile is clear, you escape, or you die.
 
 ## Prototype placeholders (in `data.js` and `locations.js`, change freely)
 - Game starts Day 1, Round 2 (first morning).
-- Each player starts with **full AP (12)** and **6** each of Food, Water and Hope; 0 Fuel and 0 Ammo (`CONFIG.startRes`).
+- Each player starts with **full AP (12)**, **6** each of Food, Water and Hope, 0 Fuel and 0 Ammo (`CONFIG.startRes`), and an **Axe at condition 3** (`CONFIG.startItems`).
 - A tile holds at most **6 Safety**. Safety belongs to the tile and is shared by everyone on it; it does not decay.
 - Scouting reveals a random tile from the tile list for each unexplored neighbour; the scout stays put.
 - Sharing resources with a player on the same tile is free (doesn't use the round).

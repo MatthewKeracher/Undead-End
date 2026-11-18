@@ -37,10 +37,10 @@ const LOCATIONS = [
   { name: 'Farmhouse',      icon: '🏚️', start: true,
     table: ['Zombies',       'Food',          'Food',          'Water',         'Axe',           'Truck + Fuel'] },
 
-  // food & drink
+  // food & drink — fortify: false marks outdoor places, which can't be fortified
   { name: 'YOLO Foods',     icon: '🛒', table: ['Zombies',       'Food',          'Food',          'Food + Water',  'Water',         'Water'] },
-  { name: 'Lake',           icon: '🏞️', table: ['Zombies',       'Endless Water', 'Water',         'Water',         'Food',          'Hope'] },
-  { name: 'Forest',         icon: '🌲', table: ['Zombies',       'Food',          'Food',          'Water',         'Axe',           'Hope'] },
+  { name: 'Lake',           icon: '🏞️', fortify: false, table: ['Zombies',       'Endless Water', 'Water',         'Water',         'Food',          'Hope'] },
+  { name: 'Forest',         icon: '🌲', fortify: false, table: ['Zombies',       'Food',          'Food',          'Water',         'Axe',           'Hope'] },
   { name: 'Pub',            icon: '🍺', table: ['Zombies',       'Hope',          'Hope',          'Food',          'Water',         'Water'] },
   // hope
   { name: 'Church',         icon: '⛪', table: ['Zombies',       'Hope',          'Hope',          'Hope',          'Food',          'Water'] },
@@ -54,7 +54,7 @@ const LOCATIONS = [
   // tools & travel
   { name: 'Hardware Store', icon: '🔨', table: ['Zombies',       'Toolkit',       'Toolkit',       'Axe',           'Axe',           'Fuel'] },
   { name: 'Petrol Station', icon: '⛽', table: ['Zombies',       'Fuel',          'Fuel',          'Food + Water',  'Toolkit',       'Truck + Fuel'] },
-  { name: 'Campsite',       icon: '⛺', table: ['Zombies',       'Food + Water',  'Fuel',          'Hope',          'Axe',           'Bike'] },
+  { name: 'Campsite',       icon: '⛺', fortify: false, table: ['Zombies',       'Food + Water',  'Fuel',          'Hope',          'Axe',           'Bike'] },
 
   // Wasteland: nothing to find and nowhere to hide.
   { name: 'Wasteland',      icon: '🏜️', fortify: false, count: 3 },

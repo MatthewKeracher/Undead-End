@@ -45,7 +45,8 @@ const Engine = (() => {
   const tileAdj = (S, p) => neighbors(p.q, p.r).filter(([q, r]) => S.tiles[key(q, r)]);
   // Impassable tiles (e.g. Mountain) can't be moved, fled or driven onto.
   const passable = (t) => !!t && t.def.passable;
-  const driveAdj = (S, p) => tileAdj(S, p).filter(([q, r]) => passable(S.tiles[key(q, r)]));
+  // Moving, driving and fleeing can head into unexplored hexes too: they're revealed as you enter (see enterHex).
+  const driveAdj = (S, p) => neighbors(p.q, p.r).filter(([q, r]) => { const t = S.tiles[key(q, r)]; return !t || passable(t); });
   // A weapon's `uses` says what each attack spends: 'ammo' (gun: 1 ammo per shot) or 'ap' (melee: 1 AP per swing).
   // With several of the same kind, the one with the lowest condition is used first.
   const weaponOf = (p, uses) => p.items
@@ -54,7 +55,7 @@ const Engine = (() => {
   const armorOf = (p) => p.items.filter((it) => ITEMS[it.id]?.armor && it.cond > 0).sort((a, b) => a.cond - b.cond)[0];
   // Tiles with zombies can only be entered by a player carrying a weapon.
   const canEnter = (p, t) => passable(t) && (!t.zombies || !!weaponOf(p));
-  const moveAdj = (S, p) => tileAdj(S, p).filter(([q, r]) => canEnter(p, S.tiles[key(q, r)]));
+  const moveAdj = (S, p) => neighbors(p.q, p.r).filter(([q, r]) => { const t = S.tiles[key(q, r)]; return !t || canEnter(p, t); });
   const canFortifyHere = (t) => t.def.fortify;
 
   // ---------------------------------------------------------------- loot tables
@@ -79,7 +80,7 @@ const Engine = (() => {
   const stashText = (s) => [...Object.entries(s.res).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${ICON[k]}`),
     ...s.items.map((it) => ITEMS[it.id].icon)].join(' ');
   // Fleeing: only to an adjacent, already-scouted, passable tile with no zombies.
-  const fleeAdj = (S, p) => neighbors(p.q, p.r).filter(([q, r]) => { const t = S.tiles[key(q, r)]; return passable(t) && !t.zombies; });
+  const fleeAdj = (S, p) => neighbors(p.q, p.r).filter(([q, r]) => { const t = S.tiles[key(q, r)]; return !t || (passable(t) && !t.zombies); });
   const canShoot = (p) => !!weaponOf(p, 'ammo') && p.res.ammo > 0;
   const canMelee = (p) => !!weaponOf(p, 'ap') && p.ap >= 1;
   const canFight = (p) => canShoot(p) || canMelee(p);
@@ -112,6 +113,25 @@ const Engine = (() => {
 
   // ---------------------------------------------------------------- setup
   const newTile = (def, safety = 0) => ({ def, safety, zombies: 0, vehicles: [], looted: [], stashes: [] });
+  // An unexplored hex becomes a random location from the scouting pool.
+  function reveal(S, q, r) {
+    const def = TILES[Math.floor(rand(S) * TILES.length)], k = key(q, r);
+    S.tiles[k] = newTile(def);
+    return { k, name: def.name, icon: def.icon };
+  }
+  // Stepping into a hex (on foot, by vehicle or fleeing): an unexplored one is revealed as you arrive.
+  // Returns its tile — or null if it turned out to be impassable (you stay put).
+  function enterHex(S, p, q, r) {
+    let t = S.tiles[key(q, r)];
+    if (!t) {
+      const found = reveal(S, q, r);
+      t = S.tiles[found.k];
+      log(S, `${p.name} heads into the unknown and finds ${/^[aeiou]/i.test(found.name) ? 'an' : 'a'} ${found.icon} ${found.name}.`);
+      emit(S, { type: 'reveal', player: p.id, tiles: [found] });
+      if (!passable(t)) { log(S, `${found.icon} The ${found.name} blocks the way.`, 'bad'); return null; }
+    }
+    return t;
+  }
 
   // autoEnd: the round ends as soon as every survivor has acted (single player).
   // Without it, the host ends rounds with timeUp() (the 30 s timer).
@@ -123,11 +143,12 @@ const Engine = (() => {
     S.tiles[key(0, 0)] = newTile(START_TILE, CONFIG.startSafety);
     for (const id of CONFIG.testStartVehicles || []) S.tiles[key(0, 0)].vehicles.push({ id, cond: CONFIG.maxCondition });
     names.forEach((name, i) => {
-      // full AP and CONFIG.startRes (6 food, water and hope)
+      // full AP, CONFIG.startRes (6 food, water and hope) and CONFIG.startItems (an Axe)
       const p = {
         id: i, name, color: COLORS[i % COLORS.length], q: 0, r: 0, ap: CONFIG.startMaxAP, maxAP: CONFIG.startMaxAP,
         res: { ...CONFIG.startRes }, items: [], dead: false, acted: false, freeMoved: false, caught: false, pending: null, queue: [],
       };
+      for (const it of CONFIG.startItems || []) p.items.push({ ...it });
       for (const id of CONFIG.testStartItems || []) p.items.push({ id, cond: CONFIG.maxCondition });
       for (const [k, n] of Object.entries(CONFIG.testStartRes || {})) p.res[k] += n;
       S.players.push(p);
@@ -359,8 +380,11 @@ const Engine = (() => {
     p.pending = { kind: 'drive', v, steps: 0, flee: fleeing };
   }
   function driveStep(S, p, q, r) {
-    const d = p.pending, t = S.tiles[key(q, r)];
-    if (!isAdjacent(p, q, r) || !passable(t) || vehicleLeft(p, d.v) < 1) return "Can't drive there.";
+    const d = p.pending;
+    if (!isAdjacent(p, q, r) || vehicleLeft(p, d.v) < 1) return "Can't drive there.";
+    const t = enterHex(S, p, q, r);
+    if (!t) return;   // blocked by a Mountain: pick another way
+    if (!passable(t)) return "Can't drive there.";
     if (vehicleFuel(d.v) === 'fuel') p.res.fuel--; else p.ap--;
     p.q = q; p.r = r;
     d.steps++;
@@ -503,11 +527,7 @@ const Engine = (() => {
       if (p.ap < 1) return 'No AP.';
       if (!around.length) return 'Everything around you is already explored.';
       p.ap--;
-      const found = around.map(([q, r]) => {
-        const def = TILES[Math.floor(rand(S) * TILES.length)], k = key(q, r);
-        S.tiles[k] = newTile(def);
-        return { k, name: def.name, icon: def.icon };
-      });
+      const found = around.map(([q, r]) => reveal(S, q, r));
       const names = found.map((f) => `${/^[aeiou]/i.test(f.name) ? 'an' : 'a'} ${f.icon} ${f.name}`);
       log(S, `${p.name} scouts and discovers ${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}.`);
       emit(S, { type: 'scout', player: p.id, tiles: found });
@@ -518,9 +538,11 @@ const Engine = (() => {
 
   // Moving: the first move each round is free (no AP, doesn't use your action); another costs 1 AP and is your action.
   function moveTo(S, p, q, r, free) {
-    const t = S.tiles[key(q, r)];
     if (!free && p.ap < 1) return 'No AP.';
-    if (!isAdjacent(p, q, r) || !t || !canEnter(p, t)) return "Can't move there.";
+    if (!isAdjacent(p, q, r)) return "Can't move there.";
+    const t = enterHex(S, p, q, r);
+    if (!t) return;   // a Mountain was in the way: revealed, nothing spent
+    if (!canEnter(p, t)) return "Can't move there.";
     p.q = q; p.r = r;
     if (free) p.freeMoved = true; else { p.ap--; p.acted = true; }
     log(S, `${p.name} ${free ? 'walks' : 'moves on'} to the ${t.def.name}${t.zombies ? ` — ${plural(t.zombies, 'zombie')} inside!` : ''}.`, t.zombies ? 'bad' : '');
@@ -595,8 +617,13 @@ const Engine = (() => {
       else startDrive(S, p, choice, true);
     },
     fleeTo(S, p, { q, r } = {}) {
-      const t = S.tiles[key(q, r)];
-      if (!isAdjacent(p, q, r) || !passable(t) || t.zombies) return 'Pick a safe hex next to you.';
+      if (!isAdjacent(p, q, r)) return 'Pick a safe hex next to you.';
+      const t = enterHex(S, p, q, r);
+      if (!t) {   // ran into a Mountain: pick another way out — if there is one
+        if (!fleeAdj(S, p).length) { p.pending = null; caught(S, p); }
+        return;
+      }
+      if (!passable(t) || t.zombies) return 'Pick a safe hex next to you.';
       log(S, `${p.name} flees to the ${t.def.name}.`, 'bad');
       p.q = q; p.r = r;
       p.pending = null; p.caught = false;

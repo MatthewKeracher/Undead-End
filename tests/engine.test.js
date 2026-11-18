@@ -17,10 +17,11 @@ function load() {
 const { Engine: E, CONFIG, TILES } = load();
 const def = (name) => TILES.find((t) => t.name === name);
 
-// A fresh one-player game with checks off (so tests aren't disturbed by food / water / hope).
+// A fresh one-player game with checks off and an empty backpack (so tests start from a clean slate).
 function game(opts = {}) {
   const S = E.createGame({ seed: 42, checksOff: true, ...opts });
   E.start(S);
+  for (const p of S.players) p.items = [];
   return { S, p: S.players[0] };
 }
 const act = (S, action) => E.act(S, 0, action);
@@ -33,9 +34,10 @@ test('same seed, same game', () => {
   assert.equal(a.rng, b.rng);
 });
 
-test('every survivor starts with 6 food, water and hope', () => {
+test('every survivor starts with 6 food, water and hope, and an Axe at condition 3', () => {
   const S = E.createGame({ seed: 3 });
   assert.deepEqual({ ...S.players[0].res }, { food: 6, water: 6, hope: 6, fuel: 0, ammo: 0 });
+  assert.deepEqual([...S.players[0].items].map((it) => ({ ...it })), [{ id: 'Axe', cond: 3 }]);
 });
 
 test('the first move each round is free; the second costs 1 AP and is your action', () => {
@@ -160,7 +162,7 @@ test('flee: beat the zombies, then pick a safe hex', () => {
   S.forced = [5];
   decide(S, 'flee');
   assert.equal(p.pending.kind, 'fleeTo');
-  assert.match(decide(S, { q: 0, r: -1 }).error, /safe hex/);   // unexplored
+  assert.match(decide(S, { q: 3, r: 3 }).error, /safe hex/);    // not next to you
   decide(S, { q: 1, r: 0 });
   assert.deepEqual([p.q, p.r], [1, 0]);
   assert.equal(p.pending, null);
@@ -203,7 +205,55 @@ test('Mountain: impassable on foot and by vehicle', () => {
   tile(S, 1, 0, 'Mountain');
   assert.match(act(S, { type: 'move', q: 1, r: 0 }).error, /Can't move/);
   E.tileOf(S, p).vehicles.push({ id: 'Truck', cond: 3 }); p.res.fuel = 3;
-  assert.ok(act(S, { type: 'drive', vehicle: 'Truck' }).error);   // nowhere passable to go
+  act(S, { type: 'drive', vehicle: 'Truck' });
+  assert.match(decide(S, { q: 1, r: 0 }).error, /Can't drive/);
+  assert.deepEqual([p.q, p.r, p.res.fuel], [0, 0, 3]);
+});
+
+// Make every unexplored hex reveal as `name` (for tests that need a particular discovery).
+function rigPool(name, fn) {
+  const saved = [...TILES];
+  TILES.splice(0, TILES.length, def(name));
+  try { fn(); } finally { TILES.splice(0, TILES.length, ...saved); }
+}
+
+test('moving, driving and fleeing into an unexplored hex reveals it as you arrive', () => {
+  const { S, p } = game();
+  rigPool('Forest', () => {
+    const ap = p.ap;
+    const { events } = act(S, { type: 'move', q: 1, r: 0 });
+    assert.equal(S.tiles['1,0'].def.name, 'Forest');
+    assert.deepEqual([p.q, p.r, p.ap], [1, 0, ap]);                  // the free move
+    assert.equal(events.find((e) => e.type === 'reveal').tiles[0].k, '1,0');
+    E.tileOf(S, p).vehicles.push({ id: 'Bike', cond: 3 });
+    act(S, { type: 'drive', vehicle: 'Bike' });
+    decide(S, { q: 2, r: 0 }); decide(S, 'stop');
+    assert.deepEqual([p.q, p.r], [2, 0]);
+    E.cheat(S, 0, 'zombies', [2]);
+    S.forced = [6];
+    decide(S, 'flee');
+    if (p.pending.kind === 'escape') decide(S, 'foot');   // the Bike is here too: run on foot
+    decide(S, { q: 3, r: 0 });
+    assert.deepEqual([p.q, p.r], [3, 0]);
+  });
+});
+
+test('a hidden Mountain blocks the way: revealed, nothing spent', () => {
+  const { S, p } = game();
+  rigPool('Mountain', () => {
+    const ap = p.ap;
+    assert.ok(!act(S, { type: 'move', q: 1, r: 0 }).error);
+    assert.equal(S.tiles['1,0'].def.name, 'Mountain');
+    assert.deepEqual([p.q, p.r, p.ap, p.freeMoved], [0, 0, ap, false]);
+    // fleeing: blocked, so pick another way — and if there's none left, you're caught
+    for (const [q, r] of E.neighbors(0, 0)) if (!S.tiles[`${q},${r}`]) S.tiles[`${q},${r}`] = { def: def('Mountain'), safety: 0, zombies: 0, vehicles: [], looted: [], stashes: [] };
+    delete S.tiles['0,1'];
+    E.cheat(S, 0, 'zombies', [2]);
+    S.forced = [6];
+    decide(S, 'flee');
+    decide(S, { q: 0, r: 1 });          // the last way out is a Mountain too
+    assert.equal(p.dead, true);         // caught, and no weapon
+  });
 });
 
 test('scout reveals every unexplored hex next to you', () => {

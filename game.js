@@ -84,6 +84,7 @@ async function show(ev) {
     case 'fortify': return fortifyShow(ev);
     case 'scavenge': return scavengeShow(ev);
     case 'scout': return revealShow(ev);
+    case 'reveal': return revealShow(ev, 900);   // stepped into the unknown
     case 'night': return nightShow(ev);
     case 'checks': return renderStats(ev.stats[cur().id]);   // the check's effect shows before any night attack
     case 'maxApLoss': return maxApLossShow(ev);
@@ -208,13 +209,13 @@ async function armorPrompt(armor) {
     <p>${condPips(armor.cond)} → ${condPips(armor.cond - 1)}</p>
     <div class="frow">
       <button class="primary" id="ayes">Take the hit &amp; reroll <small>(−1 condition, 1 AP)</small> <kbd>Enter</kbd></button>
-      <button id="ano">No <kbd>Esc</kbd></button>
+      <button id="ano">No <kbd>Backspace</kbd></button>
     </div></div>`;
   pop.hidden = false;
   const yes = await new Promise((res) => {
     $('#ayes').onclick = (e) => { e.stopPropagation(); res(true); };
     $('#ano').onclick = (e) => { e.stopPropagation(); res(false); };
-    modalKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); res(true); } else if (e.key === 'Escape') res(false); };
+    modalKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); res(true); } else if (isBack(e)) res(false); };
   });
   modalKey = null;
   pop.hidden = true;
@@ -257,7 +258,7 @@ async function fightPopup(p) {
       ${melee && p.ap === 1 && t.zombies ? `<div class="note bad">Last AP — swinging now leaves you nothing to flee with.</div>` : ''}
       <div class="frow">
         <button class="primary" id="fire" ${fighting() && left() && t.zombies ? '' : 'disabled'}>${def.icon} ${def.verb} <small>(1 ${melee ? 'AP' : 'ammo'})</small> <kbd>Enter</kbd></button>
-        <button id="stop">Stop <kbd>Esc</kbd></button>
+        <button id="stop">Stop <kbd>Backspace</kbd></button>
       </div>
       <small class="pskip"><kbd>Shift</kbd>+<kbd>Enter</kbd> ${melee ? 'swing' : 'fire'} until clear (or out of ${melee ? 'AP' : 'ammo'})</small></div>`;
     $('#fire').onclick = (e) => { e.stopPropagation(); fire(); };
@@ -292,7 +293,7 @@ async function fightPopup(p) {
   modalKey = (e) => {
     if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); fireAll(); }
     else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!auto) fire(); }
-    else if (e.key === 'Escape') stop();
+    else if (isBack(e)) stop();
   };
   draw();
   pop.hidden = false;
@@ -381,11 +382,11 @@ async function useTool(i) {
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>${ITEMS[tool.id].icon} ${tool.id} ${condPips(tool.cond)}</small><h2>Repair which item?</h2></div>
     <ol class="pack-choose">${targets.map(({ it }, n) => `<li><button data-n="${n}"><kbd>${n + 1}</kbd> ${ITEMS[it.id].icon} ${it.id} ${condPips(it.cond)}</button></li>`).join('')}</ol>
-    <small class="pskip">press 1–${targets.length} or click · Esc to cancel</small></div>`;
+    <small class="pskip">press 1–${targets.length} or click · Backspace to cancel</small></div>`;
   pop.hidden = false;
   const target = await new Promise((res) => {
     pop.querySelectorAll('[data-n]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); res(targets[+b.dataset.n]); }));
-    modalKey = (e) => { if (e.key === 'Escape') res(null); const n = +e.key; if (n >= 1 && n <= targets.length) res(targets[n - 1]); };
+    modalKey = (e) => { if (isBack(e)) res(null); const n = +e.key; if (n >= 1 && n <= targets.length) res(targets[n - 1]); };
   });
   if (!target) return close();
   // step 2: how much condition to transfer
@@ -393,10 +394,10 @@ async function useTool(i) {
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>${ITEMS[tool.id].icon} ${tool.id} ${condPips(tool.cond)} → ${ITEMS[target.it.id].icon} ${target.it.id} ${condPips(target.it.cond)}</small><h2>Transfer how much?</h2></div>
     <div class="frow">${[...Array(max)].map((_, n) => `<button data-a="${n + 1}"><kbd>${n + 1}</kbd></button>`).join('')}</div>
-    <small class="pskip">press 1–${max} or click · Esc to cancel</small></div>`;
+    <small class="pskip">press 1–${max} or click · Backspace to cancel</small></div>`;
   const amount = await new Promise((res) => {
     pop.querySelectorAll('[data-a]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); res(+b.dataset.a); }));
-    modalKey = (e) => { if (e.key === 'Escape') res(0); const n = +e.key; if (n >= 1 && n <= max) res(n); };
+    modalKey = (e) => { if (isBack(e)) res(0); const n = +e.key; if (n >= 1 && n <= max) res(n); };
   });
   close();
   if (!amount) return render();
@@ -425,18 +426,19 @@ function clickHex(q, r) {
   if (busy || !mode) return;
   const p = cur(), t = G.tiles[key(q, r)];
   if (!neighbors(p.q, p.r).some(([a, b]) => a === q && b === r)) return;
-  if (mode === 'move' && canEnter(p, t)) send({ type: 'move', q, r });
-  else if (mode === 'flee' && passable(t) && !t.zombies) send({ type: 'decide', choice: { q, r } });
-  else if (mode === 'drive' && passable(t)) send({ type: 'decide', choice: { q, r } });
+  // unexplored hexes (no tile yet) are fair game: they're revealed as you arrive
+  if (mode === 'move' && (!t || canEnter(p, t))) send({ type: 'move', q, r });
+  else if (mode === 'flee' && (!t || (passable(t) && !t.zombies))) send({ type: 'decide', choice: { q, r } });
+  else if (mode === 'drive' && (!t || passable(t))) send({ type: 'decide', choice: { q, r } });
 }
 
 // New locations: they appear one after another around you, then pause so the player can take them in.
-async function revealShow(ev) {
+async function revealShow(ev, pause = 2800) {
   justRevealed = ev.tiles.map((x) => x.k);
   renderMap();
   toast(`🔭 Discovered: ${ev.tiles.map((x) => `${x.icon} ${x.name}`).join(', ')}`);
   ev.tiles.forEach((_, i) => setTimeout(() => tone(520 + i * 60, 0.15, 'triangle', 0.07), i * 120));
-  await new Promise((res) => { const tm = setTimeout(res, 2800 + ev.tiles.length * 120); dismissPopup = () => { clearTimeout(tm); res(); }; });
+  await new Promise((res) => { const tm = setTimeout(res, pause + ev.tiles.length * 120); dismissPopup = () => { clearTimeout(tm); res(); }; });
   dismissPopup = null;
   justRevealed = [];
 }
@@ -864,7 +866,9 @@ function renderMap() {
   let svg = '';
   for (const [k, [q, r]] of fog) {
     const [x, y] = pix(q, r);
-    svg += `<g class="hex fog" data-k="${k}"><polygon points="${hexPoints(x, y, HEX - 2)}"/></g>`;
+    const target = adj.has(k) && PICK_MODES.includes(mode);   // you can head into the unknown: it's revealed as you arrive
+    svg += `<g class="hex fog ${target ? 'target' : ''}" data-k="${k}">
+      <polygon points="${hexPoints(x, y, HEX - 2)}"/>${target ? pickBadge(x, y, pickNumber(p, q, r), true) : ''}</g>`;
   }
 
   let hereSvg = '';
@@ -891,7 +895,7 @@ function renderMap() {
   cameraTo(cx, cy);
 
   $('#hint').textContent = mode === 'flee' || mode === 'threat' || mode === 'drive' ? ''
-    : mode === 'move' ? 'Press A Q E D X Z or click a highlighted tile to move there. (Esc to cancel)' : '';
+    : mode === 'move' ? 'Press A Q E D X Z or click a highlighted tile to move there. (Backspace to cancel)' : '';
 }
 
 // AP gauge: a ring of 12 segments like the clock. Colour shows how full you are.
@@ -996,7 +1000,7 @@ function renderPanel() {
     $('#actions').innerHTML = `
       ${t.zombies ? `<div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} here — stopping on this tile triggers them!</div>` : ''}
       <div class="note good">${ITEMS[v.id].icon} ${flee ? 'Escaping' : 'Driving'} the ${v.id} — ${fuel ? `${ICON.fuel} ${p.res.fuel} fuel` : `🎲 ${p.ap} AP`} left · ${steps} tile${steps === 1 ? '' : 's'} so far.
-        Next hex: A Q E D X Z · <b>Enter</b> / <b>Esc</b> to stop here.</div>`;
+        Next hex: A Q E D X Z · <b>Enter</b> / <b>Backspace</b> to stop here.</div>`;
     renderLog();
     return;
   }
@@ -1066,6 +1070,8 @@ $('#actions').addEventListener('click', (e) => {
 });
 const HOTKEYS = { r: 'sleep', s: 'scout', w: 'move', a: 'scavenge', f: 'fortify', e: 'Truck', b: 'Bike' };
 const THREAT_KEYS = { q: 'shoot', w: 'melee', e: 'flee' };
+// Backspace cancels / goes back (Esc still works too, but full-screen Chrome can take it for itself).
+const isBack = (e) => e.key === 'Backspace' || e.key === 'Escape';
 // ---------------------------------------------------------------- cheats (testing)
 // Type in the note box, e.g.  scavenge(1)   scavenge(4,6)   sleep(8)   zombies(3)   item(axe)   help()
 const CHEATS = {
@@ -1130,7 +1136,7 @@ document.addEventListener('keydown', (e) => {
   if (modalKey) { modalKey(e); return; }
   if (busy) { e.preventDefault(); popupInput(); return; }   // skip an animation — even the one where you die
   if (G.over) { if (e.key === 'Enter') { e.preventDefault(); newGame(['Survivor']); } return; }
-  if (mode === 'drive' && (e.key === 'Enter' || e.key === 'Escape')) {
+  if (mode === 'drive' && (e.key === 'Enter' || isBack(e))) {
     e.preventDefault();
     send({ type: 'decide', choice: 'stop' });
     return;
@@ -1148,8 +1154,10 @@ document.addEventListener('keydown', (e) => {
     clickHex(p.q + a, p.r + b);      // clickHex ignores invalid targets
     return;
   }
-  if (e.key === 'Escape') {
-    if (mode && mode !== 'flee') { mode = null; render(); } else if (selected) selectAction(null);
+  if (isBack(e)) {   // clear the highlighted action; then stop picking a hex (decisions like Fight or Flee stay)
+    e.preventDefault();
+    if (selected) selectAction(null);
+    else if (mode === 'move') { mode = null; render(); }
     return;
   }
   if (e.key === 'Enter') {

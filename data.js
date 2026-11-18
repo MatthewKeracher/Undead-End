@@ -10,6 +10,7 @@ const CONFIG = {
   trackLoss: 2,           // max AP lost per food / water check missed (0 = death)
   startMaxAP: 12,         // max AP at the start (food & water missed lower it; paid raises it back, up to 12)
   startRes: { food: 6, water: 6, hope: 6, fuel: 0, ammo: 0 },   // what every survivor starts with; AP starts full
+  startItems: [{ id: 'Axe', cond: 3 }],                          // …and carries
   startSafety: 0,         // Safety on the starting tile
   maxSafety: 6,           // most Safety any tile can hold
   maxItems: 6,            // backpack size

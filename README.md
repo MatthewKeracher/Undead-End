@@ -19,6 +19,7 @@ Or open `index.html` in a browser — no build step or install needed.
 | F | Fortify |
 | E / B | Drive truck / Ride bike (when one is on your tile) |
 | Enter | Confirm selected action |
+| Backspace | Deselect / cancel / stop driving (Esc works too) |
 | A Q E D X Z | Pick a neighbouring hex (move / flee / drive) |
 | Q / W / E | Shoot / Melee / Flee (when zombies are on your tile) |
 | Shift+Enter | Keep attacking until clear |
