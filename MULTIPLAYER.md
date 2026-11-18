@@ -180,7 +180,7 @@ The same engine then runs in the browser for single player and on the server for
 ## 9. Roadmap
 
 1. **Engine refactor** (pure rules + events + per-player view) — single player keeps working. *(Done: `engine.js` + `tests/`. Per-player view waits for fog of war in step 3.)*
-2. **Real-time rounds + 30 s timer** in single player (proves the round flow).
+2. **Real-time rounds + 30 s timer** in single player (proves the round flow). *(Done: optional ⏱️ timer, off by default.)*
 3. **Server + world + fog of war**, text chat only; small playtests.
 4. **Persistence** (reconnect grace, death → respawn), **depletion & stashes** in loot tables, **leaderboard**.
 5. **Proximity voice** (LiveKit, tile rooms).

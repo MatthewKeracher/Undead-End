@@ -178,6 +178,15 @@ body:not(.log-open) #panel { display: none; }
 /* bottom dock: toast, hint, notes and the action ribbon, centred in the space right of the AP gauge */
 #dock { position: absolute; z-index: 3; left: var(--dockl); right: var(--gap); bottom: var(--gap); width: fit-content; margin-inline: auto; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
 #actions { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; }
+/* round timer: seconds left and a bar that drains; red in the last 10 s, dimmed while animations pause it */
+#timer { display: flex; align-items: center; gap: 8px; padding: 4px 12px; background: #1e2125ee; border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 4px 12px #0008; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+#timer:empty { display: none; }
+#timer .bar { width: 120px; height: 6px; border-radius: 3px; background: #ffffff1a; overflow: hidden; }
+#timer .bar i { display: block; height: 100%; background: var(--accent); transition: width .1s linear; }
+#timer.low { color: var(--bad); border-color: var(--bad); }
+#timer.low .bar i { background: var(--bad); }
+#timer.paused { opacity: .55; }
+#timerbtn.on { border-color: var(--accent); color: var(--accent); }
 #actions > * { pointer-events: auto; }
 #actions .note { margin: 0; box-shadow: 0 4px 12px #0008; background: #1e2125ee; border: 1px solid var(--line); }
 .ribbon { display: flex; gap: 6px; padding: 14px 8px 8px; background: #1e2125ee; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px #000a; backdrop-filter: blur(4px); flex-wrap: wrap; justify-content: center; max-width: 100%; }

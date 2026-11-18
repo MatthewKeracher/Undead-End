@@ -106,6 +106,52 @@ async function ask() {
   if (d.kind === 'backpack') return send({ type: 'decide', choice: await backpackPrompt(p, d.item) });
 }
 
+// ---------------------------------------------------------------- round timer (optional in single player)
+// CONFIG.roundSeconds to act each round, or you sleep — as online. Paused while animations play.
+// Acting ends the round straight away (you're the only survivor), so the clock only bites if you hesitate.
+let timerOn = false;
+try { timerOn = localStorage.getItem('roundTimer') === '1'; } catch { /* storage unavailable */ }
+const timer = { game: null, day: 0, round: 0, left: 0, fired: false };
+const fullTime = () => CONFIG.roundSeconds * 1000;
+function tickTimer(dt) {
+  if (!G) return;
+  if (timer.game !== G || timer.day !== G.day || timer.round !== G.round) {   // new game or new round: full time again
+    Object.assign(timer, { game: G, day: G.day, round: G.round, left: fullTime(), fired: false });
+  }
+  if (timerOn && !busy && !G.over && !timer.fired) {
+    const before = Math.ceil(timer.left / 1000);
+    timer.left = Math.max(0, timer.left - dt);
+    const s = Math.ceil(timer.left / 1000);
+    if (s < before && s > 0 && s <= 5) tone(880, 0.05, 'square', 0.04);   // tick tock
+    // out of time — but let any open popup (fight, armor, backpack…) be answered first
+    if (!timer.left && !modalKey) {
+      timer.fired = true;
+      if (!cur().pending) mode = null;   // stop picking a hex — but keep Fight or Flee etc. on screen
+      const res = E.timeUp(G);
+      tone(220, 0.4, 'sawtooth', 0.08, -80);
+      // mid-decision (e.g. Fight or Flee), the engine waits for it, then you sleep
+      toast(res.events.length ? "⏱️ Time's up — you sleep." : "⏱️ Time's up — deal with this, then you sleep.");
+      if (res.events.length) play(res.events); else render();
+    }
+  }
+  renderTimer();
+}
+function renderTimer() {
+  const el = $('#timer');
+  if (!timerOn || !G || G.over) { el.innerHTML = ''; el.className = ''; return; }
+  const s = Math.ceil(timer.left / 1000);
+  el.className = `${s <= 10 ? 'low' : ''} ${busy ? 'paused' : ''}`;
+  el.innerHTML = `⏱️ <b>${s}s</b><span class="bar"><i style="width:${(100 * timer.left / fullTime()).toFixed(1)}%"></i></span>`;
+}
+function setTimer(on) {
+  timerOn = on;
+  try { localStorage.setItem('roundTimer', on ? '1' : '0'); } catch { /* storage unavailable */ }
+  Object.assign(timer, { left: fullTime(), fired: false });   // a fresh 30 s when switched on
+  $('#timerbtn').classList.toggle('on', on);
+  $('#timerbtn').innerHTML = `⏱️<span class="lbl"> Timer ${on ? 'on' : 'off'}</span>`;
+  renderTimer();
+}
+
 // ---------------------------------------------------------------- death
 function showGameOver() {
   const o = G.over, pop = $('#popup');
@@ -1078,5 +1124,9 @@ playersBox.addEventListener('toggle', () => { try { localStorage.setItem('player
 
 function toggleMute() { muted = !muted; $('#mute').textContent = muted ? '🔇' : '🔊'; }
 $('#mute').onclick = toggleMute;
+$('#timerbtn').onclick = () => setTimer(!timerOn);
+setTimer(timerOn);
+let lastTick = performance.now();
+setInterval(() => { const now = performance.now(); tickTimer(now - lastTick); lastTick = now; }, 100);
 
 newGame(['Survivor']);

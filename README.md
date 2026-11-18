@@ -25,6 +25,7 @@ Or open `index.html` in a browser — no build step or install needed.
 | T | Use tool |
 | Tab | Open / close the log & note box |
 | M | Mute |
+| ⏱️ button | Round timer on/off: act within 30 s or you sleep (as online) |
 
 ## Files
 

@@ -20,6 +20,7 @@ const CONFIG = {
   testStartVehicles: [],   // parked on the start tile
   testStartRes: {},        // added to the starting rolls
   nightRounds: [1, 6],
+  roundSeconds: 30,       // round timer: act within this or you sleep (online always; single player optional)
 
   // What each round of the clock calls for (checked at the END of the round).
   upkeep: {
