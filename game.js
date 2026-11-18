@@ -1,20 +1,16 @@
 // =====================================================================
-//  GAME ENGINE
+//  GAME UI — draws the board and plays the engine's events as animations.
+//  The rules themselves live in engine.js.
 // =====================================================================
 
-const RES = ['food', 'water', 'hope', 'fuel', 'ammo'];
-const ICON = { food: '🔴', water: '🔵', hope: '🟣', fuel: '🟠', ammo: '🟢', safety: '🟡', ap: '🎲' };
-const DIE = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-const COLORS = ['#e4572e', '#29a3d6', '#f3c13a', '#9b5de5', '#2ec4b6', '#ff7eb6'];
+const E = Engine;
+const { ICON, RES_LABEL, key, neighbors, isNight, cellText, upkeepText, passable, canEnter, canScavengeHere, canFortifyHere,
+  weaponOf, canShoot, canMelee, canFight, vehicleFuel, vehicleLeft } = E;
 const HEX = 120;
-const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const key = (q, r) => `${q},${r}`;
-const d6 = () => 1 + Math.floor(Math.random() * 6);
-const isNight = (r) => CONFIG.nightRounds.includes(r);
-const neighbors = (q, r) => DIRS.map(([a, b]) => [q + a, r + b]);
+const d6 = () => 1 + Math.floor(Math.random() * 6);   // only for the tumbling dice faces — real rolls happen in the engine
 // Keys around S pick a neighbouring hex, laid out like the hexes themselves:
 //   Q W        top-left, top-right
 //  A   D       left, right
@@ -27,234 +23,90 @@ function pickNumber(p, q, r) {
   return i < 0 ? null : PICK_KEYS[i].toUpperCase();
 }
 
-let G = null;        // game state
-let mode = null;     // 'scout' | 'move' | 'threat' | 'flee' | null
-let fleeDone = null;  // resolves the pending flee-destination pick
-let threatChoice = null; // resolves the pending Fight / Flee choice
-let driving = null;   // { p, v, steps, done } while a vehicle trip is in progress
+let G = null;        // game state (owned by the engine)
+let mode = null;     // 'scout' | 'move' while picking a hex; mirrors the decision being made: 'threat' | 'flee' | 'drive'
 let modalKey = null;  // when set, receives all key presses (shooting, backpack-full prompt)
-let rolls = [];       // dice rolled by the last action: [{ value, label }]
-let rollsFresh = false;
+let checksOff = false;   // cheat: skip the food / water / hope checks (kept across new games until reload)
+let justRevealed = null;  // tile key to highlight after scouting
+let camInit = false;
 
-const cur = () => G.players[G.turn];
-const tileOf = (p) => G.tiles[key(p.q, p.r)];
-const emptyAdj = (p) => neighbors(p.q, p.r).filter(([q, r]) => !G.tiles[key(q, r)]);
-const tileAdj = (p) => neighbors(p.q, p.r).filter(([q, r]) => G.tiles[key(q, r)]);
-// Impassable tiles (e.g. Mountain) can't be moved, fled or driven onto.
-const passable = (t) => !!t && t.def.passable;
-const driveAdj = (p) => tileAdj(p).filter(([q, r]) => passable(G.tiles[key(q, r)]));
-// Items
-// A weapon's `uses` says what each attack spends: 'ammo' (gun: 1 ammo per shot) or 'ap' (melee: 1 AP per swing).
-// With several of the same kind, the one with the lowest condition is used first.
-const weaponOf = (p, uses) => p.items
-  .filter((it) => ITEMS[it.id]?.weapon && it.cond > 0 && (!uses || ITEMS[it.id].uses === uses))
-  .sort((a, b) => a.cond - b.cond)[0];
-// Tiles with zombies can only be entered by a player carrying a weapon.
-const canEnter = (p, t) => passable(t) && (!t.zombies || !!weaponOf(p));
-const moveAdj = (p) => tileAdj(p).filter(([q, r]) => canEnter(p, G.tiles[key(q, r)]));
-// Fleeing: only to an adjacent, already-scouted tile with no zombies.
-const canScavengeHere = (t) => t.def.table.length > 0;   // tiles without a table (e.g. Wasteland) have nothing to find
-const canFortifyHere = (t) => t.def.fortify;
-const fleeAdj = (p) => neighbors(p.q, p.r).filter(([q, r]) => { const t = G.tiles[key(q, r)]; return passable(t) && !t.zombies; });
-const playersAt = (q, r) => G.players.filter((p) => p.q === q && p.r === r);
-
-function log(msg, cls = '') { G.log.push({ msg, cls }); }
-// log a message with the dice just rolled shown beside it
-function logRoll(msg, cls = '') { G.log.push({ msg, cls, dice: rolls.map((d) => d.value) }); }
-
-function upkeepText(r) {
-  return Object.entries(CONFIG.upkeep[r] || {}).map(([res, n]) => `${n} ${ICON[res]}`).join(' ');
-}
+const cur = () => G.players[0];   // the survivor on this screen
+const tileOf = (p) => E.tileOf(G, p);
+const emptyAdj = (p) => E.emptyAdj(G, p);
+const moveAdj = (p) => E.moveAdj(G, p);
+const fleeAdj = (p) => E.fleeAdj(G, p);
+const driveAdj = (p) => E.driveAdj(G, p);
+const canFlee = (p, t) => E.canFlee(G, p, t);
+const vehicleOf = (p, id) => E.vehicleOf(G, p, id);
+const canDrive = (p, id) => E.canDrive(G, p, id);
+const vehiclesHere = (p) => tileOf(p).vehicles;
+const driving = () => (cur().pending?.kind === 'drive' ? cur().pending : null);   // the trip in progress
+// Decisions answered from the action tray / map rather than a popup
+const PENDING_MODE = { threat: 'threat', fleeTo: 'flee', drive: 'drive' };
 
 // ---------------------------------------------------------------- setup
-function newGame(names) {
-  G = { day: CONFIG.startDay, round: CONFIG.startRound, turn: 0, tiles: {}, players: [], log: [] };
-  G.tiles[key(0, 0)] = { def: START_TILE, safety: CONFIG.startSafety, zombies: 0, vehicles: [] };
-  for (const id of CONFIG.testStartVehicles || []) G.tiles[key(0, 0)].vehicles.push({ id, cond: CONFIG.maxCondition });
-  names.forEach((name, i) => {
-    // full AP; food, water and hope each start at 1d6
-    const p = { name, color: COLORS[i % COLORS.length], q: 0, r: 0, ap: CONFIG.startMaxAP, maxAP: CONFIG.startMaxAP, res: { ...CONFIG.startRes }, items: [], skip: false };
-    for (const k of ['food', 'water', 'hope']) p.res[k] = d6();
-    p.ap = Math.min(p.ap, p.maxAP);
-    for (const id of CONFIG.testStartItems || []) p.items.push({ id, cond: CONFIG.maxCondition });
-    for (const [k, n] of Object.entries(CONFIG.testStartRes || {})) p.res[k] += n;
-    G.players.push(p);
-  });
+function newGame(names = ['Survivor']) {
+  G = E.createGame({ names, checksOff });
   $('#popup').hidden = true; busy = false;
-  logSeen = 0; rolls = []; forced = []; mode = null; fleeDone = null; driving = null; threatChoice = null; modalKey = null; logShown = Infinity; // forces log reset on next render
-  log(`Day ${G.day} begins. ${names.length} survivor${names.length > 1 ? 's' : ''} shelter at the ${START_TILE.name}.`, 'phase');
-  for (const p of G.players) {
-    G.log.push({ msg: `${p.name} starts with full 🎲 ${p.ap} AP, ${p.res.food} ${ICON.food} food, ${p.res.water} ${ICON.water} water, ${p.res.hope} ${ICON.hope} hope.`, cls: '', dice: [p.res.food, p.res.water, p.res.hope] });
-  }
-  log(roundBanner(), 'phase');
+  logSeen = 0; mode = null; modalKey = null; selected = null; justRevealed = null; camInit = false; logShown = Infinity; // forces log reset on next render
   prevStats = {};
   render();
   // the starting round's check happens straight away (after a beat so you see your starting resources)
-  setTimeout(async () => { await startOfRound(); render(); if (G.over) showGameOver(); }, 600);
+  const game = G;
+  setTimeout(() => { if (G === game) play(E.start(G).events); }, 600);
 }
 
-function roundBanner() {
-  return `Day ${G.day}, Round ${G.round} — ${isNight(G.round) ? '🌙 Night' : '☀️ Day'}`;
+// ---------------------------------------------------------------- talking to the engine
+// Send an action, play back what happened, then set up whatever decision the engine is waiting on.
+async function send(action) {
+  if (busy || G.over) return;
+  mode = null;
+  const res = E.act(G, cur().id, action);
+  if (res.error) { toast(res.error); return render(); }
+  await play(res.events);
 }
 
-// ---------------------------------------------------------------- turn flow
-async function nextTurn() {
-  mode = null; selected = null;
-  G.turn++;
-  await advanceToActivePlayer();
+async function play(events) {
+  busy = true;
+  for (const ev of events) if (ev.player === undefined || ev.player === cur().id) await show(ev);
+  busy = false;
+  const d = cur().pending;
+  if (d) mode = PENDING_MODE[d.kind] ?? null;
   render();
-  if (G.over) showGameOver();
+  if (G.over) return showGameOver();
+  await ask();
 }
 
-// Moves G.turn to the next player who can act, ending rounds as needed.
-async function advanceToActivePlayer() {
-  for (let guard = 0; guard < 1000; guard++) {
-    if (G.turn >= G.players.length) { G.turn = 0; await endRound(); }
-    if (G.over) return;
-    const p = G.players[G.turn];
-    if (p.dead) { G.turn++; continue; }
-    if (p.skip) {
-      p.skip = false;
-      log(`${p.name} is too dehydrated to act and skips this turn.`, 'bad');
-      toast(`🔵 No water — too dehydrated to act. Round ${G.round} skipped.`);
-      G.turn++;
-      continue;
-    }
-    return;
+// Animate one engine event.
+async function show(ev) {
+  switch (ev.type) {
+    case 'sleep': return sleepShow(ev);
+    case 'fortify': return fortifyShow(ev);
+    case 'scavenge': return scavengeShow(ev);
+    case 'scout': return revealShow(ev);
+    case 'night': return nightShow(ev);
+    case 'checks': return renderStats(ev.stats[cur().id]);   // the check's effect shows before any night attack
+    case 'maxApLoss': return maxApLossShow(ev);
+    case 'flee': return fleeShow(ev);
+    case 'armor': return sfx.armor();
+    case 'repair': return sfx.repair();
+    case 'driveStep': sfx.drive(ev.fuel); return render();
+    case 'outOfFuel': return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'fuel' ? 'fuel' : 'AP'} — stopping here.`);
+    case 'die': return tone(200, 1.4, 'sawtooth', 0.12, -170);
   }
 }
 
-async function endRound() {
-  G.round++;
-  if (G.round > 6) { G.round = 1; G.day++; log(`☀️→🌙 Day ${G.day} begins.`, 'phase'); }
-  log(roundBanner(), 'phase');
-  await startOfRound();
-}
-
-// Everything that happens at the START of a round, before anyone acts:
-// 1) this round's resource check, 2) the night attack on night rounds.
-// Food & water feed max AP: each check paid → +trackGain (max 12); each missed → −trackLoss. Max AP 0 = death.
-async function startOfRound() {
-  const r = G.round;
-  if (checksOff && Object.keys(CONFIG.upkeep[r] || {}).length) log(`Round ${r} check skipped (cheat: checks off)`, 'cheat');
-  const up = checksOff ? {} : CONFIG.upkeep[r] || {};
-  if (Object.keys(up).length) log(`Round ${r} check — ${upkeepText(r)}`, 'phase');
-  for (const p of G.players) {
-    if (p.dead) continue;
-    for (const [res, n] of Object.entries(up)) {
-      const body = res === 'food' || res === 'water';   // food & water feed your max AP
-      if (p.res[res] >= n) {
-        p.res[res] -= n;
-        if (body && p.maxAP < CONFIG.maxAP) {
-          const oldMax = p.maxAP;
-          p.maxAP = Math.min(CONFIG.maxAP, p.maxAP + CONFIG.trackGain);
-          log(`${p.name} uses ${n} ${ICON[res]} ${res} — max AP ${oldMax} → ${p.maxAP}.`, 'good');
-        } else log(`${p.name} uses ${n} ${ICON[res]} ${res}.`);
-      } else if (body) {
-        const oldMax = p.maxAP;
-        p.res[res] = 0;
-        render();
-        busy = true;
-        await maxApLossShow(p, res);
-        busy = false;
-        p.maxAP = Math.max(0, p.maxAP - CONFIG.trackLoss);
-        p.ap = Math.min(p.ap, p.maxAP);
-        log(`${p.name} has no ${res}! Max AP ${oldMax} → ${p.maxAP}.`, 'bad');
-        if (p.maxAP <= 0) { render(); die(p, `${p.name} ${res === 'food' ? 'starved' : 'died of thirst'} (max AP 0).`); }
-      } else {
-        p.res[res] = 0;
-        await failCheck(p, res);
-      }
-    }
-  }
-  if (G.over) return;
-  render();
-  if (isNight(r)) await nightAttack();
-}
-
-// Missing food or water: the player chooses to lose 1 AP or 1 hope.
-async function failCheck(p, res) {
-  if (res === 'food' || res === 'water') {
-    const what = res === 'food' ? `${ICON.food} No food` : `${ICON.water} No water`;
-    const opts = [['ap', `🎲 Lose 1 AP`, `${p.ap} → ${p.ap - 1}`, p.ap > 0], ['hope', `${ICON.hope} Lose 1 hope`, `${p.res.hope} → ${p.res.hope - 1}`, p.res.hope > 0]];
-    if (!opts.some((o) => o[3])) {   // no AP to give, so it must be hope — and there is none
-      render();
-      return die(p, `${p.name} has no ${res}, no strength and no hope left to give.`);
-    }
-    render();
-    const pick = opts.filter((o) => o[3]).length === 1 ? opts.find((o) => o[3])[0] : await lossChoice(what, opts);
-    if (pick === 'ap') p.ap--; else p.res.hope--;
-    log(`${p.name} has no ${res}! Loses 1 ${pick === 'ap' ? '🎲 AP' : `${ICON.hope} hope`}.`, 'bad');
-    toast(`${what} — −1 ${pick === 'ap' ? 'AP' : 'hope'}.`);
-  } else if (res === 'hope') {   // the night hope check can't be paid
-    render();
-    die(p, `${p.name} has lost all hope (no ${ICON.hope} hope to give).`);
-  } else {
-    log(`${p.name} has no ${res}!`, 'bad');
-  }
-}
-
-const LOSS_KEYS = ['a', 'd'];   // A = lose AP, D = lose hope
-async function lossChoice(what, opts) {
-  const pop = $('#popup');
-  pop.className = 'zombie';
-  pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>End of round</small><h2>${what}!</h2></div>
-    <p class="muted">Choose what it costs you:</p>
-    <ol class="pack-choose">${opts.map((o, n) => `<li><button data-n="${n}" ${o[3] ? '' : 'disabled'}><kbd>${LOSS_KEYS[n].toUpperCase()}</kbd> ${o[1]} <em>${o[2]}</em></button></li>`).join('')}</ol>
-    <small class="pskip">press A or D, or click</small></div>`;
-  pop.hidden = false;
-  sfx.zombie();
-  const pick = await new Promise((res) => {
-    pop.querySelectorAll('[data-n]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); if (opts[+b.dataset.n][3]) res(opts[+b.dataset.n][0]); }));
-    modalKey = (e) => { const o = opts[LOSS_KEYS.indexOf(e.key.toLowerCase())]; if (o && o[3]) res(o[0]); };
-  });
-  modalKey = null;
-  pop.hidden = true;
-  return pick;
-}
-
-// ---------------------------------------------------------------- zombies
-// 1d6 zombies arrive: each one cancels (and uses up) a point of Safety; the rest
-// fill the tile's circles as zombies, up to 6.
-function zombieContest(t, n) {
-  const absorbed = Math.min(t.safety, n), left = n - absorbed;
-  const zombies = Math.min(CONFIG.maxSafety, (t.zombies || 0) + left);
-  return { n, absorbed, left, before: { safety: t.safety, zombies: t.zombies || 0 }, after: { safety: t.safety - absorbed, zombies } };
-}
-function applyContest(t, c) { t.safety = c.after.safety; t.zombies = c.after.zombies; }
-function contestText(c) {
-  if (!c.left) return `🟡 Safety holds — absorbs all ${c.n} (🟡 ${c.before.safety} → ${c.after.safety}).`;
-  return `${c.absorbed ? `🟡 Safety absorbs ${c.absorbed}, ` : ''}🧟 ${c.left} break${c.left === 1 ? 's' : ''} through!`;
-}
-
-async function nightAttack() {
-  const groups = {};
-  for (const p of G.players) (groups[key(p.q, p.r)] ??= []).push(p);
-  for (const [k, grp] of Object.entries(groups)) {
-    const t = G.tiles[k];
-    const n = roll('Night zombies');
-    const c = zombieContest(t, n);
-    render();
-    busy = true;
-    await nightShow(t, c);
-    busy = false;
-    applyContest(t, c);
-    logRoll(`🌙 ${n} zombie${n > 1 ? 's' : ''} attack the ${t.def.name} in the night. ${contestText(c)}`, c.left ? 'bad' : 'good');
-    if (t.zombies) for (const p of grp) await threatPrompt(p);
-    if (G.over) return;
-  }
+// Decisions that need a popup. (Fight or Flee, where to flee and driving use the action tray and the map.)
+async function ask() {
+  const p = cur(), d = p.pending;
+  if (!d) return;
+  if (d.kind === 'fight') return fightPopup(p);
+  if (d.kind === 'armor') return send({ type: 'decide', choice: await armorPrompt(p.items[d.item]) });
+  if (d.kind === 'escape') return send({ type: 'decide', choice: await chooseEscape(d.options) });
+  if (d.kind === 'backpack') return send({ type: 'decide', choice: await backpackPrompt(p, d.item) });
 }
 
 // ---------------------------------------------------------------- death
-const alive = () => G.players.filter((p) => !p.dead);
-function die(p, why) {
-  p.dead = true;
-  log(`☠️ ${why} The zombies get ${p.name}.`, 'bad');
-  if (!alive().length) G.over = { why, day: G.day, round: G.round };
-  tone(200, 1.4, 'sawtooth', 0.12, -170);
-}
-
 function showGameOver() {
   const o = G.over, pop = $('#popup');
   const rounds = (o.day - CONFIG.startDay) * 6 + (o.round - CONFIG.startRound);
@@ -269,108 +121,25 @@ function showGameOver() {
   $('#again').onclick = (e) => { e.stopPropagation(); newGame(['Survivor']); };
 }
 
-// ---------------------------------------------------------------- fight / flee
-// Zombies on your tile: choose Fight (free to start; gun: 1 ammo/shot, melee: 1 AP/swing) or Flee (1 AP, roll 1d6 > zombies).
-// Repeats until the tile is clear, you escape, or you die.
-// Using an item costs no AP. Gun needs ammo; melee needs AP for at least one swing.
-const canShoot = (p) => !!weaponOf(p, 'ammo') && p.res.ammo > 0;
-const canMelee = (p) => !!weaponOf(p, 'ap') && p.ap >= 1;
-const canFight = (p) => canShoot(p) || canMelee(p);
-// After a failed flee (and no armor reroll) you're caught: no more fleeing this encounter.
-const canFlee = (p, t) => !p.caught && p.ap >= 1 && fleeAdj(p).length > 0 && t.zombies < 6;
-
-async function threatPrompt(p) {
-  const t = tileOf(p);
-  p.caught = false;
-  while (t.zombies && !p.dead) {
-    if (!canFight(p) && !canFlee(p, t)) {
-      return die(p, p.ap < 1 ? `${p.name} has no strength left (0 🎲 AP) and nothing to fight with.`
-        : !fleeAdj(p).length ? `${p.name} can't fight and has nowhere to run.`
-        : `${p.name} can't fight and can't outrun ${t.zombies} zombies.`);
-    }
-    mode = 'threat';
-    render();
-    const choice = await new Promise((res) => { threatChoice = res; });
-    threatChoice = null;
-    mode = null;
-    if (choice === 'shoot') await fightRound(p, t, weaponOf(p, 'ammo'));
-    else if (choice === 'melee') await fightRound(p, t, weaponOf(p, 'ap'));
-    else if (await fleeAttempt(p, t)) { p.caught = false; return; }
-    else {
-      // Failed flee: caught. Without a weapon to fight back with, that's the end.
-      p.caught = true;
-      if (!canFight(p)) return die(p, `${p.name} failed to flee and had nothing to fight back with.`);
-      log(`${p.name} is caught — no escape now, fight!`, 'bad');
-    }
-  }
-  p.caught = false;
-  mode = null;
-  render();
-}
-
-const armorOf = (p) => p.items.filter((it) => ITEMS[it.id]?.armor && it.cond > 0).sort((a, b) => a.cond - b.cond)[0];
-
-async function fleeAttempt(p, t) {
-  p.ap--;
-  let r = roll('Flee');
-  render();
-  busy = true;
-  let ok = await fleeShow(t, r);
-  busy = false;
-  logRoll(`${p.name} tries to flee ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} — rolls ${r}${ok ? ': escapes!' : ` (needed more than ${t.zombies}): caught!`}`, ok ? 'good' : 'bad');
-  // Armor can take the punch: −1 armor condition, then reroll (costs 1 AP).
-  while (!ok) {
-    const armor = armorOf(p);
-    if (!armor || p.ap < 1) break;
-    if (!(await armorPrompt(p, armor))) break;
-    armor.cond--; p.ap--;
-    sfx.armor();
-    log(`${ITEMS[armor.id].icon} ${p.name}'s ${armor.id} takes the hit (condition ${armor.cond}).`, 'good');
-    if (armor.cond <= 0) { p.items.splice(p.items.indexOf(armor), 1); log(`${ITEMS[armor.id].icon} The ${armor.id} is destroyed.`, 'bad'); }
-    r = roll('Flee reroll');
-    render();
-    busy = true;
-    ok = await fleeShow(t, r);
-    busy = false;
-    logRoll(`${p.name} rerolls the flee — ${r}${ok ? ': escapes!' : `: caught again!`}`, ok ? 'good' : 'bad');
-  }
-  if (!ok) return false;
-  // Escape on foot (1 hex, must be zombie-free) or in a vehicle on this tile (several hexes).
-  const opts = [['foot', '🏃 On foot', '1 hex', fleeAdj(p).length > 0]];
-  for (const id of Object.keys(ITEMS).filter((k) => ITEMS[k].vehicle)) {
-    const v = vehicleOf(p, id);
-    if (v) opts.push([id, `${ITEMS[id].icon} ${id}`, `1 ${vehicleFuel(v) === 'fuel' ? ICON.fuel : '🎲'} per tile`, vehicleLeft(p, v) > 0 && driveAdj(p).length > 0]);
-  }
-  let how = 'foot';
-  if (opts.length > 1) how = await chooseEscape(opts);
-  if (how !== 'foot') { await driveTrip(p, vehicleOf(p, how), true); return true; }
-  mode = 'flee';
-  render();
-  await new Promise((res) => { fleeDone = res; });
-  fleeDone = null;
-  mode = null;
-  return true;
-}
-
+// ---------------------------------------------------------------- fight / flee popups
 async function chooseEscape(opts) {
   const pop = $('#popup');
-  const ok = opts.filter((o) => o[3]);
   pop.className = '';
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>Escaped!</small><h2>How do you get away?</h2></div>
-    <ol class="pack-choose">${opts.map((o, n) => `<li><button data-n="${n}" ${o[3] ? '' : 'disabled'}><kbd>${n + 1}</kbd> ${o[1]} <em>${o[2]}</em></button></li>`).join('')}</ol>
+    <ol class="pack-choose">${opts.map((o, n) => `<li><button data-n="${n}" ${o.ok ? '' : 'disabled'}><kbd>${n + 1}</kbd> ${o.label} <em>${o.sub}</em></button></li>`).join('')}</ol>
     <small class="pskip">press 1–${opts.length} or click</small></div>`;
   pop.hidden = false;
   const pick = await new Promise((res) => {
-    pop.querySelectorAll('[data-n]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); if (opts[+b.dataset.n][3]) res(opts[+b.dataset.n][0]); }));
-    modalKey = (e) => { const o = opts[+e.key - 1]; if (o && o[3]) res(o[0]); };
+    pop.querySelectorAll('[data-n]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); if (opts[+b.dataset.n].ok) res(opts[+b.dataset.n].id); }));
+    modalKey = (e) => { const o = opts[+e.key - 1]; if (o && o.ok) res(o.id); };
   });
   modalKey = null;
   pop.hidden = true;
-  return pick || ok[0][0];
+  return pick;
 }
 
-async function armorPrompt(p, armor) {
+async function armorPrompt(armor) {
   const pop = $('#popup');
   pop.className = 'zombie';
   pop.innerHTML = `<div class="pcard">
@@ -391,142 +160,91 @@ async function armorPrompt(p, armor) {
   return yes;
 }
 
-async function fleeShow(t, r) {
+async function fleeShow(ev) {
   const pop = $('#popup');
   skipAnim = false;
   pop.className = '';
   pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>🏃 Flee</small><h2>Roll more than ${t.zombies}</h2></div>
-    <div class="cpips">${[...Array(6)].map((_, i) => `<i class="${i < t.zombies ? 'zed' : ''}"></i>`).join('')}</div>
+    <div class="ptitle"><small>🏃 Flee</small><h2>Roll more than ${ev.zombies}</h2></div>
+    <div class="cpips">${[...Array(6)].map((_, i) => `<i class="${i < ev.zombies ? 'zed' : ''}"></i>`).join('')}</div>
     <div class="prow2"><div class="slot" id="pd2d"></div></div>
     <div class="presult" id="pres"></div>
     <small class="pskip">click or press any key</small></div>`;
   pop.hidden = false;
   await wait(150);
-  await rollDie($('#pd2d'), r, 1000);
+  await rollDie($('#pd2d'), ev.r, 1000);
   await wait(200);
-  const ok = r > t.zombies;
-  $('#pres').innerHTML = ok ? `<div class="big good">Escaped!</div><small class="muted">Pick a safe hex: A Q W D X Z</small>` : `<div class="big bad">Caught!</div>`;
-  if (ok) sfx.win(false); else { pop.classList.add('zombie'); sfx.zombie(); }
-  await popupHold(ok ? 1400 : 2200);
-  return ok;
+  $('#pres').innerHTML = ev.ok ? `<div class="big good">Escaped!</div><small class="muted">Pick a safe hex: A Q W D X Z</small>` : `<div class="big bad">Caught!</div>`;
+  if (ev.ok) sfx.win(false); else { pop.classList.add('zombie'); sfx.zombie(); }
+  await popupHold(ev.ok ? 1400 : 2200);
 }
 
-// One round of fighting: no AP to start, weapon loses 1 condition. Each attack (Enter) kills 1 zombie
-// and costs 1 ammo (gun) or 1 AP (melee).
-async function fightRound(p, t, w) {
-  const def = ITEMS[w.id], melee = def.uses === 'ap';
+// One round of fighting (the engine has already taken 1 weapon condition). Each attack (Enter) kills 1 zombie
+// and costs 1 ammo (gun) or 1 AP (melee). The popup stays open for the whole fight round.
+async function fightPopup(p) {
+  const d = p.pending, t = tileOf(p), w = p.items[d.weapon], def = ITEMS[w.id], melee = def.uses === 'ap';
   const left = () => (melee ? p.ap : p.res.ammo);
-  w.cond--;
-  const start = t.zombies;
-  let shots = 0;
+  const fighting = () => p.pending === d;
   const pop = $('#popup');
   pop.className = 'fight';
+  let after = [];   // events from the attack (or stop) that ended the fight round
   const draw = () => {
     pop.innerHTML = `<div class="pcard">
       <div class="ptitle"><small>⚔️ Fight · ${esc(t.def.name)}</small><h2>${t.zombies ? `${t.zombies} zombie${t.zombies > 1 ? 's' : ''}` : 'Clear!'}</h2></div>
-      <div class="cpips">${[...Array(6)].map((_, i) => `<i class="${i < t.zombies ? 'zed' : i < start ? 'dead' : ''}"></i>`).join('')}</div>
+      <div class="cpips">${[...Array(6)].map((_, i) => `<i class="${i < t.zombies ? 'zed' : i < d.start ? 'dead' : ''}"></i>`).join('')}</div>
       <div class="fammo">${melee ? `${ICON.ap} <b class="${p.ap <= 1 ? 'warnap' : ''}">${p.ap}</b> AP` : `${ICON.ammo} <b>${p.res.ammo}</b> ammo`} · ${def.icon} ${w.id} condition ${condPips(w.cond)}</div>
       ${melee && p.ap === 1 && t.zombies ? `<div class="note bad">Last AP — swinging now leaves you nothing to flee with.</div>` : ''}
       <div class="frow">
-        <button class="primary" id="fire" ${left() && t.zombies ? '' : 'disabled'}>${def.icon} ${def.verb} <small>(1 ${melee ? 'AP' : 'ammo'})</small> <kbd>Enter</kbd></button>
+        <button class="primary" id="fire" ${fighting() && left() && t.zombies ? '' : 'disabled'}>${def.icon} ${def.verb} <small>(1 ${melee ? 'AP' : 'ammo'})</small> <kbd>Enter</kbd></button>
         <button id="stop">Stop <kbd>Esc</kbd></button>
       </div>
       <small class="pskip"><kbd>Shift</kbd>+<kbd>Enter</kbd> ${melee ? 'swing' : 'fire'} until clear (or out of ${melee ? 'AP' : 'ammo'})</small></div>`;
     $('#fire').onclick = (e) => { e.stopPropagation(); fire(); };
-    $('#stop').onclick = (e) => { e.stopPropagation(); finish(); };
+    $('#stop').onclick = (e) => { e.stopPropagation(); stop(); };
   };
   let done;
   const over = new Promise((res) => { done = res; });
+  const finish = () => { modalKey = null; done(); };
   const fire = () => {
-    if (!left() || !t.zombies) return;
-    if (melee) p.ap--; else p.res.ammo--;
-    t.zombies--; shots++;
+    if (!fighting()) return;
+    const res = E.act(G, p.id, { type: 'decide', choice: 'attack' });
+    if (res.error) return;
     if (melee) sfx.axe(); else sfx.gun();
     draw();
     pop.querySelector('.pcard').classList.add('flash');
-    const pips = pop.querySelectorAll('.cpips i');
-    pips[t.zombies]?.classList.add('hit');
+    pop.querySelectorAll('.cpips i')[t.zombies]?.classList.add('hit');
     renderStats();
-    if (!t.zombies || !left()) setTimeout(finish, 700);
+    if (!fighting()) { after = res.events; setTimeout(finish, 700); }
   };
-  const finish = () => { modalKey = null; done(); };
+  const stop = () => {
+    if (fighting()) after = E.act(G, p.id, { type: 'decide', choice: 'stop' }).events;
+    finish();
+  };
   // Shift+Enter: keep attacking until the tile is clear or you run out of ammo / AP.
   let auto = false;
   const fireAll = () => {
     if (auto) return;
     auto = true;
-    const step = () => { if (!left() || !t.zombies || !modalKey) return; fire(); setTimeout(step, 220); };
+    const step = () => { if (!fighting() || !modalKey) return; fire(); setTimeout(step, 220); };
     step();
   };
   modalKey = (e) => {
     if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); fireAll(); }
     else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!auto) fire(); }
-    else if (e.key === 'Escape') finish();
+    else if (e.key === 'Escape') stop();
   };
   draw();
   pop.hidden = false;
   await over;
   pop.hidden = true;
-  const noun = melee ? 'swing' : 'shot';
-  log(`${p.name} fights with the ${w.id}: ${shots} ${noun}${shots === 1 ? '' : 's'}, ${shots} zombie${shots === 1 ? '' : 's'} down${t.zombies ? `, ${t.zombies} left` : ' — tile cleared!'}.`, t.zombies ? 'bad' : 'good');
-  if (w.cond <= 0) {
-    p.items.splice(p.items.indexOf(w), 1);
-    log(`${ITEMS[w.id].icon} ${p.name}'s ${w.id} breaks!`, 'bad');
-  }
-  render();
+  await play(after.filter((ev) => ev.type !== 'hit'));
 }
 
 const condPips = (n) => `<span class="cond">${[...Array(6)].map((_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
 
-// ---------------------------------------------------------------- vehicles
-// Vehicles sit on tiles (not in the backpack). Truck: 1 fuel per tile. Bike: 1 AP per tile.
-// −1 condition per trip. Only scouted tiles; you can pass through zombie tiles but stopping on one triggers them.
-const vehicleFuel = (v) => ITEMS[v.id].uses;                 // 'fuel' | 'ap'
-const vehicleLeft = (p, v) => (vehicleFuel(v) === 'fuel' ? p.res.fuel : p.ap);
-const vehiclesHere = (p) => (tileOf(p).vehicles ||= []);
-const vehicleOf = (p, id) => vehiclesHere(p).filter((v) => v.id === id && v.cond > 0).sort((a, b) => a.cond - b.cond)[0];
-const canDrive = (p, id) => { const v = vehicleOf(p, id); return !!v && vehicleLeft(p, v) > 0 && driveAdj(p).length > 0; };
-
-async function driveTrip(p, v, flee = false) {
-  const def = ITEMS[v.id];
-  vehiclesHere(p).splice(vehiclesHere(p).indexOf(v), 1);   // vehicle travels with you
-  mode = 'drive';
-  await new Promise((done) => { driving = { p, v, steps: 0, flee, done }; render(); });
-  const t = tileOf(p);
-  if (driving.steps) {
-    v.cond--;
-    log(`${p.name} ${def.verb.toLowerCase()}s the ${def.icon} ${v.id} ${driving.steps} tile${driving.steps > 1 ? 's' : ''} to the ${t.def.name}.`, t.zombies ? 'bad' : '');
-  }
-  if (v.cond > 0) (t.vehicles ||= []).push(v);
-  else log(`${def.icon} The ${v.id} breaks down for good.`, 'bad');
-  const steps = driving.steps;
-  driving = null;
-  mode = null;
-  if (t.zombies && steps) { log(`🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} at the ${t.def.name}!`, 'bad'); await threatPrompt(p); }
-  return steps;
-}
-
-function driveStep(q, r) {
-  const { p, v } = driving, t = G.tiles[key(q, r)];
-  if (!passable(t) || vehicleLeft(p, v) < 1) return;
-  if (vehicleFuel(v) === 'fuel') p.res.fuel--; else p.ap--;
-  p.q = q; p.r = r;
-  driving.steps++;
-  sfx.drive(vehicleFuel(v));
-  if (vehicleLeft(p, v) < 1) { toast(`${ITEMS[v.id].icon} Out of ${vehicleFuel(v) === 'fuel' ? 'fuel' : 'AP'} — stopping here.`); return driving.done(); }
-  render();
-}
-
 // ---------------------------------------------------------------- items
-async function gainItem(p, id, cond) {
-  const item = { id, cond };
-  if (p.items.length < CONFIG.maxItems) {
-    p.items.push(item);
-    log(`${p.name} finds a ${ITEMS[id].icon} ${id} (condition ${cond}).`, 'good');
-    return;
-  }
-  // Backpack full: destroy one to make room, or leave the new item.
+// Backpack full: pick an item to destroy (the new one is last — picking it leaves it behind).
+async function backpackPrompt(p, item) {
   const pop = $('#popup');
   const all = [...p.items, item];
   pop.className = '';
@@ -541,16 +259,9 @@ async function gainItem(p, id, cond) {
   });
   modalKey = null;
   pop.hidden = true;
-  const gone = all[i];
-  all.splice(i, 1);
-  p.items = all;
-  log(gone === item
-    ? `${p.name} leaves the ${ITEMS[id].icon} ${id} behind — backpack full.`
-    : `${p.name} destroys their ${ITEMS[gone.id].icon} ${gone.id} to carry the ${ITEMS[id].icon} ${id}.`, 'bad');
+  return i;
 }
 
-// Tools: free to use at any time (outside popups). Transfer some of the tool's condition to another
-// item (up to that item's max of 6). A tool at 0 condition is destroyed.
 // Short on-screen message above the action tray.
 let toastTimer = null;
 function toast(msg) {
@@ -561,10 +272,13 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
+// Tools: free to use at any time (outside popups). Transfer some of the tool's condition to another
+// item or a vehicle on your tile (up to its max of 6). A tool at 0 condition is destroyed.
 async function useTool(i) {
   const p = cur(), tool = p.items[i];
-  if (!tool || !ITEMS[tool.id]?.tool || busy || modalKey || G.over) return;
-  const targets = [...p.items, ...vehiclesHere(p)].filter((it) => it !== tool && it.cond < CONFIG.maxCondition);
+  if (!tool || !ITEMS[tool.id]?.tool || busy || modalKey || G.over || p.pending) return;
+  const targets = [...p.items.map((it, index) => ({ it, from: 'pack', index })), ...vehiclesHere(p).map((it, index) => ({ it, from: 'tile', index }))]
+    .filter(({ it }) => it !== tool && it.cond < CONFIG.maxCondition);
   const pop = $('#popup');
   const close = () => { modalKey = null; pop.hidden = true; };
   pop.className = 'tool';
@@ -575,7 +289,7 @@ async function useTool(i) {
   // step 1: pick the item to repair
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>${ITEMS[tool.id].icon} ${tool.id} ${condPips(tool.cond)}</small><h2>Repair which item?</h2></div>
-    <ol class="pack-choose">${targets.map((it, n) => `<li><button data-n="${n}"><kbd>${n + 1}</kbd> ${ITEMS[it.id].icon} ${it.id} ${condPips(it.cond)}</button></li>`).join('')}</ol>
+    <ol class="pack-choose">${targets.map(({ it }, n) => `<li><button data-n="${n}"><kbd>${n + 1}</kbd> ${ITEMS[it.id].icon} ${it.id} ${condPips(it.cond)}</button></li>`).join('')}</ol>
     <small class="pskip">press 1–${targets.length} or click · Esc to cancel</small></div>`;
   pop.hidden = false;
   const target = await new Promise((res) => {
@@ -584,171 +298,57 @@ async function useTool(i) {
   });
   if (!target) return close();
   // step 2: how much condition to transfer
-  const max = Math.min(tool.cond, CONFIG.maxCondition - target.cond);
+  const max = Math.min(tool.cond, CONFIG.maxCondition - target.it.cond);
   pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>${ITEMS[tool.id].icon} ${tool.id} ${condPips(tool.cond)} → ${ITEMS[target.id].icon} ${target.id} ${condPips(target.cond)}</small><h2>Transfer how much?</h2></div>
+    <div class="ptitle"><small>${ITEMS[tool.id].icon} ${tool.id} ${condPips(tool.cond)} → ${ITEMS[target.it.id].icon} ${target.it.id} ${condPips(target.it.cond)}</small><h2>Transfer how much?</h2></div>
     <div class="frow">${[...Array(max)].map((_, n) => `<button data-a="${n + 1}"><kbd>${n + 1}</kbd></button>`).join('')}</div>
     <small class="pskip">press 1–${max} or click · Esc to cancel</small></div>`;
-  const amt = await new Promise((res) => {
+  const amount = await new Promise((res) => {
     pop.querySelectorAll('[data-a]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); res(+b.dataset.a); }));
     modalKey = (e) => { if (e.key === 'Escape') res(0); const n = +e.key; if (n >= 1 && n <= max) res(n); };
   });
   close();
-  if (!amt) return render();
-  tool.cond -= amt; target.cond += amt;
-  sfx.repair();
-  log(`${p.name} uses the ${ITEMS[tool.id].icon} ${tool.id} on the ${ITEMS[target.id].icon} ${target.id}: +${amt} condition (now ${target.cond}).`, 'good');
-  if (tool.cond <= 0) {
-    p.items.splice(p.items.indexOf(tool), 1);
-    log(`${ITEMS[tool.id].icon} The ${tool.id} is used up and destroyed.`, 'bad');
-  }
-  render();
+  if (!amount) return render();
+  send({ type: 'tool', tool: i, target: { from: target.from, index: target.index }, amount });
 }
 
 function dropItem(i) {
-  const p = cur(), it = p.items[i];
-  if (!it || busy || modalKey) return;
-  p.items.splice(i, 1);
-  log(`${p.name} destroys their ${ITEMS[it.id].icon} ${it.id}.`, 'bad');
-  render();
+  if (!cur().items[i] || busy || modalKey) return;
+  send({ type: 'drop', item: i });
 }
 
 // ---------------------------------------------------------------- actions
-let forced = [];   // cheat: queued values for the next game rolls (see cheats below)
-let checksOff = false;   // cheat: skip the food / water / hope checks (kept across new games until reload)
-function roll(label, keep = false) {
-  if (!keep) rolls = [];
-  const value = forced.length ? forced.shift() : d6();
-  rolls.push({ value, label }); rollsFresh = true;
-  return value;
-}
-
-async function act(name) {
-  if (mode === 'threat') {
-    const p = cur(), t = tileOf(p);
-    if (name === 'shoot' && canShoot(p)) threatChoice?.('shoot');
-    if (name === 'melee' && canMelee(p)) threatChoice?.('melee');
-    if (name === 'flee' && canFlee(p, t)) threatChoice?.('flee');
-    return;
-  }
-  if (busy || mode === 'flee' || modalKey || G.over) return;
-  const p = cur(), t = tileOf(p);
-
-  if (name === 'sleep') {   // 2d6 AP
-    const dice = [roll('Sleep'), roll('Sleep', true)], r = dice[0] + dice[1];
-    const before = p.ap;
-    render();
-    busy = true;
-    await sleepShow(p, dice);
-    busy = false;
-    p.ap = Math.min(p.maxAP, p.ap + r);
-    logRoll(`${p.name} sleeps — rolls ${dice[0]} + ${dice[1]} — and gains ${p.ap - before} 🎲 AP${before + r > p.maxAP ? ` (max ${p.maxAP})` : ''}.`);
-    return nextTurn();
-  }
-  if (ITEMS[name]?.vehicle) {   // driving is free movement: it doesn't use up your turn
-    if (!canDrive(p, name)) return;
-    await driveTrip(p, vehicleOf(p, name));
-    if (G.over) { render(); return showGameOver(); }
-    return render();
-  }
-  if (p.ap < 1) return;
-
-  if (name === 'fortify') {
-    if (!canFortifyHere(t) || t.safety >= CONFIG.maxSafety || t.zombies) return;
-    p.ap--;
-    const r = roll('Fortify');
-    const before = t.safety;
-    const after = Math.min(CONFIG.maxSafety, t.safety + r);
-    render();
-    busy = true;
-    await fortifyShow(t, r, before, after);
-    busy = false;
-    t.safety = after;
-    logRoll(`${p.name} fortifies the ${t.def.name} — rolls ${r}: 🟡 ${before} → ${t.safety}${before + r > CONFIG.maxSafety ? ` (max ${CONFIG.maxSafety})` : ''}.`, 'good');
-    return nextTurn();
-  }
-
-  if (name === 'scavenge') {
-    if (!canScavengeHere(t) || t.zombies) return;
-    p.ap--;
-    const r = roll('Scavenge');
-    const e = t.def.table[r - 1];
-    const amt = roll(e.res ? cellText(e) : e.item ? 'Condition' : 'Zombies', true);
-    const c = e.zombies ? zombieContest(t, amt) : null;
-    busy = true;
-    await scavengeShow(t, r, e, amt, c);
-    busy = false;
-    if (c) {
-      applyContest(t, c);
-      logRoll(`${p.name} scavenges the ${t.def.name} — rolls ${r}: 🧟 ${amt} zombie${amt > 1 ? 's' : ''}! ${contestText(c)}`, c.left ? 'bad' : 'good');
-      if (t.zombies) await threatPrompt(p);
-      if (G.over) { render(); return showGameOver(); }
-    } else if (e.item) {
-      logRoll(`${p.name} scavenges the ${t.def.name} — rolls ${r}: ${ITEMS[e.item].icon} ${e.item}, condition ${amt}.`, 'good');
-      if (ITEMS[e.item].vehicle) {
-        (t.vehicles ||= []).push({ id: e.item, cond: amt });
-        log(`${ITEMS[e.item].icon} The ${e.item} is parked at the ${t.def.name}.`, 'good');
-      } else await gainItem(p, e.item, amt);
-    } else {
-      const got = amt * e.n;
-      p.res[e.res] += got;
-      logRoll(`${p.name} scavenges the ${t.def.name} — rolls ${r}: ${cellText(e)} → rolls ${amt}${e.n > 1 ? ` ×${e.n}` : ''} = ${got} ${ICON[e.res]} ${e.res}.`, 'good');
-    }
-    return nextTurn();
-  }
-
-  if (name === 'scout' || name === 'move') {
-    mode = mode === name ? null : name;
-    render();
-  }
-}
-
-function clickHex(q, r) {
-  if (busy) return;
-  if (!mode) return;
+// Buttons and hotkeys come here. Scout and Move first ask for a hex (clickHex).
+function act(name) {
+  if (busy || modalKey || G.over) return;
   const p = cur();
-  if (!neighbors(p.q, p.r).some(([a, b]) => a === q && b === r)) return;
-  const k = key(q, r);
-
-  if (mode === 'drive') return driveStep(q, r);
-  if (mode === 'flee') {
-    if (!passable(G.tiles[k]) || G.tiles[k].zombies) return;
-    log(`${p.name} flees to the ${G.tiles[k].def.name}.`, 'bad');
-    p.q = q; p.r = r;
-    fleeDone?.();
-  } else if (mode === 'scout' && !G.tiles[k]) {
-    const def = TILES[Math.floor(Math.random() * TILES.length)];
-    G.tiles[k] = { def, safety: 0, zombies: 0, vehicles: [] };
-    p.ap--;
-    log(`${p.name} scouts and discovers a ${def.icon} ${def.name}.`);
-    // Pause so the player can take in the new location before the round moves on.
-    mode = null;
-    G.justRevealed = k;
-    busy = true;
-    render();
-    toast(`🔭 Discovered: ${def.icon} ${def.name}`);
-    tone(520, 0.15, 'triangle', 0.07); setTimeout(() => tone(780, 0.25, 'triangle', 0.07), 120);
-    new Promise((res) => { const tm = setTimeout(res, 2800); dismissPopup = () => { clearTimeout(tm); res(); }; })
-      .then(() => { dismissPopup = null; busy = false; G.justRevealed = null; nextTurn(); });
-  } else if (mode === 'move' && G.tiles[k] && canEnter(p, G.tiles[k])) {
-    const t = G.tiles[k];
-    p.q = q; p.r = r; p.ap--;
-    mode = null;
-    log(`${p.name} moves to the ${t.def.name}${t.zombies ? ` — ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} inside!` : ''}.`, t.zombies ? 'bad' : '');
-    (async () => {
-      if (t.zombies) await threatPrompt(p);
-      if (G.over) { render(); return showGameOver(); }
-      nextTurn();
-    })();
-  }
+  if (mode === 'threat') { if (['shoot', 'melee', 'flee'].includes(name)) send({ type: 'decide', choice: name }); return; }
+  if (p.pending) return;
+  if (name === 'scout' || name === 'move') { mode = mode === name ? null : name; return render(); }
+  if (ITEMS[name]?.vehicle) return send({ type: 'drive', vehicle: name });
+  send({ type: name });
 }
 
-function give(toIdx, res) {
-  const p = cur(), o = G.players[toIdx];
-  if (p.res[res] < 1 || o.q !== p.q || o.r !== p.r) return;
-  p.res[res]--; o.res[res]++;
-  log(`${p.name} gives 1 ${ICON[res]} ${res} to ${o.name}.`);
-  render();
+// A hex picked on the map (or with A Q W D X Z) while scouting, moving, fleeing or driving.
+function clickHex(q, r) {
+  if (busy || !mode) return;
+  const p = cur(), t = G.tiles[key(q, r)];
+  if (!neighbors(p.q, p.r).some(([a, b]) => a === q && b === r)) return;
+  if (mode === 'scout' && !t) send({ type: 'scout', q, r });
+  else if (mode === 'move' && canEnter(p, t)) send({ type: 'move', q, r });
+  else if (mode === 'flee' && passable(t) && !t.zombies) send({ type: 'decide', choice: { q, r } });
+  else if (mode === 'drive' && passable(t)) send({ type: 'decide', choice: { q, r } });
+}
+
+// A new location: highlight it and pause so the player can take it in before the round moves on.
+async function revealShow(ev) {
+  justRevealed = ev.k;
+  renderMap();
+  toast(`🔭 Discovered: ${ev.icon} ${ev.name}`);
+  tone(520, 0.15, 'triangle', 0.07); setTimeout(() => tone(780, 0.25, 'triangle', 0.07), 120);
+  await new Promise((res) => { const tm = setTimeout(res, 2800); dismissPopup = () => { clearTimeout(tm); res(); }; });
+  dismissPopup = null;
+  justRevealed = null;
 }
 
 // ---------------------------------------------------------------- scavenge popup + sound
@@ -838,15 +438,15 @@ async function rollDie(slot, final, ms, onFace) {
   slot.innerHTML = dieHtml(final, 'land'); onFace?.(final); sfx.land();
 }
 
-async function scavengeShow(t, r, e, amt, c) {
+async function scavengeShow({ name, table, r, e, amt, c }) {
   const pop = $('#popup');
   skipAnim = false;
   pop.className = '';
   pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>Scavenging</small><h2>${esc(t.def.name)}</h2></div>
+    <div class="ptitle"><small>Scavenging</small><h2>${esc(name)}</h2></div>
     <div class="prow">
       <div class="slot" id="pd1"></div>
-      <ol class="ptable">${t.def.table.map((x, i) => `<li data-i="${i + 1}" class="${x.zombies ? 'z' : x.item ? 'it' : ''}"><b>${i + 1}</b>${cellText(x)}</li>`).join('')}</ol>
+      <ol class="ptable">${table.map((x, i) => `<li data-i="${i + 1}" class="${x.zombies ? 'z' : x.item ? 'it' : ''}"><b>${i + 1}</b>${cellText(x)}</li>`).join('')}</ol>
     </div>
     <div class="prow2" id="pd2"></div>
     <div class="presult" id="pres"></div>
@@ -922,12 +522,12 @@ async function contestAnim(c) {
   if (c.left) { $('#popup').classList.add('zombie'); sfx.zombie(); } else sfx.win(false);
 }
 
-async function fortifyShow(t, r, before, after) {
+async function fortifyShow({ name, r, before, after }) {
   const pop = $('#popup'), max = CONFIG.maxSafety;
   skipAnim = false;
   pop.className = '';
   pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>🔨 Fortifying</small><h2>${esc(t.def.name)}</h2></div>
+    <div class="ptitle"><small>🔨 Fortifying</small><h2>${esc(name)}</h2></div>
     <div class="prow2"><span class="muted">How much?</span><div class="slot" id="pd2d"></div></div>
     <div class="cpips">${[...Array(max)].map((_, i) => `<i class="${i < before ? 'on' : ''}"></i>`).join('')}</div>
     <div class="presult" id="pres"></div>
@@ -949,14 +549,14 @@ async function fortifyShow(t, r, before, after) {
 }
 
 // Missed food / water: pause the game and show the max AP ring losing a segment.
-async function maxApLossShow(p, res) {
-  const pop = $('#popup'), oldMax = p.maxAP, newMax = Math.max(0, p.maxAP - CONFIG.trackLoss), newAp = Math.min(p.ap, newMax);
+async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
+  const pop = $('#popup');
   const what = res === 'food' ? `${ICON.food} No food` : `${ICON.water} No water`;
   skipAnim = false;
   pop.className = 'zombie';
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>Round ${G.round} check</small><h2>${what}!</h2></div>
-    <div class="bigap" id="bigap">${apGauge(p.ap, '', oldMax)}</div>
+    <div class="bigap" id="bigap">${apGauge(oldAp, '', oldMax)}</div>
     <div class="presult" id="pres"></div>
     <small class="pskip">click or press any key</small></div>`;
   pop.hidden = false;
@@ -972,14 +572,14 @@ async function maxApLossShow(p, res) {
 }
 
 // Sleep: roll both dice, then the AP dial fills segment by segment.
-async function sleepShow(p, dice) {
+async function sleepShow({ dice, from, to, max }) {
   const r = dice[0] + dice[1];
-  const pop = $('#popup'), from = p.ap, to = Math.min(p.maxAP, p.ap + r);
+  const pop = $('#popup');
   skipAnim = false;
   pop.className = 'sleep';
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>😴 Sleeping</small><h2>Rest &amp; recover</h2></div>
-    <div class="prow"><div class="dicecol"><div class="slot" id="pd2a"></div><div class="slot" id="pd2b"></div></div><div class="bigap" id="bigap">${apGauge(from, '', p.maxAP)}</div></div>
+    <div class="prow"><div class="dicecol"><div class="slot" id="pd2a"></div><div class="slot" id="pd2b"></div></div><div class="bigap" id="bigap">${apGauge(from, '', max)}</div></div>
     <div class="presult" id="pres"></div>
     <small class="pskip">click or press any key</small></div>`;
   pop.hidden = false;
@@ -987,22 +587,22 @@ async function sleepShow(p, dice) {
   await Promise.all([rollDie($('#pd2a'), dice[0], 900), rollDie($('#pd2b'), dice[1], 1050)]);
   await wait(250);
   for (let a = from + 1; a <= to; a++) {
-    $('#bigap').innerHTML = apGauge(a, '', p.maxAP, -1, a - 1);
+    $('#bigap').innerHTML = apGauge(a, '', max, -1, a - 1);
     tone(330 + a * 45, 0.14, 'sine', 0.09);
     await wait(260);
   }
   const wasted = from + r - to;
-  $('#pres').innerHTML = `<div class="big good">+${to - from} AP</div><small class="muted">${dice[0]} + ${dice[1]} = ${r}</small>${wasted > 0 ? '<br>' : ''}${wasted > 0 ? `<small class="muted">${wasted} wasted — max AP ${p.maxAP}</small>` : ''}`;
-  sfx.win(to >= p.maxAP);
+  $('#pres').innerHTML = `<div class="big good">+${to - from} AP</div><small class="muted">${dice[0]} + ${dice[1]} = ${r}</small>${wasted > 0 ? '<br>' : ''}${wasted > 0 ? `<small class="muted">${wasted} wasted — max AP ${max}</small>` : ''}`;
+  sfx.win(to >= max);
   await popupHold(1600);
 }
 
-async function nightShow(t, c) {
+async function nightShow({ name, c }) {
   const pop = $('#popup');
   skipAnim = false;
   pop.className = 'night';
   pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>🌙 Night attack</small><h2>${esc(t.def.name)}</h2></div>
+    <div class="ptitle"><small>🌙 Night attack</small><h2>${esc(name)}</h2></div>
     <div class="prow2"><span class="muted">How many zombies?</span><div class="slot" id="pd2d"></div></div>
     <div class="presult" id="pres"></div>
     <small class="pskip">click or press any key</small></div>`;
@@ -1050,7 +650,7 @@ function renderClock() {
   }
   $('#wedges').innerHTML = s;
   $('#clockday').textContent = G.day;
-  $('#banner').innerHTML = `<i style="background:${cur().color}"></i><h1>${roundBanner()}</h1>`;
+  $('#banner').innerHTML = `<i style="background:${cur().color}"></i><h1>${E.roundBanner(G)}</h1>`;
   // monotonic angle so the hand always sweeps clockwise, even from round 6 → 1
   const turns = (G.day - 1) * 6 + (G.round - 1);
   $('#hand').style.transform = `rotate(${turns * 60 + 30}deg)`;
@@ -1063,14 +663,6 @@ function hexPoints(cx, cy, s) {
     const a = (Math.PI / 180) * (60 * i - 30);
     return `${(cx + s * Math.cos(a)).toFixed(1)},${(cy + s * Math.sin(a)).toFixed(1)}`;
   }).join(' ');
-}
-
-const RES_LABEL = { food: 'Food', water: 'Water', hope: 'Hope', fuel: 'Fuel', ammo: 'Ammo' };
-function cellText(e) {
-  if (e.zombies) return e.zombies > 1 ? `Zombies ×${e.zombies}` : 'Zombies';
-  if (e.item) return e.item;
-  const mult = { 2: 'Double', 3: 'Triple', 4: 'Quadruple' }[e.n];
-  return e.n > 1 ? (mult ? `${mult} ${RES_LABEL[e.res]}` : `${RES_LABEL[e.res]} ×${e.n}`) : RES_LABEL[e.res];
 }
 
 // Result 1 is always Zombies on every tile, so it isn't listed — only results 2–6.
@@ -1166,19 +758,19 @@ function renderMap() {
     const danger = t.def.table.filter((e) => e.zombies).length;
     const isHere = q === p.q && r === p.r;
     const target = adj.has(k) && ((mode === 'move' && canEnter(p, t)) || (mode === 'flee' && passable(t) && !t.zombies) || (mode === 'drive' && passable(t)));
-    const g = `<g class="hex tile d${Math.min(danger, 4)} ${canScavengeHere(t) ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${k === G.justRevealed ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''}" data-k="${k}">
+    const g = `<g class="hex tile d${Math.min(danger, 4)} ${canScavengeHere(t) ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${k === justRevealed ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''}" data-k="${k}">
       <polygon points="${hexPoints(x, y, HEX - (isHere ? 4 : 2))}" ${isHere ? `style="stroke:${p.color}"` : ''}/>
       <text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>
       ${tableSvg(x, y + 4, t.def)}
       ${passable(t) ? safetySvg(x, y + HEX * 0.64, t.safety, t.zombies) : ''}
-      ${vehicleSvg(x + HEX * 0.69, y + 4, [...(t.vehicles || []), ...(isHere && driving ? [driving.v] : [])])}
+      ${vehicleSvg(x + HEX * 0.69, y + 4, [...(t.vehicles || []), ...(isHere && driving() ? [driving().v] : [])])}
       ${target ? pickBadge(x, y - HEX * 0.8, pickNumber(p, q, r)) : ''}</g>`;
     if (isHere) hereSvg = g; else svg += g;   // draw current tile last so its border sits on top
   }
 
   $('#map').innerHTML = svg + hereSvg;
   const [cx, cy] = pix(p.q, p.r);
-  if (!G.camInit) { cam.x = cx; cam.y = cy; G.camInit = true; applyView(); }
+  if (!camInit) { cam.x = cx; cam.y = cy; camInit = true; applyView(); }
   cameraTo(cx, cy);
 
   $('#hint').textContent = mode === 'flee' || mode === 'threat' || mode === 'drive' ? ''
@@ -1237,9 +829,9 @@ function renderPlayers() {
 }
 
 // Resource tray under the backpack; values that changed since last render flash green/red.
+// `p` can be a snapshot ({ ap, maxAP, res }) to show values from partway through an event.
 let prevStats = {};
-function renderStats() {
-  const p = cur();
+function renderStats(p = cur()) {
   const vals = { ...p.res };
   // AP gets its own big counter in the bottom-left of the board
   const apd = prevStats.ap === undefined ? '' : (p.ap > prevStats.ap || p.maxAP > prevStats.maxAP) ? 'up' : (p.ap < prevStats.ap || p.maxAP < prevStats.maxAP) ? 'down' : '';
@@ -1279,10 +871,10 @@ function renderPanel() {
     return;
   }
   if (mode === 'drive') {
-    const { v } = driving, fuel = vehicleFuel(v) === 'fuel';
+    const { v, steps, flee } = driving(), fuel = vehicleFuel(v) === 'fuel';
     $('#actions').innerHTML = `
       ${t.zombies ? `<div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} here — stopping on this tile triggers them!</div>` : ''}
-      <div class="note good">${ITEMS[v.id].icon} ${driving.flee ? 'Escaping' : 'Driving'} the ${v.id} — ${fuel ? `${ICON.fuel} ${p.res.fuel} fuel` : `🎲 ${p.ap} AP`} left · ${driving.steps} tile${driving.steps === 1 ? '' : 's'} so far.
+      <div class="note good">${ITEMS[v.id].icon} ${flee ? 'Escaping' : 'Driving'} the ${v.id} — ${fuel ? `${ICON.fuel} ${p.res.fuel} fuel` : `🎲 ${p.ap} AP`} left · ${steps} tile${steps === 1 ? '' : 's'} so far.
         Next hex: A Q W D X Z · <b>Enter</b> / <b>Esc</b> to stop here.</div>`;
     renderLog();
     return;
@@ -1297,7 +889,7 @@ function renderPanel() {
   let warn = '';
   const apWarn = p.ap < 2 ? ` Fleeing costs 1 🎲 — keep some AP!` : '';
   const nextRound = G.round % 6 + 1;
-  const nextUp = checksOff ? '' : upkeepText(nextRound);
+  const nextUp = G.checksOff ? '' : upkeepText(nextRound);
   if (nextUp && !isNight(nextRound)) warn = `<div class="note">Next round starts with a check: ${nextUp}</div>`;
   if (isNight(nextRound)) {
     warn = `<div class="note ${isNight(G.round) ? 'bad' : ''}">🌙 Next round starts with ${nextUp ? `a ${nextUp} check and ` : ''}a night attack — 1d6 🧟 vs your 🟡 ${t.safety}.${apWarn}</div>`;
@@ -1370,51 +962,15 @@ const CHEATS = {
   'reset()': 'start a fresh world (admin-only once online)',
 };
 async function runCheat(cmd, args) {
-  const p = cur(), t = tileOf(p), n = args.map((a) => (isNaN(+a) ? a : +a));
+  const n = args.map((a) => (isNaN(+a) ? a : +a));
   const say = (m) => { G.log.push({ msg: `🛠️ ${m}`, cls: 'cheat' }); toast(`🛠️ ${m}`); };
   if (busy || modalKey) return say('Busy — finish the current popup first.');
-  switch (cmd) {
-    case 'help': G.log.push({ msg: '🛠️ Cheats: ' + Object.entries(CHEATS).map(([k, v]) => `${k} — ${v}`).join(' · '), cls: 'cheat' }); setLog(true); break;
-    case 'roll': forced.push(...n.filter((v) => typeof v === 'number')); say(`Next rolls forced: ${forced.join(', ')}`); break;
-    case 'scavenge':
-      if (p.ap < 1) return say('No AP — use ap(n) first.');
-      if (!canScavengeHere(t)) return say('Nothing to scavenge on this tile.');
-      if (t.zombies) return say('Zombies here block scavenging — use zombies(0).');
-      forced = [n[0], ...(n[1] !== undefined ? [n[1]] : [])]; say(`Scavenge forced: ${n.join(', ')}`);
-      if (n[1] === undefined) forced.push(d6());
-      await act('scavenge'); break;
-    case 'sleep': {   // sleep(8) splits the total over the two dice; sleep(3,5) sets each die
-      const total = Math.max(2, Math.min(12, n[0] ?? 12));
-      forced = n.length > 1 ? [n[0], n[1]] : [Math.min(6, total - 1), total - Math.min(6, total - 1)];
-      say(`Sleep forced: ${forced.join(' + ')}`); await act('sleep'); break;
-    }
-    case 'fortify':
-      if (p.ap < 1) return say('No AP — use ap(n) first.');
-      if (!canFortifyHere(t)) return say("This tile can't be fortified.");
-      forced = [n[0] ?? 6]; say(`Fortify forced: ${n[0]}`); await act('fortify'); break;
-    case 'flee': forced.push(n[0] ?? 6); say(`Next flee roll forced: ${n[0]}`); break;
-    case 'night': forced = [n[0] ?? 6]; say(`Night attack: ${n[0]} zombies`); await nightAttack(); render(); if (G.over) showGameOver(); break;
-    case 'zombies': t.zombies = Math.max(0, Math.min(6, n[0] ?? 0)); say(`Zombies here: ${t.zombies}`); render(); if (t.zombies) { await threatPrompt(p); render(); if (G.over) showGameOver(); } break;
-    case 'safety': t.safety = Math.max(0, Math.min(CONFIG.maxSafety, n[0] ?? 0)); say(`Safety here: ${t.safety}`); render(); break;
-    case 'item': {
-      const id = Object.keys(ITEMS).find((k) => k.toLowerCase().replace(/\s/g, '') === String(n[0] ?? '').toLowerCase().replace(/\s/g, ''));
-      if (!id) return say(`Unknown item. Items: ${Object.keys(ITEMS).join(', ')}`);
-      const cond = Math.max(1, Math.min(CONFIG.maxCondition, n[1] ?? CONFIG.maxCondition));
-      if (ITEMS[id].vehicle) { (t.vehicles ||= []).push({ id, cond }); say(`${id} (${cond}) parked here`); }
-      else { await gainItem(p, id, cond); say(`${id} (${cond}) added`); }
-      render(); break;
-    }
-    case 'ap': p.ap = Math.max(0, Math.min(p.maxAP, n[0] ?? 0)); say(`AP: ${p.ap}`); render(); break;
-    case 'maxap': p.maxAP = Math.max(1, Math.min(CONFIG.maxAP, n[0] ?? CONFIG.maxAP)); p.ap = Math.min(p.ap, p.maxAP); say(`Max AP: ${p.maxAP}`); render(); break;
-    case 'food': case 'water': case 'hope': case 'fuel': case 'ammo': p.res[cmd] = Math.max(0, n[0] ?? 0); say(`${cmd}: ${p.res[cmd]}`); render(); break;
-    case 'reset': newGame(['Survivor']); say('World reset'); break;
-    case 'checks':
-      { const v = String(n[0] ?? '').toLowerCase(); checksOff = v === 'off' ? true : v === 'on' ? false : !checksOff; }
-      say(`Resource checks ${checksOff ? 'OFF — no food, water or hope is taken' : 'ON'}`); render(); break;
-    case 'round': G.round = Math.max(1, Math.min(6, n[0] ?? 1)); say(`Round ${G.round}`); render(); break;
-    case 'day': G.day = Math.max(1, n[0] ?? 1); say(`Day ${G.day}`); render(); break;
-    default: say(`Unknown cheat "${cmd}" — try help()`);
-  }
+  if (cmd === 'help') { G.log.push({ msg: '🛠️ Cheats: ' + Object.entries(CHEATS).map(([k, v]) => `${k} — ${v}`).join(' · '), cls: 'cheat' }); return setLog(true); }
+  if (cmd === 'reset') { newGame(['Survivor']); return say('World reset'); }
+  const res = E.cheat(G, cur().id, cmd, n);
+  checksOff = G.checksOff;
+  say(res.say);
+  await play(res.events);
 }
 
 $('#chatform').addEventListener('submit', (e) => {
@@ -1453,7 +1009,7 @@ document.addEventListener('keydown', (e) => {
   if (busy) { e.preventDefault(); popupInput(); return; }
   if (mode === 'drive' && (e.key === 'Enter' || e.key === 'Escape')) {
     e.preventDefault();
-    if (driving.flee && !driving.steps) toast('Pick at least one hex to escape to.'); else driving.done();
+    send({ type: 'decide', choice: 'stop' });
     return;
   }
   const k = e.key.toLowerCase();

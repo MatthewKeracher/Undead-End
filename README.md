@@ -33,7 +33,9 @@ Or open `index.html` in a browser — no build step or install needed.
 - `QUESTIONS.md` — every open rules question, with space for answers
 - `locations.js` — every location and its d6 scavenge table (edit freely)
 - `data.js` — rules numbers and items (edit freely)
-- `game.js` — game engine and UI
+- `engine.js` — the rules: no screen code, seeded dice, actions in → events out (runs in the browser now, on the multiplayer server later)
+- `game.js` — the UI: draws the board and animates the engine's events
+- `tests/` — rules tests: `node --test`
 - `style.css`, `index.html` — layout and styling
 
 Testing cheats can be typed into the log's note box, e.g. `scavenge(1)`, `sleep(6)`, `item(axe)`, `checks()` (toggle resource checks), `help()`.
