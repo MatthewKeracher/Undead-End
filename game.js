@@ -996,7 +996,7 @@ function renderMap() {
       ${isHere ? `<text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>${tableSvg(x, y + 4, t)}`
         : `<text x="${x}" y="${y - 10}" class="art"><title>${esc(t.def.name)}</title>${t.def.icon}</text>`}
       ${passable(t) && (isHere || p.visited?.includes(k)) ? safetySvg(x, isHere ? y + HEX * 0.64 : y + 50, t) : ''}
-      ${vehicleSvg(x + HEX * 0.69, y + 4, [...(t.vehicles || []), ...(isHere && driving() ? [driving().v] : [])])}
+      ${isHere || p.visited?.includes(k) ? vehicleSvg(x + HEX * 0.69, y + 4, [...(t.vehicles || []), ...(isHere && driving() ? [driving().v] : [])]) : ''}
       ${target ? pickBadge(x, y - HEX * 0.8, pickNumber(p, q, r)) : ''}</g>`;
     if (isHere) hereSvg = g; else svg += g;   // draw current tile last so its border sits on top
   }

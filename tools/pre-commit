@@ -1,0 +1,4 @@
+#!/bin/sh
+# Re-stamp index.html's asset links (see tools/stamp.js) so every commit ships fresh version tags.
+# Install once with:  ln -s ../../tools/pre-commit .git/hooks/pre-commit
+node tools/stamp.js && git add index.html
