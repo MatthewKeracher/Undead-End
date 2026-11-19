@@ -108,6 +108,7 @@ body:not(.log-open) #panel { display: none; }
 .fog.target polygon { fill: #2a3138; }
 .hex text { text-anchor: middle; pointer-events: none; fill: var(--text); }
 .hex .name { font-size: 14px; font-weight: 700; letter-spacing: .02em; }
+.hex .art { font-size: 64px; text-anchor: middle; dominant-baseline: central; filter: drop-shadow(0 4px 6px #0008); }   /* the place's picture, away from you (its name on hover) */
 .hex .safety { font-size: 12px; fill: #cfd6dc; }
 .hex .veh { font-size: 18px; }
 .hex .veh.broken { filter: grayscale(1) brightness(.7); opacity: .6; }

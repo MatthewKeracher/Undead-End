@@ -61,6 +61,15 @@ test('the first move each round is free (but needs 1 AP); the second costs 1 AP 
   assert.equal(p.ap, 1);
 });
 
+test('each survivor remembers the tiles they have stood on', () => {
+  const { S, p } = game();
+  tile(S, 1, 0, 'Forest'); tile(S, 2, 0, 'Lake');
+  assert.deepEqual([...p.visited], ['0,0']);
+  act(S, { type: 'move', q: 1, r: 0 });
+  act(S, { type: 'move', q: 0, r: 0 });
+  assert.deepEqual([...p.visited], ['0,0', '1,0']);       // not the Lake: never been there
+});
+
 test('a mixed row gives both parts: Tractor + Fuel, Food + Water', () => {
   const { S, p } = game();
   S.forced = [6, 4, 3];                 // Farmhouse 6 = Tractor + Fuel: condition 4, fuel 3

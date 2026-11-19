@@ -55,9 +55,9 @@ const LOCATIONS = [
   { name: 'Hospital',       icon: '🏥', safety: 6, table: ['Zombies',       'Ambulance',      'Pills',          'Food + Water',   'Double Water',   'Food'] },
   { name: 'Pharmacy',       icon: '💊', safety: 3, table: ['Zombies',       'Pills',          'Pills',          'Water',          'Food + Water',   'Food'] },
   // weapons
-  { name: 'Police Station', icon: '🚓', safety: 8, table: ['Zombies',       'Pistol',         'Pistol + Ammo',  'Ammo',           'Police Car',     'Body Armor'] },
+  { name: 'Police Station', icon: '👮', safety: 8, table: ['Zombies',       'Pistol',         'Pistol + Ammo',  'Ammo',           'Police Car',     'Body Armor'] },
   { name: 'Gun Shop',       icon: '🎯', safety: 6, table: ['Zombies',       'Pistol',         'Pistol + Ammo',  'Ammo',           'Double Ammo',    'Body Armor'] },
-  { name: 'Army Checkpoint', icon: '⛺', safety: 7, table: ['Zombies',       'Binoculars',     'Pistol + Ammo',  'Fuel + Ammo',    'Double Ammo',    'Jeep'] },
+  { name: 'Army Checkpoint', icon: '🪖', safety: 7, table: ['Zombies',       'Binoculars',     'Pistol + Ammo',  'Fuel + Ammo',    'Double Ammo',    'Jeep'] },
   // tools & travel
   { name: 'Hardware Store', icon: '🔨', safety: 5, table: ['Zombies',       'Tool',           'Tool + Fuel',    'Axe',            'Axe',            'Fuel'] },
   { name: 'Petrol Station', icon: '⛽', safety: 3, table: ['Zombies',       'Fuel',           'Double Fuel',    'Food + Booze',   'Tool',           'Truck + Fuel'] },

@@ -94,6 +94,7 @@ async function show(ev) {
     case 'repair': return sfx.repair();
     case 'pills': return sfx.win(false);
     case 'driveStep': sfx.drive(ev.fuel); return render();
+    case 'move': renderMap(); return wait(450);   // arrive (the camera glides over) before the round can move on
     case 'outOfFuel': return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'fuel' ? 'fuel' : 'AP'} — stopping here.`);
     case 'die': return tone(200, 1.4, 'sawtooth', 0.12, -170);
     case 'round': return roundBannerShow(ev);
@@ -992,9 +993,9 @@ function renderMap() {
     const target = adj.has(k) && ((mode === 'move' && canEnter(p, t)) || (mode === 'flee' && passable(t) && !t.zombies) || (mode === 'drive' && passable(t)));
     const g = `<g class="hex tile d${Math.min(danger, 4)} ${t.def.table.length ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${justRevealed.includes(k) ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''}" data-k="${k}" ${justRevealed.includes(k) ? `style="--i:${justRevealed.indexOf(k)}"` : ''}>
       <polygon points="${hexPoints(x, y, HEX - (isHere ? 4 : 2))}" ${isHere ? `style="stroke:${p.color}"` : ''}/>
-      <text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>
-      ${tableSvg(x, y + 4, t)}
-      ${passable(t) ? safetySvg(x, y + HEX * 0.64, t) : ''}
+      ${isHere ? `<text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>${tableSvg(x, y + 4, t)}`
+        : `<text x="${x}" y="${y - 10}" class="art"><title>${esc(t.def.name)}</title>${t.def.icon}</text>`}
+      ${passable(t) && (isHere || p.visited?.includes(k)) ? safetySvg(x, isHere ? y + HEX * 0.64 : y + 50, t) : ''}
       ${vehicleSvg(x + HEX * 0.69, y + 4, [...(t.vehicles || []), ...(isHere && driving() ? [driving().v] : [])])}
       ${target ? pickBadge(x, y - HEX * 0.8, pickNumber(p, q, r)) : ''}</g>`;
     if (isHere) hereSvg = g; else svg += g;   // draw current tile last so its border sits on top

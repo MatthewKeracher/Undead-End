@@ -223,7 +223,7 @@ const Engine = (() => {
       // CONFIG.startAP (8 of 12), CONFIG.startRes (4 food, 6 water, 3 booze) and CONFIG.startItems (none)
       const p = {
         id: i, name, color: COLORS[i % COLORS.length], q: 0, r: 0, ap: Math.min(CONFIG.startAP, CONFIG.startMaxAP), maxAP: CONFIG.startMaxAP,
-        res: { ...CONFIG.startRes }, items: [], dead: false, acted: false, freeMoved: false, caught: false, pending: null, queue: [],
+        res: { ...CONFIG.startRes }, items: [], dead: false, acted: false, freeMoved: false, caught: false, pending: null, queue: [], visited: ['0,0'],
       };
       for (const it of CONFIG.startItems || []) p.items.push({ ...it });
       for (const id of CONFIG.testStartItems || []) p.items.push({ id, cond: CONFIG.maxCondition });
@@ -248,7 +248,12 @@ const Engine = (() => {
     const error = fn();
     if (error) return { error, events: S.events };
     settle(S);
+    markVisited(S);
     return { events: S.events };
+  }
+  // Each survivor remembers the tiles they've stood on (p.visited) — the UI shows their Safety there.
+  function markVisited(S) {
+    for (const p of S.players) if (!p.dead && !(p.visited ||= []).includes(key(p.q, p.r))) p.visited.push(key(p.q, p.r));
   }
 
   // Run each player's queued steps until they need a decision; end the round when everyone's done.
@@ -669,6 +674,7 @@ const Engine = (() => {
     if (!t) return;   // a Mountain was in the way: revealed, nothing spent
     if (!canEnter(p, t)) return "Can't move there.";
     p.q = q; p.r = r;
+    emit(S, { type: 'move', player: p.id, q, r });   // the UI walks you there before anything else plays
     if (free) p.freeMoved = true; else { p.ap--; p.acted = true; }
     log(S, `${p.name} ${free ? 'walks' : 'moves on'} to the ${t.def.name}${t.zombies ? ` — ${plural(t.zombies, 'zombie')} inside!` : ''}.`, t.zombies ? 'bad' : '');
     if (t.zombies) p.queue.push({ type: 'threat' });
@@ -765,6 +771,7 @@ const Engine = (() => {
       if (!passable(t) || t.zombies) return 'Pick a safe hex next to you.';
       log(S, `${p.name} flees to the ${t.def.name}.`, 'bad');
       p.q = q; p.r = r;
+      emit(S, { type: 'move', player: p.id, q, r });
       p.pending = null; p.caught = false;
     },
     drive(S, p, choice) {
