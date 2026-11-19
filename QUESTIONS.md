@@ -65,7 +65,11 @@ Logged from a playtest. Tick when handled.
   > Answer:
 - [ ] **Armor name** — "Body Armor" OK?
   > Answer:
-- [ ] **Item locations** (all placeholders): Pistol — Police Station, Gun Shop, Hardware Store · Axe — Farmhouse, Hardware Store, Forest · Body Armor — Police Station, Gun Shop · Tool — Hardware Store, Petrol Station, Campsite. Keep / change?
+- [ ] **Item locations** (all placeholders — see the tables in `locations.js`): Pistol — Gun Shop, Sheriff's Office (towns), Army Checkpoint, Police Station (cities) · Chainsaw — Hardware Store, Fire Station, Quarry · Body Armor — Gun Shop, Sheriff's Office, Police Station, Fire Station, Castle. Keep / change?
+- [ ] **Bomb 💣 and Firecracker 🧨:** weapons with their own mechanics — to design (e.g. clear a whole tile at once; throw to draw zombies to another tile).
+- [ ] **Fields and Golf Courses:** pure wasteland for now — should Fields give a little food, or golf courses something odd?
+- [ ] **Settlement mix:** ~3–4 villages, 1–2 towns and a city in 1 of 3 solo maps (`CONFIG.settlements`). Right amount? Should a settlement be guaranteed near the start?
+- [ ] **New places' tables** (Farm, Orchard, Cottage, Hut, Fishing Spot, Stables, Quarry, Castle, Graveyard, Diner, Fuel Depot, Corner Shop, Post Office, Café, Hotel, Library, Garage, Fire Station, Sheriff's Office, Shopping Mall, Train Station, Stadium, Car Park, Bank) are first drafts.
   > Answer:
 - [ ] **More item cards** — what else is in the deck?
   > Answer:

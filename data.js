@@ -33,6 +33,15 @@ const CONFIG = {
   rangeArm: [1, 3],       // a new Mountain range runs 1–3 more hexes each way…
   rangeGap: 0.25,         // …each one a gap (a pass: anything but a Mountain) this often…
   rangeTurn: 0.3,         // …and bending 60° this often
+  // settlements (places with in:, in locations.js): how many hexes each is planned as, and how common a new one is
+  // when scouting (as a count, beside the countryside places). Each hex is a different place from its list.
+  settlements: {
+    village: { size: 3, count: 1.2 },
+    town: { size: 7, count: 0.45 },
+    city: { size: 12, count: 0.15 },
+  },
+  townGap: 2,             // at least this many hexes of countryside between two settlements
+  edgeChain: [1, 3],      // a stretch of edge land (Fields, Golf Course: edge: in locations.js) is 1–3 hexes long
   roundSeconds: 30,       // round timer: act within this or lose 1 AP (online always; single player: on by default)
 
   // What each round of the clock calls for (checked at the END of the round).
@@ -51,10 +60,23 @@ const CONFIG = {
 const fuelVehicle = (icon) => ({ icon, vehicle: true, uses: 'fuel', verb: 'Drive', desc: 'Parked on a tile. Drive through scouted tiles: 1 🟠 fuel per tile, −1 condition per trip.' });
 const pedalVehicle = (icon) => ({ icon, vehicle: true, uses: 'ap', verb: 'Ride', desc: 'Parked on a tile. Ride through scouted tiles: 1 AP per tile, −1 condition per trip.' });
 
+// Weapons come in kinds too, each in many looks: guns fire ammo, melee weapons cost AP.
+const gun = (icon, verb = 'Fire', extra = {}) => ({ icon, weapon: true, uses: 'ammo', verb, desc: 'Fight: no AP; 1 condition per round; each 🟢 ammo fired kills 1 zombie.', ...extra });
+const melee = (icon, verb = 'Swing') => ({ icon, weapon: true, uses: 'ap', verb, desc: `Fight: 1 condition per round; each ${verb.toLowerCase()} costs 1 AP and kills 1 zombie.` });
+
 // Item cards. Condition = uses left; at 0 the item breaks.
 const ITEMS = {
-  Pistol: { icon: '🔫', weapon: true, uses: 'ammo', verb: 'Fire', desc: 'Fight: no AP; 1 condition per round; each 🟢 ammo fired kills 1 zombie.' },
-  Axe:     { icon: '🪓', weapon: true, uses: 'ap',   verb: 'Swing', desc: 'Fight: 1 condition per round; each swing costs 1 AP and kills 1 zombie.' },
+  Pistol: gun('🔫'),
+  Bow: gun('🏹', 'Loose', { sound: 'bow' }),
+  Axe: melee('🪓'),
+  Sword: melee('🗡️', 'Slash'),
+  'Kitchen Knife': melee('🔪', 'Stab'),
+  'Frying Pan': melee('🍳'),
+  'Cricket Bat': melee('🏏'),
+  'Hockey Stick': melee('🏒'),
+  Pickaxe: melee('⛏️'),
+  Wrench: melee('🔧'),
+  Chainsaw: { icon: '🪚', weapon: true, uses: 'fuel', kills: 3, verb: 'Rev', desc: 'Fight: 1 condition per round; each rev burns 1 🟠 fuel and kills up to 3 zombies.' },
   'Body Armor': { icon: '🦺', armor: true, desc: 'When a flee roll fails: take the hit for −1 condition and reroll (1 AP).' },
   Truck: fuelVehicle('🛻'),
   Tractor: fuelVehicle('🚜'),
@@ -64,7 +86,9 @@ const ITEMS = {
   Van: fuelVehicle('🚚'),
   Bus: fuelVehicle('🚌'),
   Campervan: fuelVehicle('🚐'),
+  'Fire Engine': fuelVehicle('🚒'),
   Bike: pedalVehicle('🚲'),
+  Horse: pedalVehicle('🐎'),
   // Multiplayer (planned — see MULTIPLAYER.md): talk to players on other tiles. No effect in single player; not in any loot table yet.
   Radio:   { icon: '📻', radio: true, desc: 'Multiplayer: lets you talk to players on other tiles who also carry a radio. −1 condition per round used.' },
   Tool: { icon: '🧰', tool: true, desc: 'Use any time (free): transfer some of its condition to another item. Destroyed at 0.' },
@@ -105,19 +129,29 @@ function loadLocations(list) {
     if (!loc.name) errors.push(`${where}: missing a name.`);
     const raw = loc.table ?? [];   // no table = nothing to scavenge
     if (!Array.isArray(raw) || (raw.length && raw.length !== 6)) { errors.push(`${where}: the table needs exactly 6 results (rolls 1–6), or leave it out for nothing to scavenge.`); return null; }
-    const count = loc.count ?? 1;
-    if (!(typeof count === 'number' && count > 0)) errors.push(`${where}: count must be a number above 0 (e.g. 1, 3 or 0.5).`);
+    const settlements = loc.in ?? [];
+    if (!Array.isArray(settlements) || settlements.some((x) => !CONFIG.settlements[x])) errors.push(`${where}: in must be a list of ${Object.keys(CONFIG.settlements).map((x) => `'${x}'`).join(', ')}.`);
+    const edge = loc.edge ?? {};
+    if (typeof edge !== 'object' || Object.entries(edge).some(([k, n]) => !CONFIG.settlements[k] || !(typeof n === 'number' && n >= 0))) errors.push(`${where}: edge must look like { village: 1, town: 1.5 } — settlement kinds and how many stretches each.`);
+    const placed = settlements.length > 0 || Object.keys(edge).length > 0;   // built in settlements, or laid around them
+    const count = loc.count ?? (placed ? 0 : 1);   // …isn't found alone, unless given a count
+    if (!(typeof count === 'number' && count >= 0) || (!count && !placed)) errors.push(`${where}: count must be a number above 0 (e.g. 1, 3 or 0.5) — or 0 for a place found only in or around settlements (in: […] or edge: {…}).`);
+    if (loc.spread && settlements.length) errors.push(`${where}: a belt or range can't also be built in settlements.`);
     if (loc.spread && !['belt', 'range'].includes(loc.spread)) errors.push(`${where}: spread must be 'belt' or 'range'.`);
     const table = raw.map((x, r) => { try { return parseResult(x, `${where}, roll ${r + 1}`); } catch (e) { errors.push(e.message); return null; } });
     if (loc.start && loc.passable === false) errors.push(`${where}: the start tile can't be impassable.`);
     // most Safety it can be fortified to: safety: N, or 0 (also fortify: false) for outdoors
     const safety = loc.fortify === false ? 0 : loc.safety ?? CONFIG.maxSafety;
     if (!Number.isInteger(safety) || safety < 0 || safety > 12) errors.push(`${where}: safety must be a whole number from 0 (outdoors) to 12.`);
-    return { name: loc.name, icon: loc.icon || '', start: !!loc.start, safety, fortify: safety > 0, passable: loc.passable !== false, count, spread: loc.spread || null, table };
+    return { name: loc.name, icon: loc.icon || '', start: !!loc.start, safety, fortify: safety > 0, passable: loc.passable !== false, count, in: settlements, edge, spread: loc.spread || null, table };
   });
   const starts = tiles.filter((t) => t && t.start);
   if (starts.length !== 1) errors.push(`Exactly one location needs start: true (found ${starts.length}).`);
-  if (tiles.filter((t) => t && !t.start).length < 1) errors.push('Add at least one location without start: true, for scouting.');
+  if (tiles.filter((t) => t && !t.start && t.count > 0).length < 1) errors.push('Add at least one location without start: true (and a count above 0), for scouting.');
+  for (const [kind, { size }] of Object.entries(CONFIG.settlements)) {
+    const n = tiles.filter((t) => t && t.in.includes(kind)).length;
+    if (n < size) errors.push(`A ${kind} is ${size} hexes, each a different place, but only ${n} locations have in: '${kind}'.`);
+  }
   if (errors.length) {   // show the problems on the page instead of a blank screen
     document.body.insertAdjacentHTML('afterbegin', `<pre style="position:fixed;inset:16px auto auto 16px;z-index:99;max-width:calc(100% - 32px);white-space:pre-wrap;padding:12px 16px;background:#3a0d0d;color:#ffd6cf;border:1px solid #e86a5a;border-radius:8px;font:13px/1.5 ui-monospace,monospace">locations.js has problems:\n• ${errors.map((e) => e.replace(/&/g, '&amp;').replace(/</g, '&lt;')).join('\n• ')}</pre>`);
     throw new Error(`locations.js: ${errors.join(' | ')}`);

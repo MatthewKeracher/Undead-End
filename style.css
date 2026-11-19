@@ -94,6 +94,7 @@ body:not(.log-open) #panel { display: none; }
 .hex polygon { stroke: var(--ink); stroke-width: 3; transition: fill .15s; }
 .fog polygon { fill: var(--fog); stroke: var(--fog-line); stroke-dasharray: 4 4; stroke-width: 1.5; }
 .tile.d1 polygon { fill: #3d4a33; }
+.tile.town polygon { fill: #5b5a52; }   /* settlements: paved grey (a dangerous place still shows its danger colour) */
 .tile.d2 polygon { fill: #4e4a2e; }
 .tile.d3 polygon { fill: #5a3a2c; }
 .tile.d4 polygon { fill: #5e2a2a; }
@@ -108,6 +109,7 @@ body:not(.log-open) #panel { display: none; }
 .fog.target polygon { fill: #2a3138; }
 .hex text { text-anchor: middle; pointer-events: none; fill: var(--text); }
 .hex .name { font-size: 14px; font-weight: 700; letter-spacing: .02em; }
+.hex .townname { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; fill: var(--muted); }
 .hex .art { font-size: 64px; text-anchor: middle; dominant-baseline: central; filter: drop-shadow(0 4px 6px #0008); }   /* the place's picture, away from you (its name on hover) */
 .hex .safety { font-size: 12px; fill: #cfd6dc; }
 .hex .veh { font-size: 18px; }

@@ -5,7 +5,7 @@
 
 const E = Engine;
 const { ICON, RES_LABEL, key, neighbors, isNight, cellText, upkeepText, passable, canEnter, canScavengeHere, canFortifyHere,
-  weaponOf, canShoot, canMelee, canFight, vehicleFuel, vehicleLeft } = E;
+  weaponOf, canShoot, canMelee, canSaw, canFight, vehicleFuel, vehicleLeft } = E;
 const HEX = 120;
 
 const $ = (s) => document.querySelector(s);
@@ -261,11 +261,12 @@ async function fleeShow(ev) {
   await popupHold(ev.ok ? 1400 : 2200);
 }
 
-// One round of fighting (the engine has already taken 1 weapon condition). Each attack (Enter) kills 1 zombie
-// and costs 1 ammo (gun) or 1 AP (melee). The popup stays open for the whole fight round.
+// One round of fighting (the engine has already taken 1 weapon condition). Each attack (Enter) costs 1 ammo (gun),
+// 1 AP (melee) or 1 fuel (chainsaw) and kills 1 zombie (the chainsaw: up to 3). The popup stays open for the whole fight round.
 async function fightPopup(p) {
   const d = p.pending, t = tileOf(p), w = p.items[d.weapon], def = ITEMS[w.id], melee = def.uses === 'ap';
-  const left = () => (melee ? p.ap : p.res.ammo);
+  const left = () => (melee ? p.ap : p.res[def.uses]);
+  const unit = { ap: 'AP', ammo: 'ammo', fuel: 'fuel' }[def.uses], verb = def.verb.toLowerCase();
   const fighting = () => p.pending === d;
   const pop = $('#popup');
   pop.className = 'fight';
@@ -274,13 +275,13 @@ async function fightPopup(p) {
     pop.innerHTML = `<div class="pcard">
       <div class="ptitle"><small>⚔️ Fight · ${esc(t.def.name)}</small><h2>${t.zombies ? `${t.zombies} zombie${t.zombies > 1 ? 's' : ''}` : 'Clear!'}</h2></div>
       <div class="cpips">${[...Array(6)].map((_, i) => `<i class="${i < t.zombies ? 'zed' : i < d.start ? 'dead' : ''}"></i>`).join('')}</div>
-      <div class="fammo">${melee ? `${ICON.ap} <b class="${p.ap <= 1 ? 'warnap' : ''}">${p.ap}</b> AP` : `${ICON.ammo} <b>${p.res.ammo}</b> ammo`} · ${def.icon} ${w.id} condition ${condPips(w.cond)}</div>
+      <div class="fammo">${melee ? `${ICON.ap} <b class="${p.ap <= 1 ? 'warnap' : ''}">${p.ap}</b> AP` : `${ICON[def.uses]} <b>${left()}</b> ${unit}`} · ${def.icon} ${w.id} condition ${condPips(w.cond)}</div>
       ${melee && p.ap === 1 && t.zombies ? `<div class="note bad">Last AP — swinging now leaves you nothing to flee with.</div>` : ''}
       <div class="frow">
-        <button class="primary" id="fire" ${fighting() && left() && t.zombies ? '' : 'disabled'}>${def.icon} ${def.verb} <small>(1 ${melee ? 'AP' : 'ammo'})</small> <kbd>Enter</kbd></button>
+        <button class="primary" id="fire" ${fighting() && left() && t.zombies ? '' : 'disabled'}>${def.icon} ${def.verb} <small>(1 ${unit}${def.kills > 1 ? ` · up to ${def.kills} 🧟` : ''})</small> <kbd>Enter</kbd></button>
         <button id="stop">Stop <kbd>Backspace</kbd></button>
       </div>
-      <small class="pskip"><kbd>Shift</kbd>+<kbd>Enter</kbd> ${melee ? 'swing' : 'fire'} until clear (or out of ${melee ? 'AP' : 'ammo'})</small></div>`;
+      <small class="pskip"><kbd>Shift</kbd>+<kbd>Enter</kbd> ${verb} until clear (or out of ${unit})</small></div>`;
     $('#fire').onclick = (e) => { e.stopPropagation(); fire(); };
     $('#stop').onclick = (e) => { e.stopPropagation(); stop(); };
   };
@@ -291,10 +292,11 @@ async function fightPopup(p) {
     if (!fighting()) return;
     const res = E.act(G, p.id, { type: 'decide', choice: 'attack' });
     if (res.error) return;
-    if (melee) sfx.axe(); else sfx.gun();
+    (sfx[def.sound] ?? { ap: sfx.axe, ammo: sfx.gun, fuel: sfx.saw }[def.uses])();
     draw();
     pop.querySelector('.pcard').classList.add('flash');
-    pop.querySelectorAll('.cpips i')[t.zombies]?.classList.add('hit');
+    const kills = res.events.find((ev) => ev.type === 'hit')?.kills ?? 1;
+    for (let i = t.zombies; i < t.zombies + kills; i++) pop.querySelectorAll('.cpips i')[i]?.classList.add('hit');
     renderStats();
     if (!fighting()) { after = res.events; setTimeout(finish, 700); }
   };
@@ -434,7 +436,7 @@ function dropItem(i) {
 function act(name) {
   if (busy || modalKey || G.over) return;
   const p = cur();
-  if (mode === 'threat') { if (['shoot', 'melee', 'flee'].includes(name)) send({ type: 'decide', choice: name }); return; }
+  if (mode === 'threat') { if (['shoot', 'melee', 'saw', 'flee'].includes(name)) send({ type: 'decide', choice: name }); return; }
   if (name === 'stopdrive') return send({ type: 'decide', choice: 'stop' });   // the touch way to end a trip
   if (p.pending) return;
   if (name === 'move') { mode = mode === name ? null : name; return render(); }
@@ -460,7 +462,8 @@ function clickHex(q, r) {
 async function revealShow(ev, pause = 2800) {
   justRevealed = ev.tiles.map((x) => x.k);
   renderMap();
-  toast(`${ev.map ? '🗺️ The Map shows' : '🔭 Discovered'}: ${ev.tiles.map((x) => `${x.icon} ${x.name}`).join(', ')}`);
+  const towns = [...new Map(ev.tiles.filter((x) => x.town).map((x) => [x.town, x])).values()];   // the settlements they belong to
+  toast(`${ev.map ? '🗺️ The Map shows' : '🔭 Discovered'}: ${ev.tiles.map((x) => `${x.icon} ${x.name}`).join(', ')}${towns.length ? ` · 🏘️ ${towns.map((x) => `${x.town} (${x.kind})`).join(', ')}` : ''}`);
   ev.tiles.forEach((_, i) => setTimeout(() => tone(520 + i * 60, 0.15, 'triangle', 0.07), i * 120));
   await new Promise((res) => { const tm = setTimeout(res, pause + ev.tiles.length * 120); dismissPopup = () => { clearTimeout(tm); res(); }; });
   dismissPopup = null;
@@ -542,6 +545,8 @@ const sfx = {
     ? (tone(70, 0.4, 'sawtooth', 0.09, 40), noise(0.35, 0.12, 400))
     : (noise(0.08, 0.1, 2500), setTimeout(() => tone(1400, 0.08, 'sine', 0.05), 80)),
   axe: () => { tone(320, 0.12, 'sawtooth', 0.05, -260); setTimeout(() => tone(70, 0.18, 'square', 0.18, -30), 90); },
+  bow: () => { tone(220, 0.25, 'triangle', 0.12, -120); noise(0.12, 0.12, 4000); },   // twang and whoosh
+  saw: () => { tone(110, 0.5, 'sawtooth', 0.09, 60); noise(0.45, 0.14, 1600); setTimeout(() => tone(70, 0.2, 'square', 0.15, -30), 300); },   // engine rev, then the bite
   zombie: () => { tone(95, 0.9, 'sawtooth', 0.12, -50); setTimeout(() => tone(70, 0.7, 'sawtooth', 0.1, -30), 150); },
 };
 
@@ -1004,11 +1009,12 @@ function renderMap() {
     const t = held[k] ? { ...G.tiles[k], ...held[k] } : G.tiles[k];
     const danger = t.def.table.filter((e) => e.zombies).length;
     const isHere = q === p.q && r === p.r;
+    const town = G.towns?.[t.town], townLabel = town ? `${town.name} (${town.kind})` : '';
     const target = adj.has(k) && ((mode === 'move' && canEnter(p, t)) || (mode === 'flee' && passable(t) && !t.zombies) || (mode === 'drive' && passable(t)));
-    const g = `<g class="hex tile d${Math.min(danger, 4)} ${t.def.table.length ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${justRevealed.includes(k) ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''}" data-k="${k}" ${justRevealed.includes(k) ? `style="--i:${justRevealed.indexOf(k)}"` : ''}>
+    const g = `<g class="hex tile d${Math.min(danger, 4)} ${t.def.table.length ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${justRevealed.includes(k) ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''} ${town ? 'town' : ''}" data-k="${k}" ${justRevealed.includes(k) ? `style="--i:${justRevealed.indexOf(k)}"` : ''}>
       <polygon points="${hexPoints(x, y, HEX - (isHere ? 4 : 2))}" ${isHere ? `style="stroke:${p.color}"` : ''}/>
-      ${isHere ? `<text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>${tableSvg(x, y + 4, t)}`
-        : `<text x="${x}" y="${y - 10}" class="art"><title>${esc(t.def.name)}</title>${t.def.icon}</text>`}
+      ${isHere ? `${town ? `<text x="${x}" y="${y - HEX * 0.72}" class="townname">${esc(town.name)}</text>` : ''}<text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>${tableSvg(x, y + 4, t)}`
+        : `<text x="${x}" y="${y - 10}" class="art"><title>${esc(t.def.name)}${town ? ` — ${esc(townLabel)}` : ''}</title>${t.def.icon}</text>`}
       ${passable(t) && (isHere || p.visited?.includes(k)) ? safetySvg(x, isHere ? y + HEX * 0.64 : y + 50, t) : ''}
       ${isHere || p.visited?.includes(k) ? vehicleSvg(x + HEX * 0.69, y + 4, [...(t.vehicles || []), ...(isHere && driving() ? [driving().v] : [])]) : ''}
       ${target ? pickBadge(x, y - HEX * 0.8, pickNumber(p, q, r)) : ''}</g>`;
@@ -1116,12 +1122,13 @@ function renderPanel() {
   };
 
   if (mode === 'threat') {
-    const gun = weaponOf(p, 'ammo'), axe = weaponOf(p, 'ap');
+    const gun = weaponOf(p, 'ammo'), axe = weaponOf(p, 'ap'), saw = weaponOf(p, 'fuel');
     $('#actions').innerHTML = `
       <div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} on the ${esc(t.def.name)}! ${p.caught ? 'You were caught — fight!' : canFight(p) ? 'Fight or flee.' : 'No weapon — if you fail to flee, you die.'}</div>
       <div class="ribbon threat">
-        ${btn('shoot', '🔫 Shoot', !gun ? 'Needs a gun' : !p.res.ammo ? 'No ammo' : `1 ${ICON.ammo} per shot · ${gun.id} ${gun.cond}`, !canShoot(p))}
-        ${btn('melee', '🪓 Melee', !axe ? 'Needs a melee weapon' : p.ap < 1 ? 'No AP' : `1 🎲 per swing · ${axe.id} ${axe.cond}`, !canMelee(p))}
+        ${btn('shoot', `${gun ? ITEMS[gun.id].icon : '🔫'} Shoot`, !gun ? 'Needs a gun' : !p.res.ammo ? 'No ammo' : `1 ${ICON.ammo} per shot · ${gun.id} ${gun.cond}`, !canShoot(p))}
+        ${btn('melee', `${axe ? ITEMS[axe.id].icon : '🪓'} Melee`, !axe ? 'Needs a melee weapon' : p.ap < 1 ? 'No AP' : `1 🎲 per swing · ${axe.id} ${axe.cond}`, !canMelee(p))}
+        ${saw ? btn('saw', `${ITEMS[saw.id].icon} Saw`, !p.res.fuel ? 'No fuel' : `1 ${ICON.fuel} per rev, up to ${ITEMS[saw.id].kills} 🧟 · ${saw.cond}`, !canSaw(p)) : ''}
         ${btn('flee', '🏃 Flee', p.caught ? 'Caught — must fight' : !fleeAdj(p).length ? 'Nowhere to run' : t.zombies >= 6 ? 'Too many to outrun' : p.ap < 1 ? 'No AP' : `1 AP · roll > ${t.zombies}`, !canFlee(p, t))}
       </div>`;
     renderLog();
@@ -1206,7 +1213,7 @@ $('#actions').addEventListener('click', (e) => {
 const HOTKEYS = { r: 'sleep', s: 'scout', w: 'move', a: 'scavenge', f: 'fortify', e: 'driveFuel', b: 'driveAP', p: 'pause' };   // E / B: a fuel / pedal vehicle here
 // E / B stand for whichever fuel / pedal vehicle is parked here (its button is named after it, e.g. 'Tractor')
 const keyedVehicle = (p, key) => vehiclesHere(p).find((x) => (ITEMS[x.id].uses === 'fuel') === (key === 'driveFuel'))?.id;
-const THREAT_KEYS = { q: 'shoot', w: 'melee', e: 'flee' };
+const THREAT_KEYS = { q: 'shoot', w: 'melee', r: 'saw', e: 'flee' };
 // Backspace cancels / goes back (Esc still works too, but full-screen Chrome can take it for itself).
 const isBack = (e) => e.key === 'Backspace' || e.key === 'Escape';
 // ---------------------------------------------------------------- cheats (testing)

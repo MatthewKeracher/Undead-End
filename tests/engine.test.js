@@ -294,11 +294,124 @@ test('terrain comes in shapes: Wasteland belts of 3 or 7, Mountains in ranges', 
   assert.ok(linked / mountains > 0.7, `${linked} of ${mountains} mountains touch another`);
 });
 
+// Explore a game out to radius R (scouting from every hex in turn), returning its state.
+function explore(seed, R) {
+  const { S, p } = game({ seed });
+  for (let ring = 0; ring < R; ring++) for (const k of Object.keys(S.tiles)) {
+    const [q, r] = k.split(',').map(Number);
+    if (Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) !== ring) continue;
+    Object.assign(p, { q, r, ap: 12, acted: false, pending: null, queue: [] });
+    act(S, { type: 'scout' });
+  }
+  return S;
+}
+
+test('settlements: villages of 3, towns of 7, cities of 12 — each hex a different place built there', () => {
+  const sizes = { village: [], town: [], city: [] };
+  for (let seed = 1; seed <= 40; seed++) {
+    const S = explore(seed, 7);
+    S.towns.forEach((town, id) => {
+      const keys = Object.keys(S.townOf).filter((k) => S.townOf[k] === id);
+      const found = keys.map((k) => S.tiles[k]).filter(Boolean);
+      for (const t of found) {
+        assert.ok(t.def.in.includes(town.kind), `${t.def.name} in a ${town.kind}`);
+        assert.equal(t.town, id);
+      }
+      const names = keys.map((k) => S.tiles[k]?.def.name ?? S.planned[k]);
+      assert.equal(new Set(names).size, names.length, `no repeats in ${town.name}: ${names}`);
+      sizes[town.kind].push(keys.length);
+      // countryside between settlements: no hex of another one within CONFIG.townGap
+      for (const k of keys) for (const [k2, id2] of Object.entries(S.townOf)) {
+        if (id2 === id) continue;
+        const [a, b] = k.split(',').map(Number), [c, d] = k2.split(',').map(Number);
+        assert.ok((Math.abs(a - c) + Math.abs(b - d) + Math.abs(a + b - c - d)) / 2 > CONFIG.townGap, `${town.name} too close to ${S.towns[id2].name}`);
+      }
+    });
+  }
+  for (const [kind, list] of Object.entries(sizes)) {
+    assert.ok(list.length > 3, `${kind}s found: ${list.length}`);
+    const full = list.filter((n) => n === CONFIG.settlements[kind].size).length;
+    assert.ok(full / list.length > 0.7, `${kind} sizes: ${list}`);   // hemmed in by the map now and then: smaller
+  }
+});
+
+test('settlement places are never found alone; guns: Gun Shop and Sheriff in towns, Police Station in cities', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    const S = explore(seed, 6);
+    for (const t of Object.values(S.tiles)) {
+      if (t.town === undefined) assert.ok(t.def.count > 0 || t.def.start || Object.keys(t.def.edge).length, `${t.def.name} alone in the country`);
+      else {
+        const kind = S.towns[t.town].kind;
+        if (['Gun Shop', "Sheriff's Office"].includes(t.def.name)) assert.equal(kind, 'town');
+        if (t.def.name === 'Police Station') assert.equal(kind, 'city');
+      }
+    }
+  }
+});
+
+test('Fields edge villages and towns, Golf Courses edge towns and cities — and are found nowhere else', () => {
+  const seen = { Fields: 0, 'Golf Course': 0 };
+  for (let seed = 1; seed <= 30; seed++) {
+    const S = explore(seed, 7);
+    for (const [k, t] of Object.entries(S.tiles)) {
+      if (!seen.hasOwnProperty(t.def.name)) continue;
+      seen[t.def.name]++;
+      const [q, r] = k.split(',').map(Number);
+      const kinds = E.neighbors(q, r).map(([a, b]) => S.towns[S.townOf[`${a},${b}`]]?.kind).filter(Boolean);
+      const want = t.def.name === 'Fields' ? ['village', 'town'] : ['town', 'city'];
+      // on the edge of the right kind of settlement — or carrying on along it from a hex that is
+      const onEdge = kinds.some((x) => want.includes(x)) || E.neighbors(q, r).some(([a, b]) => {
+        const n = S.tiles[`${a},${b}`]?.def.name ?? S.planned[`${a},${b}`];
+        return n === t.def.name && E.neighbors(a, b).some(([c, d]) => want.includes(S.towns[S.townOf[`${c},${d}`]]?.kind));
+      });
+      assert.ok(onEdge, `${t.def.name} at ${k} isn't on the edge of a ${want.join(' or ')}`);
+    }
+  }
+  assert.ok(seen.Fields > seen['Golf Course'] && seen['Golf Course'] > 0, JSON.stringify(seen));
+});
+
+test('weapon looks: melee ones cost AP, the Bow fires ammo like the Pistol', () => {
+  for (const id of ['Axe', 'Sword', 'Kitchen Knife', 'Frying Pan', 'Cricket Bat', 'Hockey Stick', 'Pickaxe', 'Wrench']) assert.equal(ITEMS[id].uses, 'ap', id);
+  for (const id of ['Pistol', 'Bow']) assert.equal(ITEMS[id].uses, 'ammo', id);
+  const { S, p } = game();
+  p.items.push({ id: 'Frying Pan', cond: 2 });
+  tile(S, 1, 0, 'Forest');
+  S.forced = [1, 2];
+  act(S, { type: 'scavenge' });
+  decide(S, 'melee');
+  decide(S, 'attack'); decide(S, 'attack');
+  assert.equal(E.tileOf(S, p).zombies, 0);
+});
+
+test('chainsaw: each rev burns 1 fuel and kills up to 3 zombies; −1 condition per fight round', () => {
+  const { S, p } = game();
+  p.items.push({ id: 'Chainsaw', cond: 3 });
+  p.res.fuel = 5;
+  tile(S, 1, 0, 'Forest');
+  S.forced = [1, 5];           // scavenge: 5 zombies, no Safety → all 5 through
+  act(S, { type: 'scavenge' });
+  assert.equal(p.pending.kind, 'threat');
+  assert.ok(E.canSaw(p));
+  decide(S, 'saw');
+  assert.equal(p.items[0].cond, 2);
+  decide(S, 'attack');
+  assert.equal(E.tileOf(S, p).zombies, 2);
+  assert.equal(p.res.fuel, 4);
+  decide(S, 'attack');   // only 2 left: the rev takes both
+  assert.equal(E.tileOf(S, p).zombies, 0);
+  assert.equal(p.res.fuel, 3);
+  assert.equal(p.pending, null);
+});
+
 // Make every unexplored hex reveal as `name` (for tests that need a particular discovery).
 function rigPool(name, fn) {
-  const saved = [...TILES];
+  const saved = [...TILES], counts = Object.values(CONFIG.settlements).map((s) => s.count);
   TILES.splice(0, TILES.length, def(name));
-  try { fn(); } finally { TILES.splice(0, TILES.length, ...saved); }
+  Object.values(CONFIG.settlements).forEach((s) => { s.count = 0; });   // no new villages, towns or cities either
+  try { fn(); } finally {
+    TILES.splice(0, TILES.length, ...saved);
+    Object.values(CONFIG.settlements).forEach((s, i) => { s.count = counts[i]; });
+  }
 }
 
 test('moving, driving and fleeing into an unexplored hex reveals it as you arrive', () => {
@@ -403,7 +516,7 @@ test('a Map (disabled in the tables for now) is read at once: every unexplored h
 test('binoculars: a scout reveals every unexplored hex within 2, −1 condition; gone at 0', () => {
   const { S, p } = game();
   p.items.push({ id: 'Binoculars', cond: 1 });
-  act(S, { type: 'scout' });
+  rigPool('Forest', () => act(S, { type: 'scout' }));
   assert.equal(Object.keys(S.tiles).length, 1 + 6 + 12);   // two rings around you
   assert.equal(p.items.length, 0);                          // last use: gone
   assert.ok(S.tiles['2,0'] && S.tiles['0,-2'] && !S.tiles['3,0']);   // 2 away: seen; 3 away: not
@@ -414,16 +527,16 @@ test("binoculars can't see past a Mountain", () => {
   const { S, p } = game();
   p.items.push({ id: 'Binoculars', cond: 6 });
   tile(S, 1, 0, 'Mountain');
-  act(S, { type: 'scout' });
+  rigPool('Forest', () => act(S, { type: 'scout' }));
   assert.ok(!S.tiles['2,0']);           // only seen through the Mountain: hidden
   assert.ok(S.tiles['2,-1'] && S.tiles['1,1']);   // also next to an open hex: seen
   assert.equal(Object.keys(S.tiles).length, 1 + 6 + 11);
 });
 
 test('every vehicle is a Truck or a Bike underneath: fuel ones drive on fuel, pedal ones on AP', () => {
-  const fuel = ['Truck', 'Tractor', 'Ambulance', 'Police Car', 'Jeep', 'Van', 'Bus', 'Campervan'];
+  const fuel = ['Truck', 'Tractor', 'Ambulance', 'Police Car', 'Jeep', 'Van', 'Bus', 'Campervan', 'Fire Engine'];
   for (const id of fuel) assert.equal(ITEMS[id].uses, 'fuel', id);
-  assert.equal(ITEMS.Bike.uses, 'ap');
+  for (const id of ['Bike', 'Horse']) assert.equal(ITEMS[id].uses, 'ap', id);
   const { S, p } = game();
   tile(S, 1, 0, 'Forest');
   E.tileOf(S, p).vehicles.push({ id: 'Ambulance', cond: 3 });

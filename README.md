@@ -21,7 +21,8 @@ Or open `index.html` in a browser — no build step or install needed.
 | Enter | Confirm selected action |
 | Backspace | Deselect / cancel / stop driving (Esc works too) |
 | A Q E D X Z | Pick a neighbouring hex (move / flee / drive) |
-| Q / W / E | Shoot / Melee / Flee (when zombies are on your tile) |
+| Q / W / R / E | Shoot / Melee / Saw / Flee (when zombies are on your tile) |
+| 1–6, then Enter | Pick a backpack slot and use it (Tool, Pills) — or leave the item there |
 | Shift+Enter | Keep attacking until clear |
 | T | Use tool |
 | Tab | Open / close the log & note box |
@@ -33,7 +34,7 @@ Or open `index.html` in a browser — no build step or install needed.
 - `DESIGN.md` — the rules as they currently stand, plus open questions
 - `MULTIPLAYER.md` — plan for online multiplayer, voice and the Radio
 - `QUESTIONS.md` — every open rules question, with space for answers
-- `locations.js` — every location and its d6 scavenge table (edit freely)
+- `locations.js` — every location, its d6 scavenge table, and where it's found: alone in the countryside or built in villages, towns and cities (edit freely)
 - `data.js` — rules numbers and items (edit freely)
 - `engine.js` — the rules: no screen code, seeded dice, actions in → events out (runs in the browser now, on the multiplayer server later)
 - `game.js` — the UI: draws the board and animates the engine's events

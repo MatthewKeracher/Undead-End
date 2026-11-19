@@ -107,7 +107,8 @@ const Engine = (() => {
   const fleeAdj = (S, p) => neighbors(p.q, p.r).filter(([q, r]) => { const t = S.tiles[key(q, r)]; return !t || (passable(t) && !t.zombies); });
   const canShoot = (p) => !!weaponOf(p, 'ammo') && p.res.ammo > 0;
   const canMelee = (p) => !!weaponOf(p, 'ap') && p.ap >= 1;
-  const canFight = (p) => canShoot(p) || canMelee(p);
+  const canSaw = (p) => !!weaponOf(p, 'fuel') && p.res.fuel > 0;
+  const canFight = (p) => canShoot(p) || canMelee(p) || canSaw(p);
   // After a failed flee (and no armor reroll) you're caught: no more fleeing this encounter.
   const canFlee = (S, p, t) => !p.caught && p.ap >= 1 && fleeAdj(S, p).length > 0 && t.zombies < CONFIG.maxZombies;
 
@@ -137,23 +138,97 @@ const Engine = (() => {
 
   // ---------------------------------------------------------------- setup
   const newTile = (def, safety = 0) => ({ def, safety, zombies: 0, vehicles: [], looted: [], stashes: [] });
-  // A random location from the scouting pool, each as likely as its count (optionally only those that pass `ok`).
+  // The scouting pool: every place found alone in the countryside, plus a new village, town or city — each as
+  // likely as its count (optionally only those that pass `ok`).
   function drawTile(S, ok = () => true) {
-    const pool = TILES.filter(ok).length ? TILES.filter(ok) : TILES;
+    const seeds = Object.entries(CONFIG.settlements).map(([kind, s]) => ({ settlement: kind, count: s.count }));
+    const all = [...TILES, ...seeds].filter((t) => t.count > 0), pool = all.filter(ok).length ? all.filter(ok) : TILES.filter((t) => t.count > 0);
     let x = rand(S) * pool.reduce((n, t) => n + t.count, 0);
     return pool.find((t) => (x -= t.count) < 0) ?? pool.at(-1);
   }
-  // An unexplored hex becomes a random location — unless a belt or range already claimed it (S.planned).
+  // An unexplored hex becomes a random location — unless a belt, range or settlement already claimed it (S.planned).
   function reveal(S, q, r) {
     const k = key(q, r), plan = S.planned[k];
     delete S.planned[k];
     // next to a belt or range (seen or planned), it can't start another of the same kind: shapes stay apart
     const touches = (name) => neighbors(q, r).some(([a, b]) => (S.tiles[key(a, b)]?.def.name ?? S.planned[key(a, b)]) === name);
-    const def = plan === 'pass' ? drawTile(S, (t) => !t.spread)   // a gap in a range: an ordinary place
-      : (plan && TILES.find((t) => t.name === plan)) || drawTile(S, (t) => !(t.spread && (touches(t.name) || !roomFor(S, q, r, t))));
+    let def = plan === 'pass' ? drawTile(S, (t) => !t.spread && !t.settlement)   // a gap in a range: a place in open country
+      : (plan && TILES.find((t) => t.name === plan)) || drawTile(S, (t) => t.settlement ? roomForTown(S, q, r)
+        : !(t.spread && (touches(t.name) || !roomFor(S, q, r, t))));
+    let founded = null;
+    if (def.settlement) { founded = foundTown(S, q, r, def.settlement); def = founded.first; }   // a new settlement: this is its first hex
     S.tiles[k] = newTile(def);
+    if (S.townOf[k] !== undefined) S.tiles[k].town = S.townOf[k];
     if (!plan && def.spread) spread(S, q, r, def);   // a fresh Wasteland or Mountain grows its shape
-    return { k, name: def.name, icon: def.icon };
+    const town = S.towns[S.townOf[k]];
+    if (founded) log(S, `🏘️ ${def.icon} ${def.name}: the edge of ${town.kind === 'village' ? 'the village' : town.kind === 'town' ? 'the town' : 'the city'} of ${town.name}.`, 'phase');
+    return { k, name: def.name, icon: def.icon, ...(town && { town: town.name, kind: town.kind }) };
+  }
+
+  // ---------------------------------------------------------------- settlements
+  // A village, town or city is planned whole when its first hex is found: CONFIG.settlements[kind].size hexes,
+  // grown in a compact clump over unexplored hexes, each a different place built in that kind of settlement
+  // (in: in locations.js). Settlements keep CONFIG.townGap hexes of countryside between them.
+  const hexDist = (q1, r1, q2, r2) => (Math.abs(q1 - q2) + Math.abs(r1 - r2) + Math.abs(q1 + r1 - q2 - r2)) / 2;
+  const nearTown = (S, q, r, except) => Object.entries(S.townOf).some(([k, id]) => {
+    if (id === except) return false;
+    const [a, b] = k.split(',').map(Number);
+    return hexDist(q, r, a, b) <= CONFIG.townGap;
+  });
+  // Room to found one here: clear of other settlements, with two touching unexplored neighbours to grow into.
+  function roomForTown(S, q, r) {
+    const open = ([a, b]) => !S.tiles[key(a, b)] && !S.planned[key(a, b)] && !nearTown(S, a, b), around = neighbors(q, r);
+    return !nearTown(S, q, r) && around.some((h, i) => open(h) && open(around[(i + 1) % 6]));
+  }
+  const TOWN_NAMES = [['Ash', 'Black', 'Bram', 'Crow', 'Dun', 'Elm', 'Fen', 'Grey', 'Hollow', 'Kings', 'Marsh', 'Oak', 'Raven', 'Red', 'Stone', 'Thorn', 'Wolf', 'Mill', 'Cold', 'Hart'],
+    ['ford', 'field', 'bury', 'ton', 'well', 'wick', 'moor', 'ley', 'stead', 'dale', 'gate', 'hurst', 'bridge', 'brook']];
+  function townName(S) {
+    for (let i = 0; i < 20; i++) {
+      const [a, b] = TOWN_NAMES, name = a[Math.floor(rand(S) * a.length)] + b[Math.floor(rand(S) * b.length)];
+      if (!S.towns.some((t) => t.name === name)) return name;
+    }
+    return `New ${TOWN_NAMES[0][S.towns.length % TOWN_NAMES[0].length]}`;
+  }
+  function foundTown(S, q, r, kind) {
+    const id = S.towns.length, size = CONFIG.settlements[kind].size;
+    S.towns.push({ name: townName(S), kind });
+    const hexes = [[q, r]], inTown = ([a, b]) => hexes.some(([x, y]) => x === a && y === b);
+    const open = ([a, b]) => !S.tiles[key(a, b)] && !S.planned[key(a, b)] && !inTown([a, b]) && !nearTown(S, a, b, id);
+    while (hexes.length < size) {   // grow onto the open hex touching most of the settlement so far (ties: at random)
+      const cands = [...new Map(hexes.flatMap(([a, b]) => neighbors(a, b)).filter(open).map((h) => [key(...h), h])).values()];
+      if (!cands.length) break;   // hemmed in: a smaller settlement
+      const touching = (h) => neighbors(...h).filter(inTown).length, most = Math.max(...cands.map(touching));
+      const best = cands.filter((h) => touching(h) === most);
+      hexes.push(best[Math.floor(rand(S) * best.length)]);
+    }
+    const places = TILES.filter((t) => t.in.includes(kind)).map((t) => [rand(S), t]).sort((x, y) => x[0] - y[0]).map(([, t]) => t);
+    hexes.forEach(([a, b], i) => {
+      S.townOf[key(a, b)] = id;
+      if (i) S.planned[key(a, b)] = places[i % places.length].name;
+    });
+    edges(S, hexes, kind);
+    return { id, first: places[0] };
+  }
+  // Open land around a new settlement (edge: in locations.js — Fields, Golf Course): stretches of CONFIG.edgeChain
+  // hexes, each running along the settlement's edge, on unexplored hexes just outside it.
+  function edges(S, hexes, kind) {
+    const inTown = ([a, b]) => hexes.some(([x, y]) => x === a && y === b);
+    const open = ([a, b]) => !S.tiles[key(a, b)] && !S.planned[key(a, b)] && !inTown([a, b]);
+    const ring = [...new Map(hexes.flatMap(([a, b]) => neighbors(a, b)).filter((h) => !inTown(h)).map((h) => [key(...h), h])).values()];
+    const touches = ([a, b], [c, d]) => hexDist(a, b, c, d) === 1;
+    for (const def of TILES.filter((t) => t.edge[kind])) {
+      const n = def.edge[kind], stretches = Math.floor(n) + (rand(S) < n % 1 ? 1 : 0), [lo, hi] = CONFIG.edgeChain;
+      for (let i = 0; i < stretches; i++) {
+        let free = ring.filter(open);
+        if (!free.length) return;
+        let h = free[Math.floor(rand(S) * free.length)];
+        for (let len = lo + Math.floor(rand(S) * (hi - lo + 1)); len > 0 && h; len--) {
+          S.planned[key(...h)] = def.name;
+          free = ring.filter((x) => open(x) && touches(x, h));   // carry on along the edge
+          h = free.length ? free[Math.floor(rand(S) * free.length)] : null;
+        }
+      }
+    }
   }
   // Room for a shape to start here? A belt needs two touching unexplored neighbours (a triangle at least);
   // a range needs one unexplored neighbour. Without it, the hex is drawn as something else — no lone ones.
@@ -215,7 +290,7 @@ const Engine = (() => {
   // Without it, the host ends rounds with timeUp() (the 30 s timer).
   function createGame({ names = ['Survivor'], seed = (Math.random() * 2 ** 32) >>> 0, autoEnd = true, checksOff = false } = {}) {
     const S = {
-      seed, rng: seed | 0, day: CONFIG.startDay, round: CONFIG.startRound, tiles: {}, planned: {}, players: [],
+      seed, rng: seed | 0, day: CONFIG.startDay, round: CONFIG.startRound, tiles: {}, planned: {}, towns: [], townOf: {}, players: [],
       log: [], events: [], rolls: [], forced: [], autoEnd, timesUp: false, checksOff, badNight: false, over: null,
     };
     S.tiles[key(0, 0)] = newTile(START_TILE, CONFIG.startSafety);
@@ -422,26 +497,28 @@ const Engine = (() => {
     },
   };
 
-  // One round of fighting: no AP to start, weapon loses 1 condition. Each attack kills 1 zombie
-  // and costs 1 ammo (gun) or 1 AP (melee).
+  // One round of fighting: no AP to start, weapon loses 1 condition. Each attack costs 1 of what the weapon
+  // uses (gun: ammo, melee: AP, chainsaw: fuel) and kills 1 zombie — or up to its `kills` (Chainsaw: 3).
+  const fuelLeft = (p, uses) => (uses === 'ap' ? p.ap : p.res[uses]);
   function startFight(S, p, uses) {
     const w = weaponOf(p, uses), t = tileOf(S, p);
     w.cond--;
-    p.pending = { kind: 'fight', weapon: p.items.indexOf(w), start: t.zombies, shots: 0 };
+    p.pending = { kind: 'fight', weapon: p.items.indexOf(w), start: t.zombies, shots: 0, kills: 0 };
     emit(S, { type: 'fight', player: p.id, weapon: w.id });
   }
   function attack(S, p) {
-    const d = p.pending, w = p.items[d.weapon], t = tileOf(S, p), melee = ITEMS[w.id].uses === 'ap';
-    if ((melee ? p.ap : p.res.ammo) < 1 || !t.zombies) return 'Nothing to attack with.';
-    if (melee) p.ap--; else p.res.ammo--;
-    t.zombies--; d.shots++;
-    emit(S, { type: 'hit', player: p.id, weapon: w.id, melee, zombies: t.zombies });
-    if (!t.zombies || (melee ? p.ap : p.res.ammo) < 1) endFight(S, p);
+    const d = p.pending, w = p.items[d.weapon], t = tileOf(S, p), uses = ITEMS[w.id].uses;
+    if (fuelLeft(p, uses) < 1 || !t.zombies) return 'Nothing to attack with.';
+    if (uses === 'ap') p.ap--; else p.res[uses]--;
+    const n = Math.min(ITEMS[w.id].kills ?? 1, t.zombies);
+    t.zombies -= n; d.shots++; d.kills += n;
+    emit(S, { type: 'hit', player: p.id, weapon: w.id, melee: uses === 'ap', uses, kills: n, zombies: t.zombies });
+    if (!t.zombies || fuelLeft(p, uses) < 1) endFight(S, p);
   }
   function endFight(S, p) {
-    const d = p.pending, w = p.items[d.weapon], t = tileOf(S, p), melee = ITEMS[w.id].uses === 'ap';
+    const d = p.pending, w = p.items[d.weapon], t = tileOf(S, p), uses = ITEMS[w.id].uses;
     p.pending = null;
-    log(S, `${p.name} fights with the ${w.id}: ${plural(d.shots, melee ? 'swing' : 'shot')}, ${plural(d.shots, 'zombie')} down${t.zombies ? `, ${t.zombies} left` : ' — tile cleared!'}.`, t.zombies ? 'bad' : 'good');
+    log(S, `${p.name} fights with the ${w.id}: ${plural(d.shots, { ap: 'swing', ammo: 'shot', fuel: 'rev' }[uses])}, ${plural(d.kills, 'zombie')} down${t.zombies ? `, ${t.zombies} left` : ' — tile cleared!'}.`, t.zombies ? 'bad' : 'good');
     if (w.cond <= 0) {
       p.items.splice(d.weapon, 1);
       log(S, `${ITEMS[w.id].icon} ${p.name}'s ${w.id} breaks!`, 'bad');
@@ -738,6 +815,7 @@ const Engine = (() => {
       const t = tileOf(S, p);
       if (choice === 'shoot' && canShoot(p)) { p.pending = null; return startFight(S, p, 'ammo'); }
       if (choice === 'melee' && canMelee(p)) { p.pending = null; return startFight(S, p, 'ap'); }
+      if (choice === 'saw' && canSaw(p)) { p.pending = null; return startFight(S, p, 'fuel'); }
       if (choice === 'flee' && canFlee(S, p, t)) { p.pending = null; p.ap--; return flee(S, p); }
       return "You can't do that now.";
     },
@@ -896,7 +974,7 @@ const Engine = (() => {
   return {
     ICON, RES_LABEL, key, neighbors, isNight, isAttack, attackDue, cellText, upkeepText, roundBanner,
     tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText,
-    fleeAdj, canShoot, canMelee, canFight, canFlee, vehicleFuel, vehicleLeft, vehicleOf, canDrive,
+    fleeAdj, canShoot, canMelee, canSaw, canFight, canFlee, vehicleFuel, vehicleLeft, vehicleOf, canDrive,
     createGame, start, act, timeUp, cheat,
   };
 })();
