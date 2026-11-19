@@ -515,6 +515,31 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   /* the dials sit beside the map: keep ~320px of width for it, and room under the clock for the timer */
   :root { --clock: clamp(110px, min(calc((100dvw - 370px) / 2), calc(100dvh - 300px)), 210px); }
 }
+/* tablets and half-screen windows: the backpack is a full bar above the actions — every item with its
+   Use / Take / leave buttons, no need to open it */
+@media (pointer: coarse) and (min-width: 700px) and (min-height: 600px), (orientation: portrait) and (min-width: 700px) and (min-height: 600px), (max-width: 1100px) and (min-width: 700px) and (min-height: 600px) {
+  #pack, #pack.open { grid-area: pack; position: static; display: grid; grid-template-columns: auto repeat(6, minmax(0, 1fr)); align-items: center; gap: 6px;
+    align-self: stretch; justify-self: stretch; width: auto; max-height: none; overflow: visible; padding: 6px 8px; background: var(--panel-a); }
+  #pack button.packhead { pointer-events: none; min-height: 0; width: auto; padding: 0 6px 0 2px; }
+  #pack .packhead .packicons, #pack .packhead .caret { display: none !important; }
+  /* each slot: the icon (Use / Take as a badge under it), then its name over its condition, and leave (✕) at the top right */
+  #pack .slot-item, #pack:not(.open) .slot-item { display: grid; grid-template: auto auto / auto minmax(0, 1fr) auto; grid-template-areas: "ic name drop" "ic pips pips";
+    align-items: center; column-gap: 6px; row-gap: 3px; height: 50px; min-width: 0; padding: 4px 4px 4px 6px; box-shadow: none; }
+  #pack .slot-item.empty { display: block; }
+  #pack .slot-item .ic { grid-area: ic; align-self: start; justify-self: center; }
+  #pack .slot-item div { display: contents; }
+  #pack .slot-item b { grid-area: name; overflow: hidden; text-overflow: ellipsis; }
+  #pack .slot-item .cond { grid-area: pips; }
+  #pack .slot-item .use { grid-area: ic; align-self: end; justify-self: center; z-index: 1; padding: 0 3px; font-size: 9px; line-height: 1.35; border-radius: 4px; }
+  #pack .slot-item .use kbd { display: none; }
+  #pack .slot-item .drop { grid-area: drop; padding: 0 4px; line-height: 1.2; }
+}
+/* …and held sideways, that bar moves from the top row to just above the actions */
+@media (pointer: coarse) and (min-width: 700px) and (min-height: 600px) and (orientation: landscape), (max-width: 1100px) and (min-width: 700px) and (min-height: 600px) and (orientation: landscape) {
+  #board { grid-template-rows: var(--bar) minmax(0, 1fr) auto auto;
+    grid-template-areas: "stats stats stats stats" "clock map map ap" "pack pack pack pack" "dock dock dock dock"; }
+  :root { --clock: clamp(110px, min(calc((100dvw - 370px) / 2), calc(100dvh - 370px)), 210px); }
+}
 /* phone sizes */
 @media (max-width: 640px), (max-height: 500px) {
   :root { --gap: 8px; --clock: clamp(96px, calc((100dvh - 511px) / 2), 136px); --ap: var(--clock); --orbsize: 44px; --bar: 50px; }

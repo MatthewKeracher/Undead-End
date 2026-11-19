@@ -1327,7 +1327,8 @@ $('#pack').addEventListener('click', (e) => {
   const i = +b.dataset.drop;
   if (dropArmed === i) { dropArmed = -1; dropItem(i); } else { dropArmed = i; renderPack(); }
 });
-document.addEventListener('click', (e) => { if (dropArmed >= 0 && !e.target.closest('#pack')) { dropArmed = -1; renderPack(); } });
+// a tap anywhere else disarms ✕ (composedPath, as the tapped button may already have been redrawn away)
+document.addEventListener('click', (e) => { if (dropArmed >= 0 && !e.composedPath().includes($('#pack'))) { dropArmed = -1; renderPack(); } });
 // Log panel: hidden by default; remembered per browser.
 // Unread counter: log messages (not round markers) added while the log is hidden.
 let logSeen = 0;
