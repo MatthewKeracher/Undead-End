@@ -128,7 +128,7 @@ Repeat until the tile is clear, you escape, or you die.
     | Vehicle | Kind | Found at |
     |---|---|---|
     | 🛻 Truck | fuel | Petrol Station, Fuel Depot, Car Park (**Truck + Fuel**: you also get 1d6 fuel), Garage |
-    | 🚜 Tractor | fuel | Farmhouse (**Tractor + Fuel**) |
+    | 🚜 Tractor | fuel | Farmhouse (**Tractor + Fuel**), Stables |
     | 🚑 Ambulance | fuel | Hospital |
     | 🚓 Police Car | fuel | Sheriff's Office, Police Station |
     | 🚙 Jeep | fuel | Army Checkpoint, Car Park |
@@ -137,7 +137,6 @@ Repeat until the tile is clear, you escape, or you die.
     | 🚐 Campervan | fuel | Campsite |
     | 🚒 Fire Engine | fuel | Fire Station |
     | 🚲 Bike | pedal (AP) | Campsite, Post Office |
-    | 🐎 Horse | pedal (AP) | Stables |
   - Keys: **E** drives the fuel vehicle parked here, **B** rides the pedal one.
 - **Radio** *(multiplayer, planned)*: talk to players **not on your tile** (same-tile voice is the default). Details in `MULTIPLAYER.md`.
 - **Tools** (e.g. the **Tool**): have a condition like any item. Can be used **at any time, for free**, to transfer any amount of their condition to another item (max 6 condition). At 0 condition the tool is destroyed. Tool found at the Hardware Store, Garage, Quarry, Fuel Depot, Graveyard and Post Office *(placeholder)*.

@@ -581,7 +581,7 @@ test("binoculars can't see past a Mountain", () => {
 test('every vehicle is a Truck or a Bike underneath: fuel ones drive on fuel, pedal ones on AP', () => {
   const fuel = ['Truck', 'Tractor', 'Ambulance', 'Police Car', 'Jeep', 'Van', 'Bus', 'Campervan', 'Fire Engine'];
   for (const id of fuel) assert.equal(ITEMS[id].uses, 'fuel', id);
-  for (const id of ['Bike', 'Horse']) assert.equal(ITEMS[id].uses, 'ap', id);
+  assert.equal(ITEMS.Bike.uses, 'ap');
   const { S, p } = game();
   tile(S, 1, 0, 'Forest');
   E.tileOf(S, p).vehicles.push({ id: 'Ambulance', cond: 3 });

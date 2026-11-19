@@ -88,7 +88,6 @@ const ITEMS = {
   Campervan: fuelVehicle('🚐'),
   'Fire Engine': fuelVehicle('🚒'),
   Bike: pedalVehicle('🚲'),
-  Horse: pedalVehicle('🐎'),
   // Multiplayer (planned — see MULTIPLAYER.md): talk to players on other tiles. No effect in single player; not in any loot table yet.
   Radio:   { icon: '📻', radio: true, desc: 'Multiplayer: lets you talk to players on other tiles who also carry a radio. −1 condition per round used.' },
   Tool: { icon: '🧰', tool: true, desc: 'Use any time (free): transfer some of its condition to another item. Destroyed at 0.' },

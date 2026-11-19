@@ -38,7 +38,7 @@
 //    'Axe'  'Sword'  'Kitchen Knife'  'Frying Pan'  'Cricket Bat'  'Hockey Stick'  'Pickaxe'  'Wrench'   (melee: AP)
 //    'Chainsaw'  'Body Armor'  'Tool'  'Pills'  'Binoculars'  'Radio'
 //    'Truck'  'Tractor'  'Ambulance'  'Police Car'  'Jeep'  'Van'  'Bus'  'Campervan'  'Fire Engine'
-//    'Bike'  'Horse'                             (vehicles)
+//    'Bike'                                      (vehicles)
 //                                                an item card (the names in ITEMS, data.js)
 //    'Endless Water'  'Endless Double Food'  …   put Endless in front of any result and it
 //                                                never runs out (shown with ∞)
@@ -63,7 +63,7 @@ const LOCATIONS = [
   { name: 'Cottage',        icon: '🏡', safety: 4, count: 0.6, in: ['village'],
     table: ['Zombies',       'Food',          'Random',        'Food + Water',  'Kitchen Knife', 'Axe'] },
   { name: 'Fishing Spot',   icon: '🎣', safety: 0, count: 0.7, table: ['Zombies',       'Food',          'Random',        'Double Food',   'Water',         'Food + Water'] },
-  { name: 'Stables',        icon: '🐎', safety: 3, count: 0.6, table: ['Zombies',       'Water',         'Random',        'Food + Water',  'Horse',         'Horse'] },
+  { name: 'Stables',        icon: '🐎', safety: 3, count: 0.6, table: ['Zombies',       'Water',         'Random',        'Food + Water',  'Double Food',   'Tractor'] },
   { name: 'Quarry',         icon: '⛏️', safety: 0, count: 0.6, table: ['Zombies',       'Pickaxe',       'Random',        'Tool',          'Fuel',          'Tool + Fuel'] },
   // the best walls around, and almost nothing to find: somewhere to reach before nightfall
   { name: 'Castle',         icon: '🏰', safety: 8, count: 0.3, table: ['Zombies',       'Sword',         'Random',        'Bow + Ammo',    'Body Armor',    'Booze'] },
