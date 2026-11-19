@@ -225,7 +225,7 @@ async function armorPrompt(armor) {
   const pop = $('#popup');
   pop.className = 'zombie';
   pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>Caught!</small><h2>${ITEMS[armor.id].icon} ${esc(armor.id)} can take the hit</h2></div>
+    <div class="ptitle"><small>Caught!</small><h2>${itemIcon(armor.id)} ${esc(armor.id)} can take the hit</h2></div>
     <p>${condPips(armor.cond)} → ${condPips(armor.cond - 1)}</p>
     <div class="frow">
       <button class="primary" id="ayes">Take the hit &amp; reroll <small>(−1 condition, 1 AP)</small> <kbd>Enter</kbd></button>
@@ -275,10 +275,10 @@ async function fightPopup(p) {
     pop.innerHTML = `<div class="pcard">
       <div class="ptitle"><small>⚔️ Fight · ${esc(t.def.name)}</small><h2>${t.zombies ? `${t.zombies} zombie${t.zombies > 1 ? 's' : ''}` : 'Clear!'}</h2></div>
       <div class="cpips">${[...Array(6)].map((_, i) => `<i class="${i < t.zombies ? 'zed' : i < d.start ? 'dead' : ''}"></i>`).join('')}</div>
-      <div class="fammo">${melee ? `${ICON.ap} <b class="${p.ap <= 1 ? 'warnap' : ''}">${p.ap}</b> AP` : `${ICON[def.uses]} <b>${left()}</b> ${unit}`} · ${def.icon} ${w.id} condition ${condPips(w.cond)}</div>
+      <div class="fammo">${melee ? `${ICON.ap} <b class="${p.ap <= 1 ? 'warnap' : ''}">${p.ap}</b> AP` : `${ICON[def.uses]} <b>${left()}</b> ${unit}`} · ${itemIcon(w.id)} ${w.id} condition ${condPips(w.cond)}</div>
       ${melee && p.ap === 1 && t.zombies ? `<div class="note bad">Last AP — swinging now leaves you nothing to flee with.</div>` : ''}
       <div class="frow">
-        <button class="primary" id="fire" ${fighting() && left() && t.zombies ? '' : 'disabled'}>${def.icon} ${def.verb} <small>(1 ${unit}${def.kills > 1 ? ` · up to ${def.kills} 🧟` : ''})</small> <kbd>Enter</kbd></button>
+        <button class="primary" id="fire" ${fighting() && left() && t.zombies ? '' : 'disabled'}>${itemIcon(w.id)} ${def.verb} <small>(1 ${unit}${def.kills > 1 ? ` · up to ${def.kills} 🧟` : ''})</small> <kbd>Enter</kbd></button>
         <button id="stop">Stop <kbd>Backspace</kbd></button>
       </div>
       <small class="pskip"><kbd>Shift</kbd>+<kbd>Enter</kbd> ${verb} until clear (or out of ${unit})</small></div>`;
@@ -324,6 +324,9 @@ async function fightPopup(p) {
   await play(after.filter((ev) => ev.type !== 'hit'));
 }
 
+// An item's picture for HTML: its own image if it has one (img: in data.js), otherwise its emoji.
+// (Plain text — toasts, the log — always uses the emoji.)
+const itemIcon = (id) => ITEMS[id].img ? `<img class="iimg" src="${ITEMS[id].img}" alt="${ITEMS[id].icon}">` : ITEMS[id].icon;
 const condPips = (n) => `<span class="cond">${[...Array(6)].map((_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
 
 // ---------------------------------------------------------------- items
@@ -334,7 +337,7 @@ async function backpackPrompt(p, item) {
   pop.className = '';
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>Backpack full (${CONFIG.maxItems}/${CONFIG.maxItems})</small><h2>Destroy one item</h2></div>
-    <ol class="pack-choose">${all.map((it, i) => `<li><button data-i="${i}"><kbd>${i + 1}</kbd> ${ITEMS[it.id].icon} ${it.id} ${condPips(it.cond)}${i === all.length - 1 ? ' <em>NEW</em>' : ''}</button></li>`).join('')}</ol>
+    <ol class="pack-choose">${all.map((it, i) => `<li><button data-i="${i}"><kbd>${i + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond)}${i === all.length - 1 ? ' <em>NEW</em>' : ''}</button></li>`).join('')}</ol>
     <small class="pskip">press 1–${all.length} or click</small></div>`;
   pop.hidden = false;
   const i = await new Promise((res) => {
@@ -361,7 +364,7 @@ async function stashPrompt(d) {
     const draw = () => {
       pop.innerHTML = `<div class="pcard">
         <div class="ptitle"><small>🎒 ${esc(s.owner)}'s stash</small><h2>${d.room ? `Take up to ${d.room} item${d.room === 1 ? '' : 's'}` : 'Your backpack is full'}</h2></div>
-        <ol class="pack-choose">${s.items.map((it, i) => `<li><button data-i="${i}" class="${picked.has(i) ? 'on' : ''}" ${!picked.has(i) && picked.size >= d.room ? 'disabled' : ''}><kbd>${i + 1}</kbd> ${ITEMS[it.id].icon} ${it.id} ${condPips(it.cond)}${picked.has(i) ? ' <em>TAKE</em>' : ''}</button></li>`).join('')}</ol>
+        <ol class="pack-choose">${s.items.map((it, i) => `<li><button data-i="${i}" class="${picked.has(i) ? 'on' : ''}" ${!picked.has(i) && picked.size >= d.room ? 'disabled' : ''}><kbd>${i + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond)}${picked.has(i) ? ' <em>TAKE</em>' : ''}</button></li>`).join('')}</ol>
         <button class="primary" id="take">${picked.size ? `Take ${picked.size}` : 'Leave them'} <kbd>Enter</kbd></button>
         <small class="pskip">press 1–${s.items.length} to choose · the rest stay in the stash</small></div>`;
       pop.querySelectorAll('[data-i]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); toggle(+b.dataset.i); }));
@@ -402,8 +405,8 @@ async function useTool(i) {
   }
   // step 1: pick the item to repair
   pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>${ITEMS[tool.id].icon} ${tool.id} ${condPips(tool.cond)}</small><h2>Repair which item?</h2></div>
-    <ol class="pack-choose">${targets.map(({ it }, n) => `<li><button data-n="${n}"><kbd>${n + 1}</kbd> ${ITEMS[it.id].icon} ${it.id} ${condPips(it.cond)}</button></li>`).join('')}</ol>
+    <div class="ptitle"><small>${itemIcon(tool.id)} ${tool.id} ${condPips(tool.cond)}</small><h2>Repair which item?</h2></div>
+    <ol class="pack-choose">${targets.map(({ it }, n) => `<li><button data-n="${n}"><kbd>${n + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond)}</button></li>`).join('')}</ol>
     <small class="pskip">press 1–${targets.length} or click · Backspace to cancel</small></div>`;
   pop.hidden = false;
   const target = await new Promise((res) => {
@@ -414,7 +417,7 @@ async function useTool(i) {
   // step 2: how much condition to transfer
   const max = Math.min(tool.cond, CONFIG.maxCondition - target.it.cond);
   pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>${ITEMS[tool.id].icon} ${tool.id} ${condPips(tool.cond)} → ${ITEMS[target.it.id].icon} ${target.it.id} ${condPips(target.it.cond)}</small><h2>Transfer how much?</h2></div>
+    <div class="ptitle"><small>${itemIcon(tool.id)} ${tool.id} ${condPips(tool.cond)} → ${itemIcon(target.it.id)} ${target.it.id} ${condPips(target.it.cond)}</small><h2>Transfer how much?</h2></div>
     <div class="frow">${[...Array(max)].map((_, n) => `<button data-a="${n + 1}"><kbd>${n + 1}</kbd></button>`).join('')}</div>
     <small class="pskip">press 1–${max} or click · Backspace to cancel</small></div>`;
   const amount = await new Promise((res) => {
@@ -509,6 +512,16 @@ function tone(freq, dur = 0.05, type = 'square', vol = 0.04, slide = 0) {
     o.connect(g).connect(AC.destination); o.start(now); o.stop(now + dur);
   } catch { /* audio unavailable */ }
 }
+// Recorded sounds (assets/), restarted rather than stacked when played again quickly.
+const CLIPS = { chainsaw: 'assets/chainsaw.mp3' }, clipEls = {};
+function clip(name, volume = 0.7) {
+  if (muted) return;
+  try {
+    const a = (clipEls[name] ??= Object.assign(new Audio(CLIPS[name]), { preload: 'auto' }));
+    a.volume = volume; a.currentTime = 0;
+    a.play().catch(() => { /* not allowed yet, or unavailable */ });
+  } catch { /* audio unavailable */ }
+}
 const sfx = {
   tick: () => tone(500 + Math.random() * 500, 0.03, 'square', 0.025),
   land: () => tone(140, 0.18, 'triangle', 0.15, -40),
@@ -546,7 +559,7 @@ const sfx = {
     : (noise(0.08, 0.1, 2500), setTimeout(() => tone(1400, 0.08, 'sine', 0.05), 80)),
   axe: () => { tone(320, 0.12, 'sawtooth', 0.05, -260); setTimeout(() => tone(70, 0.18, 'square', 0.18, -30), 90); },
   bow: () => { tone(220, 0.25, 'triangle', 0.12, -120); noise(0.12, 0.12, 4000); },   // twang and whoosh
-  saw: () => { tone(110, 0.5, 'sawtooth', 0.09, 60); noise(0.45, 0.14, 1600); setTimeout(() => tone(70, 0.2, 'square', 0.15, -30), 300); },   // engine rev, then the bite
+  saw: () => clip('chainsaw'),
   zombie: () => { tone(95, 0.9, 'sawtooth', 0.12, -50); setTimeout(() => tone(70, 0.7, 'sawtooth', 0.1, -30), 150); },
 };
 
@@ -616,7 +629,7 @@ async function scavengeShow({ name, rows: table, tries, r, hit, amt, amts, dice,
     for (const [i, x] of parts.entries()) {
       const a = amts[i];
       if (ITEMS[x.item]?.map) {   // no condition to roll: it's read straight away
-        shown += `<div class="big good jackpot">${ITEMS[x.item].icon} ${esc(x.item)}</div><small class="muted">It shows the land all around…</small>`;
+        shown += `<div class="big good jackpot">${itemIcon(x.item)} ${esc(x.item)}</div><small class="muted">It shows the land all around…</small>`;
         $('#pres').innerHTML = shown;
         big = true;
         continue;
@@ -625,7 +638,7 @@ async function scavengeShow({ name, rows: table, tries, r, hit, amt, amts, dice,
       await Promise.all(dice[i].map((v, j) => rollDie($(`#pd2d${j}`), v, 800 + j * 150)));
       await wait(250);
       if (x.item) {
-        shown += `<div class="big good jackpot">${ITEMS[x.item].icon} ${esc(x.item)}</div><div>${condPips(a)}</div>`;
+        shown += `<div class="big good jackpot">${itemIcon(x.item)} ${esc(x.item)}</div><div>${condPips(a)}</div>`;
         $('#pres').innerHTML = shown;
         big = true;
       } else {
@@ -1058,11 +1071,11 @@ function renderPack() {
   // the header folds the backpack away on small screens (see style.css)
   let h = `<button type="button" class="packhead" data-packtoggle><span class="packname"><span class="word">Backpack</span><span class="bag">🎒</span> ${p.items.length}/${CONFIG.maxItems}</span>`
     // folded, it shows each item in brief: icon, name and condition (just icon and condition once there are more than 3)
-    + `<span class="packicons ${p.items.length > 3 ? 'many' : ''}">${p.items.map((it) => `<span class="pchip"><span class="ic">${ITEMS[it.id].icon}</span><span class="pinfo"><b>${esc(it.id)}</b>${condPips(it.cond)}</span></span>`).join('')}</span><span class="caret"></span></button>`;
+    + `<span class="packicons ${p.items.length > 3 ? 'many' : ''}">${p.items.map((it) => `<span class="pchip"><span class="ic">${itemIcon(it.id)}</span><span class="pinfo"><b>${esc(it.id)}</b>${condPips(it.cond)}</span></span>`).join('')}</span><span class="caret"></span></button>`;
   for (let i = 0; i < CONFIG.maxItems; i++) {
     const it = p.items[i];
     h += it
-      ? `<div class="slot-item ${packSel === i ? 'sel' : ''}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${ITEMS[it.id].icon}</span><div><b>${esc(it.id)}</b>${condPips(it.cond)}</div>
+      ? `<div class="slot-item ${packSel === i ? 'sel' : ''}" data-slot="${i}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond)}</div>
           ${ITEMS[it.id].tool ? `<button class="use" data-use="${i}" title="Use tool (T)">Use <kbd>T</kbd></button>` : ''}
           ${ITEMS[it.id].pills ? `<button class="use" data-pill="${i}" title="Take a dose: AP back up to your max">Take</button>` : ''}
           <button class="drop ${dropArmed === i ? 'armed' : ''}" data-drop="${i}" title="Leave it in your stash on this tile">${dropArmed === i ? 'Leave it?' : '✕'}</button></div>`
@@ -1117,7 +1130,7 @@ function renderPanel() {
     const hk = Object.keys(keys).find((k) => keys[k] === id || (ITEMS[id]?.vehicle && keys[k] === (ITEMS[id].uses === 'fuel' ? 'driveFuel' : 'driveAP')));
     if (dis && selected === id) selected = null;
     // the emoji and the words are separate, so phones and upright tablets can show the emoji alone (title has the rest)
-    const [icon, ...words] = label.split(' ');
+    const [, icon, rest] = label.match(/^(<img[^>]*>|\S+) (.*)$/), words = [rest];   // the emoji (or item picture), then the words
     return `<button class="act ${mode === id ? 'on' : ''} ${selected === id ? 'sel' : ''}" data-act="${id}" title="${esc(`${words.join(' ')} — ${sub}`)}" ${dis ? 'disabled' : ''}><b><span class="ai">${icon}</span><span class="al"> ${words.join(' ')}</span>${hk ? `<kbd>${hk.toUpperCase()}</kbd>` : ''}</b><small>${sub}</small></button>`;
   };
 
@@ -1126,9 +1139,9 @@ function renderPanel() {
     $('#actions').innerHTML = `
       <div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} on the ${esc(t.def.name)}! ${p.caught ? 'You were caught — fight!' : canFight(p) ? 'Fight or flee.' : 'No weapon — if you fail to flee, you die.'}</div>
       <div class="ribbon threat">
-        ${btn('shoot', `${gun ? ITEMS[gun.id].icon : '🔫'} Shoot`, !gun ? 'Needs a gun' : !p.res.ammo ? 'No ammo' : `1 ${ICON.ammo} per shot · ${gun.id} ${gun.cond}`, !canShoot(p))}
-        ${btn('melee', `${axe ? ITEMS[axe.id].icon : '🪓'} Melee`, !axe ? 'Needs a melee weapon' : p.ap < 1 ? 'No AP' : `1 🎲 per swing · ${axe.id} ${axe.cond}`, !canMelee(p))}
-        ${saw ? btn('saw', `${ITEMS[saw.id].icon} Saw`, !p.res.fuel ? 'No fuel' : `1 ${ICON.fuel} per rev, up to ${ITEMS[saw.id].kills} 🧟 · ${saw.cond}`, !canSaw(p)) : ''}
+        ${btn('shoot', `${gun ? itemIcon(gun.id) : '🔫'} Shoot`, !gun ? 'Needs a gun' : !p.res.ammo ? 'No ammo' : `1 ${ICON.ammo} per shot · ${gun.id} ${gun.cond}`, !canShoot(p))}
+        ${btn('melee', `${axe ? itemIcon(axe.id) : '🪓'} Melee`, !axe ? 'Needs a melee weapon' : p.ap < 1 ? 'No AP' : `1 🎲 per swing · ${axe.id} ${axe.cond}`, !canMelee(p))}
+        ${saw ? btn('saw', `${itemIcon(saw.id)} Saw`, !p.res.fuel ? 'No fuel' : `1 ${ICON.fuel} per rev, up to ${ITEMS[saw.id].kills} 🧟 · ${saw.cond}`, !canSaw(p)) : ''}
         ${btn('flee', '🏃 Flee', p.caught ? 'Caught — must fight' : !fleeAdj(p).length ? 'Nowhere to run' : t.zombies >= 6 ? 'Too many to outrun' : p.ap < 1 ? 'No AP' : `1 AP · roll > ${t.zombies}`, !canFlee(p, t))}
       </div>`;
     renderLog();
@@ -1138,7 +1151,7 @@ function renderPanel() {
     const { v, steps, flee } = driving(), fuel = vehicleFuel(v) === 'fuel';
     $('#actions').innerHTML = `
       ${t.zombies ? `<div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} here — stopping on this tile triggers them!</div>` : ''}
-      <div class="note good">${ITEMS[v.id].icon} ${flee ? 'Escaping' : 'Driving'} the ${v.id} — ${fuel ? `${ICON.fuel} ${p.res.fuel} fuel` : `🎲 ${p.ap} AP`} left · ${steps} tile${steps === 1 ? '' : 's'} so far.
+      <div class="note good">${itemIcon(v.id)} ${flee ? 'Escaping' : 'Driving'} the ${v.id} — ${fuel ? `${ICON.fuel} ${p.res.fuel} fuel` : `🎲 ${p.ap} AP`} left · ${steps} tile${steps === 1 ? '' : 's'} so far.
         Next hex: A Q E D X Z or tap one.</div>
       <div class="ribbon">${btn('stopdrive', '⏹ Stop here', flee && !steps ? 'Pick a hex first' : 'Enter / Backspace', flee && !steps)}</div>`;
     renderLog();
@@ -1171,9 +1184,9 @@ function renderPanel() {
       ${btn('scavenge', '🔍 Scavenge', !canScavengeHere(t) ? (t.def.table.length ? 'Picked clean' : 'Nothing to find') : t.zombies ? 'Blocked by zombies' : lootLeft(t) ? `1 AP · ${lootLeft(t)} of 5 left` : '1 AP · only zombies left', noAP || !canScavengeHere(t) || t.zombies > 0)}
       ${Object.keys(ITEMS).filter((id) => ITEMS[id].vehicle && vehiclesHere(p).some((v) => v.id === id)).map((id) => {
         const v = vehicleOf(p, id);
-        if (!v) return btn(id, `${ITEMS[id].icon} ${ITEMS[id].verb}`, 'Broken — needs a Tool', true);
+        if (!v) return btn(id, `${itemIcon(id)} ${ITEMS[id].verb}`, 'Broken — needs a Tool', true);
         const fuel = vehicleFuel(v) === 'fuel';
-        return btn(id, `${ITEMS[id].icon} ${ITEMS[id].verb}`, !driveAdj(p).length ? 'Nowhere to go' : vehicleLeft(p, v) < 1 ? (fuel ? 'No fuel' : 'No AP') : `1 ${fuel ? ICON.fuel : '🎲'}/tile · cond ${v.cond}`, !canDrive(p, id));
+        return btn(id, `${itemIcon(id)} ${ITEMS[id].verb}`, !driveAdj(p).length ? 'Nowhere to go' : vehicleLeft(p, v) < 1 ? (fuel ? 'No fuel' : 'No AP') : `1 ${fuel ? ICON.fuel : '🎲'}/tile · cond ${v.cond}`, !canDrive(p, id));
       }).join('')}
       ${btn('fortify', '🔨 Fortify', !canFortifyHere(t) ? "Can't be fortified" : t.zombies ? 'Blocked by zombies' : t.safety >= E.maxSafetyOf(t) ? `Safety full (${E.maxSafetyOf(t)})` : `1 AP · +1d6 🟡 (max ${E.maxSafetyOf(t)})`, noAP || !canFortifyHere(t) || t.zombies > 0 || t.safety >= E.maxSafetyOf(t))}
     </div>`;
@@ -1365,7 +1378,12 @@ $('#pack').addEventListener('click', (e) => {
   if (e.target.closest('[data-packtoggle]')) { $('#pack').classList.toggle('open'); return; }
   const u = e.target.closest('[data-use]'); if (u) { useTool(+u.dataset.use); return; }
   const pl = e.target.closest('[data-pill]'); if (pl) { if (!cur().pending) send({ type: 'pills', item: +pl.dataset.pill }); return; }
-  const b = e.target.closest('[data-drop]'); if (!b) return;
+  const b = e.target.closest('[data-drop]');
+  if (!b) {   // the slot itself: what is it? (phones show only the icon)
+    const it = cur().items[e.target.closest('[data-slot]')?.dataset.slot];
+    if (it) toast(`${ITEMS[it.id].icon} ${it.id} — condition ${it.cond}. ${ITEMS[it.id].desc}`);
+    return;
+  }
   const i = +b.dataset.drop;
   if (dropArmed === i) { dropArmed = -1; dropItem(i); } else { dropArmed = i; renderPack(); }
 });

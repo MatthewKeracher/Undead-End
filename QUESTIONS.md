@@ -69,7 +69,7 @@ Logged from a playtest. Tick when handled.
 - [ ] **Bomb 💣 and Firecracker 🧨:** weapons with their own mechanics — to design (e.g. clear a whole tile at once; throw to draw zombies to another tile).
 - [ ] **Fields and Golf Courses:** pure wasteland for now — should Fields give a little food, or golf courses something odd?
 - [ ] **Settlement mix:** ~3–4 villages, 1–2 towns and a city in 1 of 3 solo maps (`CONFIG.settlements`). Right amount? Should a settlement be guaranteed near the start?
-- [ ] **New places' tables** (Farm, Orchard, Cottage, Hut, Fishing Spot, Stables, Quarry, Castle, Graveyard, Diner, Fuel Depot, Corner Shop, Post Office, Café, Hotel, Library, Garage, Fire Station, Sheriff's Office, Shopping Mall, Train Station, Stadium, Car Park, Bank) are first drafts.
+- [ ] **New places' tables** (Orchard, Cottage, Fishing Spot, Stables, Quarry, Castle, Graveyard, Diner, Fuel Depot, Corner Shop, Post Office, Café, Hotel, Library, Garage, Fire Station, Sheriff's Office, Shopping Mall, Train Station, Stadium, Car Park, Bank) are first drafts.
   > Answer:
 - [ ] **More item cards** — what else is in the deck?
   > Answer:
@@ -79,7 +79,7 @@ Logged from a playtest. Tick when handled.
 ### Tiles
 - [ ] **The real tile list and their d6 tables** — the 14 tiles in `locations.js` are placeholders I invented. What tiles does your board game have?
   > Answer:
-- [ ] **Starting tile** — always the Farmhouse?
+- [x] **Starting tile** — random: any countryside place or settlement hex (never Wasteland or Mountain).
   > Answer:
 
 ### Starting values

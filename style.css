@@ -349,6 +349,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 .slot-item.sel .slotkey { color: #111; background: var(--accent); border-color: var(--accent); }
 .slot-item.sel::after { content: 'Enter ↵'; position: absolute; top: -9px; right: 8px; font-size: 10px; font-weight: 700; background: var(--accent); color: #111; padding: 0 6px; border-radius: 4px; }
 .slot-item .ic { font-size: 22px; }
+.iimg { width: 1.15em; height: 1.15em; vertical-align: -0.2em; object-fit: contain; }   /* an item's own picture, sized like an emoji */
 .slot-item div { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .slot-item b { font-size: 12.5px; white-space: nowrap; }
 .slot-item .cond { flex-shrink: 0; }
@@ -475,31 +476,24 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
     padding: 2px 10px; background: var(--panel-a); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px #000a; }
   .stat { --o: var(--orbsize); flex-direction: column; gap: 3px; }
   .stat small { display: none; }
-  /* the backpack folds to a bar (tap to open). Its row is a fixed height; open, it hangs from the bottom of it, up over the map */
-  #pack { grid-area: pack; justify-content: center; width: auto; padding: 8px 12px; border-radius: 12px; }
-  button.packhead { cursor: pointer; min-height: 30px; }
-  .packhead .caret, .packhead .bag { display: inline; }
-  .packhead .word { display: none; }
-  .packhead .caret { margin-left: auto; }
-  .packhead .packicons { min-width: 0; overflow: hidden; white-space: nowrap; }
-  .packhead .caret::after { content: '▾'; font-size: 14px; }
-  #pack.open .packhead .caret::after { content: '▴'; }
-  /* folded: a chip per item — icon, name and condition; with more than 3, the name goes and the condition sits under the icon */
-  #pack:not(.open) .packhead .packicons { display: flex; align-items: center; gap: 14px; flex: 1; text-transform: none; letter-spacing: 0; color: var(--text); }
-  .pchip { display: flex; align-items: center; gap: 7px; min-width: 0; }
-  .pchip .ic { font-size: 24px; line-height: 1; }
-  .pchip .pinfo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .pchip b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
-  .packicons.many { gap: 6px; }
-  .packicons.many .pchip { flex-direction: column; gap: 3px; }
-  .packicons.many .pchip b { display: none; }
-  .packicons.many .cond { gap: 1px; }
-  .packicons.many .cond i { width: 4px; height: 4px; }
-  .pchip .cond { flex-shrink: 0; }
-  .packhead .bag { font-size: 22px; letter-spacing: 0; }
+  /* the backpack is a full bar above the actions — all six slots, each with its Use / Take / leave buttons, no need to open it */
+  #pack, #pack.open { grid-area: pack; position: static; display: grid; grid-template-columns: auto repeat(6, minmax(0, 1fr)); align-items: center; gap: 6px;
+    align-self: stretch; justify-self: stretch; width: auto; max-height: none; overflow: visible; padding: 6px 8px; border-radius: 12px; background: var(--panel-a); }
+  #pack button.packhead { pointer-events: none; min-height: 0; width: auto; padding: 0 6px 0 2px; }
+  .packhead .bag { display: inline; font-size: 22px; letter-spacing: 0; }
+  .packhead .word, #pack .packhead .packicons, #pack .packhead .caret { display: none !important; }
   .packhead .packname { font-size: 13px; }
-  #pack:not(.open) .slot-item { display: none; }
-  #pack.open { align-self: end; justify-self: start; z-index: 6; width: min(340px, 100%); max-height: 60vh; overflow-y: auto; background: var(--panel); }
+  /* each slot: the icon (Use / Take as a badge under it), then its name over its condition, and leave (✕) at the top right */
+  #pack .slot-item, #pack:not(.open) .slot-item { display: grid; grid-template: auto auto / auto minmax(0, 1fr) auto; grid-template-areas: "ic name drop" "ic pips pips";
+    align-items: center; column-gap: 6px; row-gap: 3px; height: 50px; min-width: 0; padding: 4px 4px 4px 6px; box-shadow: none; }
+  #pack .slot-item.empty { display: block; }
+  #pack .slot-item .ic { grid-area: ic; align-self: start; justify-self: center; }
+  #pack .slot-item div { display: contents; }
+  #pack .slot-item b { grid-area: name; overflow: hidden; text-overflow: ellipsis; }
+  #pack .slot-item .cond { grid-area: pips; }
+  #pack .slot-item .use { grid-area: ic; align-self: end; justify-self: center; z-index: 1; padding: 0 3px; font-size: 9px; line-height: 1.35; border-radius: 4px; }
+  #pack .slot-item .use kbd { display: none; }
+  #pack .slot-item .drop { grid-area: drop; padding: 0 4px; line-height: 1.2; }
   /* the action tray: one row; the main tray shows just the emoji */
   #dock { grid-area: dock; position: static; width: auto; margin: 0; }
   #actions, #actions .ribbon { width: 100%; }
@@ -515,35 +509,15 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   #board.threat #dock { position: absolute; grid-area: auto; }
   #board.threat .ribbon { grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); }
 }
-/* sideways: the resources and the backpack share the top row (it opens downward); the clock and AP dial flank the map */
+/* sideways: the resources and the backpack share the top row; the clock and AP dial flank the map */
 @media (orientation: landscape) and (pointer: coarse), (orientation: landscape) and (max-width: 1100px), (orientation: landscape) and (max-height: 500px) {
   #board { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto; grid-template-rows: var(--bar) minmax(0, 1fr) auto;
     grid-template-areas: "stats stats pack pack" "clock map map ap" "dock dock dock dock"; }
   #timer { grid-area: clock; align-self: end; }   /* tucked under the clock, which stays level with the AP dial */
-  #pack.open { align-self: start; justify-self: end; }
   /* the dials sit beside the map: keep ~320px of width for it, and room under the clock for the timer */
   :root { --clock: clamp(110px, min(calc((100dvw - 370px) / 2), calc(100dvh - 300px)), 210px); }
 }
-/* tablets and half-screen windows: the backpack is a full bar above the actions — every item with its
-   Use / Take / leave buttons, no need to open it */
-@media (pointer: coarse) and (min-width: 700px) and (min-height: 600px), (orientation: portrait) and (min-width: 700px) and (min-height: 600px), (max-width: 1100px) and (min-width: 700px) and (min-height: 600px) {
-  #pack, #pack.open { grid-area: pack; position: static; display: grid; grid-template-columns: auto repeat(6, minmax(0, 1fr)); align-items: center; gap: 6px;
-    align-self: stretch; justify-self: stretch; width: auto; max-height: none; overflow: visible; padding: 6px 8px; background: var(--panel-a); }
-  #pack button.packhead { pointer-events: none; min-height: 0; width: auto; padding: 0 6px 0 2px; }
-  #pack .packhead .packicons, #pack .packhead .caret { display: none !important; }
-  /* each slot: the icon (Use / Take as a badge under it), then its name over its condition, and leave (✕) at the top right */
-  #pack .slot-item, #pack:not(.open) .slot-item { display: grid; grid-template: auto auto / auto minmax(0, 1fr) auto; grid-template-areas: "ic name drop" "ic pips pips";
-    align-items: center; column-gap: 6px; row-gap: 3px; height: 50px; min-width: 0; padding: 4px 4px 4px 6px; box-shadow: none; }
-  #pack .slot-item.empty { display: block; }
-  #pack .slot-item .ic { grid-area: ic; align-self: start; justify-self: center; }
-  #pack .slot-item div { display: contents; }
-  #pack .slot-item b { grid-area: name; overflow: hidden; text-overflow: ellipsis; }
-  #pack .slot-item .cond { grid-area: pips; }
-  #pack .slot-item .use { grid-area: ic; align-self: end; justify-self: center; z-index: 1; padding: 0 3px; font-size: 9px; line-height: 1.35; border-radius: 4px; }
-  #pack .slot-item .use kbd { display: none; }
-  #pack .slot-item .drop { grid-area: drop; padding: 0 4px; line-height: 1.2; }
-}
-/* …and held sideways, that bar moves from the top row to just above the actions */
+/* tablets and half-screen windows held sideways: the backpack bar moves from the top row to just above the actions */
 @media (pointer: coarse) and (min-width: 700px) and (min-height: 600px) and (orientation: landscape), (max-width: 1100px) and (min-width: 700px) and (min-height: 600px) and (orientation: landscape) {
   #board { grid-template-rows: var(--bar) minmax(0, 1fr) auto auto;
     grid-template-areas: "stats stats stats stats" "clock map map ap" "pack pack pack pack" "dock dock dock dock"; }
@@ -553,8 +527,19 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 @media (max-width: 640px), (max-height: 500px) {
   :root { --gap: 8px; --clock: clamp(96px, calc((100dvh - 511px) / 2), 136px); --ap: var(--clock); --orbsize: 44px; --bar: 50px; }
   #board { gap: 6px 8px; }
-  .packhead .bag { font-size: 20px; }
-  .pchip .ic { font-size: 22px; }
+  /* six narrow slots: the icon, its condition under it, ✕ in the corner, Use / Take on the icon (no names: tap a slot for it) */
+  #pack, #pack.open { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; padding: 4px; }
+  #pack button.packhead { display: none; }
+  #pack .slot-item, #pack:not(.open) .slot-item { position: relative; grid-template: minmax(0, 1fr) auto / minmax(0, 1fr); grid-template-areas: "ic" "pips";
+    justify-items: center; row-gap: 2px; height: 100%; max-height: 46px; padding: 3px 2px; }
+  #pack .slot-item.empty { height: 100%; max-height: 46px; }
+  #pack .slot-item b { display: none; }
+  #pack .slot-item .ic { align-self: center; font-size: 21px; line-height: 1; }
+  #pack .slot-item .cond { gap: 1px; }
+  #pack .slot-item .cond i { width: 4px; height: 4px; }
+  #pack .slot-item .use { position: absolute; left: 1px; top: 1px; }
+  #pack .slot-item .drop { position: absolute; right: 0; top: 0; padding: 1px 4px; font-size: 10px; }
+  #pack .slot-item .drop.armed { inset: 0; z-index: 2; padding: 0; font-size: 10px; font-weight: 700; border-radius: 8px; }   /* "Leave it?" covers the slot */
   .ribbon.main .act { padding: 8px 2px; }
   .ribbon.main .act .ai { font-size: 24px; }
 }

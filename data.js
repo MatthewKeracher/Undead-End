@@ -76,7 +76,7 @@ const ITEMS = {
   'Hockey Stick': melee('🏒'),
   Pickaxe: melee('⛏️'),
   Wrench: melee('🔧'),
-  Chainsaw: { icon: '🪚', weapon: true, uses: 'fuel', kills: 3, verb: 'Rev', desc: 'Fight: 1 condition per round; each rev burns 1 🟠 fuel and kills up to 3 zombies.' },
+  Chainsaw: { icon: '🪚', img: 'assets/chainsaw.png', weapon: true, uses: 'fuel', kills: 3, verb: 'Rev', desc: 'Fight: 1 condition per round; each rev burns 1 🟠 fuel and kills up to 3 zombies.' },
   'Body Armor': { icon: '🦺', armor: true, desc: 'When a flee roll fails: take the hit for −1 condition and reroll (1 AP).' },
   Truck: fuelVehicle('🛻'),
   Tractor: fuelVehicle('🚜'),
@@ -104,13 +104,15 @@ const MULTIPLIERS = { double: 2, triple: 3, quadruple: 4 };
 function parseResult(text, where) {
   let t = String(text).trim().toLowerCase().replace(/\s+/g, ' ');
   if (t === 'zombies') return { zombies: 1 };
+  if (t === 'random') return { random: 1 };   // anything: drawn from every place's table as the tile is placed
   // 'Endless …' never runs out: the row is never crossed off
   const endless = t.startsWith('endless ');
   if (endless) t = t.slice(8);
+  if (endless && t === 'random') throw new Error(`${where}: "${text}" — a Random row can't be Endless.`);
   // a mix, e.g. 'Food + Water' or 'Truck + Fuel': each part rolls its own 1d6
   if (t.includes('+')) {
     const parts = t.split('+').map((x) => parseResult(x, where));
-    if (parts.some((x) => x.zombies || x.parts || x.endless)) throw new Error(`${where}: "${text}" — a mix can't include Zombies (and put Endless at the front).`);
+    if (parts.some((x) => x.zombies || x.random || x.parts || x.endless)) throw new Error(`${where}: "${text}" — a mix can't include Zombies or Random (and put Endless at the front).`);
     if (parts.filter((x) => x.item).length > 1) throw new Error(`${where}: "${text}" — a mix can have at most one item.`);
     return { parts, ...(endless && { endless }) };
   }
@@ -139,15 +141,13 @@ function loadLocations(list) {
     if (loc.spread && settlements.length) errors.push(`${where}: a belt or range can't also be built in settlements.`);
     if (loc.spread && !['belt', 'range'].includes(loc.spread)) errors.push(`${where}: spread must be 'belt' or 'range'.`);
     const table = raw.map((x, r) => { try { return parseResult(x, `${where}, roll ${r + 1}`); } catch (e) { errors.push(e.message); return null; } });
-    if (loc.start && loc.passable === false) errors.push(`${where}: the start tile can't be impassable.`);
+    if (raw.length && String(raw[2]).trim().toLowerCase() !== 'random') errors.push(`${where}: roll 3 is always 'Random' (it's "${raw[2]}").`);
     // most Safety it can be fortified to: safety: N, or 0 (also fortify: false) for outdoors
     const safety = loc.fortify === false ? 0 : loc.safety ?? CONFIG.maxSafety;
     if (!Number.isInteger(safety) || safety < 0 || safety > 12) errors.push(`${where}: safety must be a whole number from 0 (outdoors) to 12.`);
-    return { name: loc.name, icon: loc.icon || '', start: !!loc.start, safety, fortify: safety > 0, passable: loc.passable !== false, count, in: settlements, edge, spread: loc.spread || null, table };
+    return { name: loc.name, icon: loc.icon || '', safety, fortify: safety > 0, passable: loc.passable !== false, count, in: settlements, edge, spread: loc.spread || null, table };
   });
-  const starts = tiles.filter((t) => t && t.start);
-  if (starts.length !== 1) errors.push(`Exactly one location needs start: true (found ${starts.length}).`);
-  if (tiles.filter((t) => t && !t.start && t.count > 0).length < 1) errors.push('Add at least one location without start: true (and a count above 0), for scouting.');
+  if (tiles.filter((t) => t && t.count > 0).length < 1) errors.push('Add at least one location with a count above 0, for scouting.');
   for (const [kind, { size }] of Object.entries(CONFIG.settlements)) {
     const n = tiles.filter((t) => t && t.in.includes(kind)).length;
     if (n < size) errors.push(`A ${kind} is ${size} hexes, each a different place, but only ${n} locations have in: '${kind}'.`);
@@ -156,6 +156,6 @@ function loadLocations(list) {
     document.body.insertAdjacentHTML('afterbegin', `<pre style="position:fixed;inset:16px auto auto 16px;z-index:99;max-width:calc(100% - 32px);white-space:pre-wrap;padding:12px 16px;background:#3a0d0d;color:#ffd6cf;border:1px solid #e86a5a;border-radius:8px;font:13px/1.5 ui-monospace,monospace">locations.js has problems:\n• ${errors.map((e) => e.replace(/&/g, '&amp;').replace(/</g, '&lt;')).join('\n• ')}</pre>`);
     throw new Error(`locations.js: ${errors.join(' | ')}`);
   }
-  return { start: starts[0], tiles: tiles.filter((t) => !t.start) };   // the scouting pool: drawn by count (engine.js reveal)
+  return tiles;   // every place; the scouting pool is drawn from them by count (engine.js reveal)
 }
-const { start: START_TILE, tiles: TILES } = loadLocations(LOCATIONS);
+const TILES = loadLocations(LOCATIONS);

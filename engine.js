@@ -88,7 +88,10 @@ const Engine = (() => {
   // emptied (t.stashes). A tile with no table (e.g. Wasteland) has only empty rows — so it can only be
   // scavenged for a stash left there.
   const stashAt = (t, row) => (t.stashes || []).find((s) => s.row === row);
-  const rowEntry = (t, row) => t.def.table[row - 1] ?? (row === 1 ? { zombies: 1 } : null);
+  const rowEntry = (t, row) => {
+    const e = t.def.table[row - 1] ?? (row === 1 ? { zombies: 1 } : null);
+    return e?.random ? t.drawn?.[row] ?? null : e;   // a Random row: what was drawn for it when the tile was placed
+  };
   function lootRow(t, row) {
     const stash = stashAt(t, row);
     if (stash) return { kind: 'stash', stash };
@@ -97,6 +100,13 @@ const Engine = (() => {
     if (e.zombies) return { kind: 'zombies', e };
     return { kind: e.item || e.parts?.some((x) => x.item) ? 'item' : 'res', e };
   }
+  // A result picked at random from every place's table (each row of each place as likely) — zombies, Doubles and
+  // mixes included. Endless is dropped: only the place it belongs to never runs out of it.
+  const anyResult = (S) => {
+    const pool = TILES.flatMap((t) => t.table).filter((e) => !e.random);
+    const { endless, ...e } = pool[Math.floor(rand(S) * pool.length)];
+    return JSON.parse(JSON.stringify(e));
+  };
   const tableView = (t) => [1, 2, 3, 4, 5, 6].map((row) => ({ row, ...lootRow(t, row) }));
   // something to scavenge for: a table (or a stash left on a tile without one), and at least one row not crossed off
   const canScavengeHere = (t) => (t.def.table.length > 0 || (t.stashes || []).length > 0) && tableView(t).some((r) => r.kind !== 'looted');
@@ -137,7 +147,13 @@ const Engine = (() => {
   const statsOf = (p) => ({ ap: p.ap, maxAP: p.maxAP, res: { ...p.res } });
 
   // ---------------------------------------------------------------- setup
-  const newTile = (def, safety = 0) => ({ def, safety, zombies: 0, vehicles: [], looted: [], stashes: [] });
+  // A Random row (row 3 in every table) is given its result as the tile is placed — anything from any place's table,
+  // zombies included — and from then on it's an ordinary row (t.drawn: row → its result).
+  function newTile(S, def, safety = 0) {
+    const t = { def, safety, zombies: 0, vehicles: [], looted: [], stashes: [] };
+    def.table.forEach((e, i) => { if (e.random) (t.drawn ??= {})[i + 1] = anyResult(S); });
+    return t;
+  }
   // The scouting pool: every place found alone in the countryside, plus a new village, town or city — each as
   // likely as its count (optionally only those that pass `ok`).
   function drawTile(S, ok = () => true) {
@@ -147,17 +163,18 @@ const Engine = (() => {
     return pool.find((t) => (x -= t.count) < 0) ?? pool.at(-1);
   }
   // An unexplored hex becomes a random location — unless a belt, range or settlement already claimed it (S.planned).
-  function reveal(S, q, r) {
+  // The first hex of a game (start) is never Wasteland or Mountain.
+  function reveal(S, q, r, start = false) {
     const k = key(q, r), plan = S.planned[k];
     delete S.planned[k];
     // next to a belt or range (seen or planned), it can't start another of the same kind: shapes stay apart
     const touches = (name) => neighbors(q, r).some(([a, b]) => (S.tiles[key(a, b)]?.def.name ?? S.planned[key(a, b)]) === name);
     let def = plan === 'pass' ? drawTile(S, (t) => !t.spread && !t.settlement)   // a gap in a range: a place in open country
       : (plan && TILES.find((t) => t.name === plan)) || drawTile(S, (t) => t.settlement ? roomForTown(S, q, r)
-        : !(t.spread && (touches(t.name) || !roomFor(S, q, r, t))));
+        : !(t.spread && (start || touches(t.name) || !roomFor(S, q, r, t))));
     let founded = null;
     if (def.settlement) { founded = foundTown(S, q, r, def.settlement); def = founded.first; }   // a new settlement: this is its first hex
-    S.tiles[k] = newTile(def);
+    S.tiles[k] = newTile(S, def);
     if (S.townOf[k] !== undefined) S.tiles[k].town = S.townOf[k];
     if (!plan && def.spread) spread(S, q, r, def);   // a fresh Wasteland or Mountain grows its shape
     const town = S.towns[S.townOf[k]];
@@ -293,7 +310,8 @@ const Engine = (() => {
       seed, rng: seed | 0, day: CONFIG.startDay, round: CONFIG.startRound, tiles: {}, planned: {}, towns: [], townOf: {}, players: [],
       log: [], events: [], rolls: [], forced: [], autoEnd, timesUp: false, checksOff, badNight: false, over: null,
     };
-    S.tiles[key(0, 0)] = newTile(START_TILE, CONFIG.startSafety);
+    const first = reveal(S, 0, 0, true);   // you start somewhere random: anywhere in the countryside, or in a settlement
+    S.tiles[first.k].safety = CONFIG.startSafety;
     for (const id of CONFIG.testStartVehicles || []) S.tiles[key(0, 0)].vehicles.push({ id, cond: CONFIG.maxCondition });
     names.forEach((name, i) => {
       // CONFIG.startAP (8 of 12), CONFIG.startRes (4 food, 6 water, 3 booze) and CONFIG.startItems (none)
@@ -306,7 +324,7 @@ const Engine = (() => {
       for (const [k, n] of Object.entries(CONFIG.testStartRes || {})) p.res[k] += n;
       S.players.push(p);
     });
-    log(S, `Day ${S.day} begins. ${plural(names.length, 'survivor')} shelter at the ${START_TILE.name}.`, 'phase');
+    log(S, `Day ${S.day} begins. ${plural(names.length, 'survivor')} shelter at the ${first.icon} ${first.name}.`, 'phase');
     for (const p of S.players) {
       log(S, `${p.name} starts with 🎲 ${p.ap} AP, ${p.res.food} ${ICON.food} food, ${p.res.water} ${ICON.water} water, ${p.res.booze} ${ICON.booze} booze.`);
     }

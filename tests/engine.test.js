@@ -12,14 +12,19 @@ function load() {
   for (const f of ['locations.js', 'data.js', 'engine.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx, { filename: f });
   }
-  return vm.runInContext('({ Engine, CONFIG, ITEMS, TILES, START_TILE })', ctx);
+  return vm.runInContext('({ Engine, CONFIG, ITEMS, TILES })', ctx);
 }
 const { Engine: E, CONFIG, TILES, ITEMS } = load();
 const def = (name) => TILES.find((t) => t.name === name);
 
-// A fresh one-player game with checks off and an empty backpack (so tests start from a clean slate).
+// A fresh one-player game with checks off and an empty backpack (so tests start from a clean slate) — on a
+// Farmhouse with nothing planned around it, so tests know where they stand (real games start anywhere).
 function game(opts = {}) {
   const S = E.createGame({ seed: 42, checksOff: true, ...opts });
+  if (!opts.anywhere) {
+    Object.assign(S, { planned: {}, towns: [], townOf: {} });
+    S.tiles['0,0'] = { def: def('Farmhouse'), safety: 0, zombies: 0, vehicles: [], looted: [], stashes: [], drawn: { 3: { res: 'water', n: 2 } } };
+  }
   E.start(S);
   for (const p of S.players) p.items = [];
   return { S, p: S.players[0] };
@@ -27,6 +32,20 @@ function game(opts = {}) {
 const act = (S, action) => E.act(S, 0, action);
 const decide = (S, choice) => E.act(S, 0, { type: 'decide', choice });
 const tile = (S, q, r, name, extra = {}) => (S.tiles[`${q},${r}`] = { def: def(name), safety: 0, zombies: 0, vehicles: [], ...extra });
+
+test('you start somewhere random — anywhere but Wasteland or Mountain, sometimes in a settlement', () => {
+  const where = new Set();
+  let inTown = 0;
+  for (let seed = 1; seed <= 200; seed++) {
+    const S = E.createGame({ seed });
+    const t = S.tiles['0,0'];
+    assert.ok(t.def.passable && !t.def.spread, t.def.name);
+    where.add(t.def.name);
+    if (t.town !== undefined) inTown++;
+  }
+  assert.ok(where.size > 15, [...where].join(', '));
+  assert.ok(inTown > 10, `${inTown} of 200 start in a settlement`);
+});
 
 test('same seed, same game', () => {
   const a = E.createGame({ seed: 7 }), b = E.createGame({ seed: 7 });
@@ -179,11 +198,37 @@ test('scavenge a resource: 1d6 of it; a Double is 1d6 × 2', () => {
   act(S, { type: 'scavenge' });
   assert.equal(p.res.food, food + 5);
   assert.equal(p.ap, CONFIG.startAP - 1);
-  tile(S, 1, 0, 'YOLO Foods');          // 3 = Double Food
+  tile(S, 1, 0, 'Forest');              // 4 = Double Food
   act(S, { type: 'move', q: 1, r: 0 });
-  S.forced = [3, 4];
+  S.forced = [4, 4];
   act(S, { type: 'scavenge' });
   assert.equal(p.res.food, food + 5 + 8);
+});
+
+test('row 3 is Random everywhere: drawn as the tile is placed — anything from any table, zombies included', () => {
+  for (const t of TILES.filter((x) => x.table.length)) assert.ok(t.table[2].random, `${t.name} row 3`);
+  const got = new Set();
+  let zombies = 0, n = 0;
+  for (let seed = 1; seed <= 15; seed++) {
+    const S = explore(seed, 4);
+    for (const t of Object.values(S.tiles)) {
+      if (!t.def.table.length) continue;
+      const e = t.drawn?.[3];   // (a stash may cover the row — the result is still there underneath)
+      assert.ok(e && !e.random && !e.endless, `${t.def.name} row 3: ${JSON.stringify(e)}`);
+      n++; if (e.zombies) zombies++;
+      got.add(E.cellText(e));
+    }
+  }
+  assert.ok(zombies / n > 0.1 && zombies / n < 0.4, `zombies on ${zombies} of ${n}`);
+  assert.ok([...got].some((x) => x.startsWith('Double')) && [...got].some((x) => x.includes(' + ')), [...got].join(', '));
+  // and it's an ordinary row: scavenging a 3 finds what it shows, then it's crossed off
+  const { S, p } = game({ seed: 5, anywhere: true });
+  const shown = E.tableView(E.tileOf(S, p))[2].e;
+  S.forced = [3];
+  const ev = act(S, { type: 'scavenge' }).events.find((x) => x.type === 'scavenge');
+  assert.deepEqual(ev.hit.e, shown);
+  assert.ok(E.tileOf(S, p).looted.includes(3));
+  assert.equal(JSON.parse(JSON.stringify(S)).tiles['0,0'].drawn[3].zombies, shown.zombies);   // saved with the tile
 });
 
 test('scavenge zombies: Safety absorbs, the rest break through → fight', () => {
@@ -296,7 +341,7 @@ test('terrain comes in shapes: Wasteland belts of 3 or 7, Mountains in ranges', 
 
 // Explore a game out to radius R (scouting from every hex in turn), returning its state.
 function explore(seed, R) {
-  const { S, p } = game({ seed });
+  const { S, p } = game({ seed, anywhere: true, autoEnd: false });   // no rounds pass (no nights to die in)
   for (let ring = 0; ring < R; ring++) for (const k of Object.keys(S.tiles)) {
     const [q, r] = k.split(',').map(Number);
     if (Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) !== ring) continue;
@@ -339,7 +384,7 @@ test('settlement places are never found alone; guns: Gun Shop and Sheriff in tow
   for (let seed = 1; seed <= 20; seed++) {
     const S = explore(seed, 6);
     for (const t of Object.values(S.tiles)) {
-      if (t.town === undefined) assert.ok(t.def.count > 0 || t.def.start || Object.keys(t.def.edge).length, `${t.def.name} alone in the country`);
+      if (t.town === undefined) assert.ok(t.def.count > 0 || Object.keys(t.def.edge).length, `${t.def.name} alone in the country`);
       else {
         const kind = S.towns[t.town].kind;
         if (['Gun Shop', "Sheriff's Office"].includes(t.def.name)) assert.equal(kind, 'town');

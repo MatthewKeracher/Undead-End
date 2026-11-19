@@ -99,24 +99,24 @@ Repeat until the tile is clear, you escape, or you die.
 - When found, an item's **condition is rolled 1d6**. Condition = number of uses; at 0 the item breaks.
 - **Backpack holds 6 items.** If full when finding one, destroy an item or leave the new one.
 - Items can be dropped at any time: a dropped item goes into **your stash** on that tile (see Tiles).
-- **Pistol** (gun): see Fight. Found in towns (Gun Shop, Sheriff's Office), at the Army Checkpoint, and in cities only at the Police Station — guns are a town thing.
-- **Axe** (melee): see Fight. Found at Farmhouse, Forest, Hardware Store, Fire Station, Cottage, Hut, Stables, Graveyard.
+- **Pistol** (gun): see Fight. Found in towns (Gun Shop, Sheriff's Office), at the Army Checkpoint, and in cities only at the Police Station (one row) — guns are a town thing.
+- **Axe** (melee): see Fight. Found at Farmhouse, Forest, Cottage, Hardware Store, Fire Station.
 - **Weapon looks** (pure re-skins, like the vehicles): melee ones work exactly like the Axe, the Bow like the Pistol (it fires ammo).
   | Weapon | Kind | Found at |
   |---|---|---|
   | 🏹 Bow | gun (ammo) | Campsite, Castle (**Bow + Ammo**) |
   | 🗡️ Sword | melee | Castle |
-  | 🔪 Kitchen Knife | melee | Corner Shop, Hotel |
+  | 🔪 Kitchen Knife | melee | Cottage, Hotel |
   | 🍳 Frying Pan | melee | Diner, Café |
-  | 🏏 Cricket Bat | melee | Pub, School |
-  | 🏒 Hockey Stick | melee | Stadium |
-  | ⛏️ Pickaxe | melee | Quarry |
+  | 🏏 Cricket Bat | melee | Pub, School, Stadium |
+  | 🏒 Hockey Stick | melee | School, Stadium |
+  | ⛏️ Pickaxe | melee | Quarry, Graveyard |
   | 🔧 Wrench | melee | Garage |
   - The fight buttons show the weapon you'll use (the lowest-condition one of that kind).
-- **Chainsaw** (fuel): see Fight. Found at the Hardware Store, Fire Station and Quarry.
+- **Chainsaw** (fuel): see Fight. Found at the Hardware Store and Fire Station.
 - *To come back to:* 💣 **Bomb** and 🧨 **Firecracker** — weapons with their own mechanics (not designed yet; e.g. clearing a whole tile, or drawing zombies away).
 - With several kinds of weapon you choose which to fight with.
-- **Armor** (e.g. **Body Armor**): when a **flee roll fails**, armor can take the punch for **−1 condition**, allowing a **reroll** if you have AP left (the reroll costs 1 AP, like any flee attempt). Can repeat while armor and AP last. Found at the Gun Shop, Sheriff's Office, Police Station, Fire Station and Castle.
+- **Armor** (e.g. **Body Armor**): when a **flee roll fails**, armor can take the punch for **−1 condition**, allowing a **reroll** if you have AP left (the reroll costs 1 AP, like any flee attempt). Can repeat while armor and AP last. Found at the Gun Shop, Sheriff's Office, Police Station and Castle.
 - **Vehicles: Truck and Bike.** Work like the gun / axe but for movement. They sit **on a tile, not in the backpack** (found by scavenging → parked on that tile; condition rolled 1d6).
   - **Truck:** 1 **fuel** per tile (no AP). A truck without fuel must be left behind, but can be returned to.
   - **Bike:** 1 **AP** per tile.
@@ -128,21 +128,21 @@ Repeat until the tile is clear, you escape, or you die.
     | Vehicle | Kind | Found at |
     |---|---|---|
     | 🛻 Truck | fuel | Petrol Station, Fuel Depot, Car Park (**Truck + Fuel**: you also get 1d6 fuel), Garage |
-    | 🚜 Tractor | fuel | Farmhouse (**Tractor + Fuel**), Farm |
+    | 🚜 Tractor | fuel | Farmhouse (**Tractor + Fuel**) |
     | 🚑 Ambulance | fuel | Hospital |
     | 🚓 Police Car | fuel | Sheriff's Office, Police Station |
-    | 🚙 Jeep | fuel | Army Checkpoint, Stadium, Car Park |
+    | 🚙 Jeep | fuel | Army Checkpoint, Car Park |
     | 🚚 Van | fuel | YOLO Foods, Car Park |
     | 🚌 Bus | fuel | School |
     | 🚐 Campervan | fuel | Campsite |
     | 🚒 Fire Engine | fuel | Fire Station |
-    | 🚲 Bike | pedal (AP) | School, Campsite, Post Office |
+    | 🚲 Bike | pedal (AP) | Campsite, Post Office |
     | 🐎 Horse | pedal (AP) | Stables |
   - Keys: **E** drives the fuel vehicle parked here, **B** rides the pedal one.
 - **Radio** *(multiplayer, planned)*: talk to players **not on your tile** (same-tile voice is the default). Details in `MULTIPLAYER.md`.
-- **Tools** (e.g. the **Tool**): have a condition like any item. Can be used **at any time, for free**, to transfer any amount of their condition to another item (max 6 condition). At 0 condition the tool is destroyed. Tool found at Hardware Store, Petrol Station, Campsite *(placeholder name & locations)*.
-- **Pills**: taken **at any time, for free** (not your action; not mid-fight): each dose costs **1 condition** and tops your **AP up to your max AP** (max AP itself doesn't change — only food and water do that). Can't be taken when AP is already at max. Found with **1d6 condition**, like any item. Gone at 0 condition. Found at the Pharmacy (two rows), Hospital and Post Office *(placeholder)*.
-- **Binoculars**: while carried, **Scout reveals the hexes next to you, then the hexes next to those** (the second ring) — **but not past a Mountain**: a hex 2 away is only seen through a non-Mountain hex next to you. With everything next to you explored, you can still scout the second ring. Each scout with them costs **1 condition**; gone at 0. Found at the Army Checkpoint and Library *(placeholder)*.
+- **Tools** (e.g. the **Tool**): have a condition like any item. Can be used **at any time, for free**, to transfer any amount of their condition to another item (max 6 condition). At 0 condition the tool is destroyed. Tool found at the Hardware Store, Garage, Quarry, Fuel Depot, Graveyard and Post Office *(placeholder)*.
+- **Pills**: taken **at any time, for free** (not your action; not mid-fight): each dose costs **1 condition** and tops your **AP up to your max AP** (max AP itself doesn't change — only food and water do that). Can't be taken when AP is already at max. Found with **1d6 condition**, like any item. Gone at 0 condition. Found at the Pharmacy (two rows), Hospital (two rows) and Post Office *(placeholder)*.
+- **Binoculars**: while carried, **Scout reveals the hexes next to you, then the hexes next to those** (the second ring) — **but not past a Mountain**: a hex 2 away is only seen through a non-Mountain hex next to you. With everything next to you explored, you can still scout the second ring. Each scout with them costs **1 condition**; gone at 0. Found at the Army Checkpoint, Library and Post Office *(placeholder)*.
 - **Map** *(disabled for now — in no loot table)*: used the moment it's found (never carried, no condition) — like scouting everywhere at once: every unexplored hex next to any explored one is revealed.
 - If you carry several weapons of the same kind, the one with the **lowest condition** is used first *(placeholder)*.
 
@@ -156,12 +156,13 @@ Repeat until the tile is clear, you escape, or you die.
   - A tile with no table (Wasteland) only has empty rows — so it can be scavenged just for a stash left there *(placeholder)*.
 - Each tile has a **d6 scavenge table**:
   - **1 is always Zombies** (finite — see Zombies).
-  - Results 2–6 are the tile's 5 themed items/resources.
-  - Every resource result gives **1d6** of that resource (`CONFIG.lootDice`) — quietly **never a 1**: the die only lands 2–6, evenly (`CONFIG.lootMin`; not shown to players); a **Double** gives **1d6 × 2** (at most one Double per place, on what it's richest in — e.g. YOLO Foods' Double Food, the Gun Shop's Double Ammo). "Triple" (× 3) also works but isn't used. Item condition and zombie counts are **1d6**. A **mix** gives every part, each rolled on its own — used a lot: Food + Water, Food + Booze, Pistol + Ammo, Fuel + Ammo, Tool + Fuel, Truck + Fuel. A few dangerous places have **extra Zombies rows**: the Police Station, Shopping Mall and Train Station 2, the Stadium and Graveyard 3.
+  - **3 is random:** as each tile is placed, its row 3 is given a result picked at random from every place's table (each row of each place equally likely) — zombies (about 1 in 5), Doubles and mixes included; never Endless. From then on it's an ordinary row: players just see what it is (`'Random'` in `locations.js`).
+  - Results 2, 4, 5 and 6 are what you'd really find at that place: food and drink at the Diner, Café and YOLO Foods; pills at the Pharmacy and Hospital; guns and armour at the Gun Shop, Sheriff's Office and Police Station; sports kit at the School and Stadium; a sword, bow and armour at the Castle; and so on.
+  - Every resource result gives **1d6** of that resource (`CONFIG.lootDice`) — quietly **never a 1**: the die only lands 2–6, evenly (`CONFIG.lootMin`; not shown to players); a **Double** gives **1d6 × 2** (at most one Double per place, on what it's richest in — e.g. YOLO Foods' Double Food, the Gun Shop's Double Ammo). "Triple" (× 3) also works but isn't used. Item condition and zombie counts are **1d6**. A **mix** gives every part, each rolled on its own — used a lot: Food + Water, Food + Booze, Pistol + Ammo, Fuel + Ammo, Tool + Fuel, Truck + Fuel. A few places are overrun — **a second Zombies row**: the Graveyard, Train Station and Stadium.
 - Tiles differ in what their 5 results give.
 - **Wasteland** tiles have **no scavenge table** (Scavenge is blocked) and **cannot be fortified** (Safety stays 0, so night attacks hit in full). Zombies only reach them at night. They come in **belts**: a **triangle of 3** or (30% of the time) a **cluster of 7** — when a fresh one is revealed, the rest of the belt is set on the unexplored hexes around it and appears as you explore (`spread: 'belt'`, `CONFIG.beltBig`). About 14% of the land.
-- **Max Safety differs by place** (`safety:` in `locations.js`): **0 outdoors** — Forest, Lake, Campsite, Orchard, Fishing Spot, Quarry, Graveyard, Fields, Golf Course, Wasteland, Mountain can't be fortified (night attacks hit in full; cleared zombies drift back as soon as you leave) — and **2–8 indoors**, from the Hut (2) to the Castle, Police Station and Bank (8). At 7–8 a single night attack (max 6) can't break through. The countryside has the food and water but few walls; settlements have the walls.
-- **Countryside and settlements.** Scouting draws each new hex at random from the **countryside** places (Forest, Lake, Campsite, Farm, Orchard, Cottage, Hut, Fishing Spot, Stables, Quarry, Castle, Graveyard, and the roadside Petrol Station, Army Checkpoint, Diner and Fuel Depot), Wasteland, Mountain — or the first hex of a new **settlement**, planned whole at once (`CONFIG.settlements`) and appearing as you explore:
+- **Max Safety differs by place** (`safety:` in `locations.js`): **0 outdoors** — Forest, Lake, Campsite, Orchard, Fishing Spot, Quarry, Graveyard, Fields, Golf Course, Wasteland, Mountain can't be fortified (night attacks hit in full; cleared zombies drift back as soon as you leave) — and **2–8 indoors**, from the Car Park (2) to the Castle, Police Station and Bank (8). At 7–8 a single night attack (max 6) can't break through. The countryside has the food and water but few walls; settlements have the walls.
+- **Countryside and settlements.** Scouting draws each new hex at random from the **countryside** places (Farmhouse, Forest, Lake, Campsite, Orchard, Cottage, Fishing Spot, Stables, Quarry, Castle, Graveyard, and the roadside Petrol Station, Army Checkpoint, Diner and Fuel Depot), Wasteland, Mountain — or the first hex of a new **settlement**, planned whole at once (`CONFIG.settlements`) and appearing as you explore:
   | Settlement | Hexes | How common | Built from (each hex a different place) |
   |---|---|---|---|
   | 🏘️ Village | 3 | ~3–4 per solo map | Church, Pub, Corner Shop, Post Office, Cottage |
@@ -180,7 +181,8 @@ Repeat until the tile is clear, you escape, or you die.
 
 ## Prototype placeholders (in `data.js` and `locations.js`, change freely)
 - Game starts Day 1, Round 1 (first morning).
-- Each player starts with **8 AP** (`CONFIG.startAP`) and **max AP 12**, **4 Food, 6 Water and 3 Booze**, 0 Fuel and 0 Ammo (`CONFIG.startRes`), and **no items** (`CONFIG.startItems`) — the Farmhouse's Axe (row 5) is the nearest weapon.
+- **You start somewhere random:** the first hex is revealed like any other — a countryside place or the first hex of a village, town or city — but never Wasteland or Mountain. You know nothing else of the map.
+- Each player starts with **8 AP** (`CONFIG.startAP`) and **max AP 12**, **4 Food, 6 Water and 3 Booze**, 0 Fuel and 0 Ammo (`CONFIG.startRes`), and **no items** (`CONFIG.startItems`) — find a weapon.
 - A tile holds as much Safety as its place allows (default **5**, `CONFIG.maxSafety`) — and at most **6 zombies** (`CONFIG.maxZombies`). Safety belongs to the tile and is shared by everyone on it; it does not decay.
 - Scouting reveals a random tile from the tile list for each unexplored neighbour; the scout stays put.
 - Sharing resources with a player on the same tile is free (doesn't use the round).
