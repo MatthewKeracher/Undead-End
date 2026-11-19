@@ -207,6 +207,8 @@ body:not(.log-open) #panel { display: none; }
 @container board (max-width: 900px) { #timer { font-size: 20px; gap: 10px; padding: 8px 16px; } #timer .bar { width: 140px; height: 10px; } }
 @container board (max-width: 740px) { #timer .bar { display: none; } }
 #actions > * { pointer-events: auto; }
+#actions.roundover > * { opacity: .35; filter: grayscale(1); pointer-events: none; }
+#actions.roundover .act.sel { animation: none; }
 #actions .note { margin: 0; box-shadow: 0 4px 12px #0008; background: var(--panel-a); border: 1px solid var(--line); }
 .ribbon { display: flex; gap: 6px; padding: 14px 8px 8px; background: var(--panel-a); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px #000a; backdrop-filter: blur(4px); flex-wrap: wrap; justify-content: center; max-width: 100%; }
 .act { display: flex; flex-direction: column; align-items: flex-start; text-align: left; min-width: 0; padding: 7px 10px; white-space: nowrap; flex-shrink: 0; }
@@ -339,6 +341,11 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 .packhead .packname { white-space: nowrap; }
 .slot-item { display: flex; align-items: center; gap: 8px; height: 42px; padding: 4px 6px 4px 8px; background: var(--panel-a); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 12px #0007; }
 .slot-item.empty { background: #ffffff06; border-style: dashed; box-shadow: none; }
+.slot-item { position: relative; }
+.slot-item .slotkey { position: absolute; top: -7px; left: -6px; margin: 0; padding: 0 4px; background: var(--panel); line-height: 1.4; }
+.slot-item.sel { border-color: var(--accent); background: #3a3220; animation: selpulse 1.2s ease-in-out infinite; }
+.slot-item.sel .slotkey { color: #111; background: var(--accent); border-color: var(--accent); }
+.slot-item.sel::after { content: 'Enter ↵'; position: absolute; top: -9px; right: 8px; font-size: 10px; font-weight: 700; background: var(--accent); color: #111; padding: 0 6px; border-radius: 4px; }
 .slot-item .ic { font-size: 22px; }
 .slot-item div { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .slot-item b { font-size: 12.5px; white-space: nowrap; }
@@ -415,7 +422,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 }
 /* touch screens: no keyboard hints */
 @media (hover: none) and (pointer: coarse) {
-  kbd, .act.sel::after { display: none; }
+  kbd, .act.sel::after, .slot-item.sel::after { display: none; }
 }
 @media (max-width: 640px), (max-height: 500px) {
   :root { --gap: 8px; --clock: 104px; --ap: 76px; --orbmax: 48px; }
@@ -425,7 +432,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   .hbtns .lbl { display: none; }
   .hbtns .ic { display: inline; }
   #panel { width: 100%; }
-  kbd, .act.sel::after { display: none; }
+  kbd, .act.sel::after, .slot-item.sel::after { display: none; }
   /* resources: one tight row */
   #pack { padding: 8px; border-radius: 10px; }
   .stat { gap: 8px; }

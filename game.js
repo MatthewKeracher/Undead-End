@@ -69,8 +69,11 @@ async function send(action) {
 
 async function play(events) {
   busy = true;
+  // the round is over: grey out the action bar until the next one has started and you can act again
+  $('#actions').classList.toggle('roundover', events.some((ev) => ev.type === 'round'));
   for (const ev of events) if (ev.player === undefined || ev.player === cur().id) await show(ev);
   busy = false;
+  $('#actions').classList.remove('roundover');
   const d = cur().pending;
   mode = d ? PENDING_MODE[d.kind] ?? null : null;   // whatever was going on (e.g. a drive cut short by the timer) is over
   render();
@@ -82,7 +85,7 @@ async function play(events) {
 async function show(ev) {
   switch (ev.type) {
     case 'sleep': return sleepShow(ev);
-    case 'fortify': return fortifyShow(ev);
+    case 'fortify': await fortifyShow(ev); return showSafety(ev.k, ev.after);
     case 'scavenge': return scavengeShow(ev);
     case 'scout': return revealShow(ev);
     case 'reveal': return revealShow(ev, 900);   // stepped into the unknown
@@ -690,6 +693,12 @@ async function fortifyShow({ name, r, before, after, max }) {
   await popupHold(1800);
 }
 
+// Fill a tile's Safety pips straight away. The map is only redrawn once the whole batch has played, and fortifying
+// ends the round, so the new round's banner, check and night attack would otherwise all play over the old pips.
+function showSafety(k, n) {
+  document.querySelectorAll(`#map .hex[data-k="${k}"] .pip`).forEach((c, i) => c.classList.toggle('on', i < n));
+}
+
 // Missed food / water: pause the game and show the max AP ring losing a segment.
 async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
   const pop = $('#popup');
@@ -1030,9 +1039,11 @@ function apGauge(ap, flash, max, losing = -1, gaining = -1, losingEnd = losing +
 }
 
 // Backpack: 6 slots in the top-right column of the board. ✕ arms, second click destroys.
-let dropArmed = -1;
+// Keys 1–6 highlight a slot; Enter then presses its button (Use / Take, or else ✕).
+let dropArmed = -1, packSel = -1;
 function renderPack() {
   const p = cur();
+  if (!p.items[packSel]) packSel = -1;
   // the header folds the backpack away on small screens (see style.css)
   let h = `<button type="button" class="packhead" data-packtoggle><span class="packname"><span class="word">Backpack</span><span class="bag">🎒</span> ${p.items.length}/${CONFIG.maxItems}</span>`
     // folded, it shows each item in brief: icon, name and condition (just icon and condition once there are more than 3)
@@ -1040,7 +1051,7 @@ function renderPack() {
   for (let i = 0; i < CONFIG.maxItems; i++) {
     const it = p.items[i];
     h += it
-      ? `<div class="slot-item"><span class="ic">${ITEMS[it.id].icon}</span><div><b>${esc(it.id)}</b>${condPips(it.cond)}</div>
+      ? `<div class="slot-item ${packSel === i ? 'sel' : ''}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${ITEMS[it.id].icon}</span><div><b>${esc(it.id)}</b>${condPips(it.cond)}</div>
           ${ITEMS[it.id].tool ? `<button class="use" data-use="${i}" title="Use tool (T)">Use <kbd>T</kbd></button>` : ''}
           ${ITEMS[it.id].pills ? `<button class="use" data-pill="${i}" title="Take a dose: AP back up to your max">Take</button>` : ''}
           <button class="drop ${dropArmed === i ? 'armed' : ''}" data-drop="${i}" title="Leave it in your stash on this tile">${dropArmed === i ? 'Leave it?' : '✕'}</button></div>`
@@ -1250,7 +1261,13 @@ $('#chatform').addEventListener('submit', (e) => {
 let selected = null;
 function selectAction(id) {
   selected = id;
+  if (id && packSel >= 0) selectSlot(-1);   // one highlight at a time, so Enter is never ambiguous
   document.querySelectorAll('#actions .act').forEach((b) => b.classList.toggle('sel', b.dataset.act === id));
+}
+function selectSlot(i) {
+  packSel = i;
+  if (i >= 0 && selected) selectAction(null);
+  renderPack();
 }
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Tab') {   // toggle between the note box and the game
@@ -1284,14 +1301,27 @@ document.addEventListener('keydown', (e) => {
     clickHex(p.q + a, p.r + b);      // clickHex ignores invalid targets
     return;
   }
-  if (isBack(e)) {   // clear the highlighted action; then stop picking a hex (decisions like Fight or Flee stay)
+  if (/^[1-6]$/.test(k)) {   // highlight a backpack slot (again to un-highlight)
+    const i = +k - 1;
+    if (!cur().items[i]) return toast(`Backpack slot ${k} is empty.`);
+    selectSlot(packSel === i ? -1 : i);
+    return;
+  }
+  if (isBack(e)) {   // clear the highlighted action or slot; then stop picking a hex (decisions like Fight or Flee stay)
     e.preventDefault();
     if (selected) selectAction(null);
+    else if (packSel >= 0) { dropArmed = -1; selectSlot(-1); }
     else if (mode === 'move') { mode = null; render(); }
     return;
   }
   if (e.key === 'Enter') {
     e.preventDefault();
+    if (packSel >= 0) {   // the slot's own button: Use / Take, otherwise ✕ (Enter again to leave it)
+      const slot = $('#pack .slot-item.sel'), btn = slot?.querySelector('.use') ?? slot?.querySelector('.drop');
+      btn?.click();
+      if (btn?.matches('.use')) selectSlot(-1);   // after the click: redrawing first would detach the button
+      return;
+    }
     const b = selected && $(`#actions [data-act="${selected}"]`);
     if (b && !b.disabled) { selected = null; b.click(); }
     return;
