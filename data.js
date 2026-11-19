@@ -19,6 +19,7 @@ const CONFIG = {
   maxCondition: 6,        // most condition any item can have
   maxRerolls: 2,          // landing on a crossed-off row rolls again — up to this many times, then you find nothing
   lootDice: 1,            // a resource find rolls this many d6, × 2 for a Double (item condition and zombie counts stay 1d6)
+  lootMin: 2,             // …and its die quietly never shows less than this (2: a find is never just 1)
 
   // TESTING: items every new game starts with in the backpack (full condition). Set to [] to turn off.
   testStartItems: [],

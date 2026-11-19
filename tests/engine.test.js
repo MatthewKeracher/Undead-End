@@ -70,6 +70,22 @@ test('each survivor remembers the tiles they have stood on', () => {
   assert.deepEqual([...p.visited], ['0,0', '1,0']);       // not the Lake: never been there
 });
 
+test('a resource find is never just 1 (2–6, evenly); item condition can still be 1', () => {
+  const seen = new Set();
+  for (let seed = 1; seed <= 200; seed++) {
+    const { S, p } = game({ seed });
+    S.forced = [2];                     // Farmhouse 2 = Food; its amount is rolled for real
+    const food = p.res.food;
+    act(S, { type: 'scavenge' });
+    seen.add(p.res.food - food);
+  }
+  assert.deepEqual([...seen].sort(), [2, 3, 4, 5, 6]);
+  const { S, p } = game();
+  S.forced = [5, 1];                    // Farmhouse 5 = Axe, condition 1
+  act(S, { type: 'scavenge' });
+  assert.equal(p.items[0].cond, 1);
+});
+
 test('a mixed row gives both parts: Tractor + Fuel, Food + Water', () => {
   const { S, p } = game();
   S.forced = [6, 4, 3];                 // Farmhouse 6 = Tractor + Fuel: condition 4, fuel 3

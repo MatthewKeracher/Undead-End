@@ -34,9 +34,10 @@ const Engine = (() => {
   }
   const d6 = (S) => 1 + Math.floor(rand(S) * 6);
   // `keep` adds to the dice already rolled for this message (e.g. scavenge: table roll, then amount)
-  function roll(S, keep = false) {
+  // `min` quietly rules out low faces: the die reads min–6, evenly (resource finds use 2 — never a 1)
+  function roll(S, keep = false, min = 1) {
     if (!keep) S.rolls = [];
-    const v = S.forced.length ? S.forced.shift() : d6(S);
+    const v = S.forced.length ? Math.max(min, S.forced.shift()) : min + Math.floor(rand(S) * (7 - min));
     S.rolls.push(v);
     return v;
   }
@@ -612,7 +613,7 @@ const Engine = (() => {
       const r = tries.at(-1), hit = rows[r - 1], e = hit.e;
       // then dice for each part: a resource rolls CONFIG.lootDice d6; zombies and an item's condition roll 1d6
       const parts = hit.kind === 'stash' || hit.kind === 'looted' ? [] : e.parts ?? [e];
-      const dice = parts.map((x) => Array.from({ length: x.res ? CONFIG.lootDice : ITEMS[x.item]?.map ? 0 : 1 }, () => roll(S, true)));   // a Map has no condition
+      const dice = parts.map((x) => Array.from({ length: x.res ? CONFIG.lootDice : ITEMS[x.item]?.map ? 0 : 1 }, () => roll(S, true, x.res ? CONFIG.lootMin : 1)));   // a Map has no condition
       const amts = dice.map((d) => d.reduce((a, b) => a + b, 0)), amt = amts[0] ?? null;
       const c = hit.kind === 'zombies' ? zombieContest(t, amt) : null;
       const snap = (x) => JSON.parse(JSON.stringify(x));   // events carry the table as it was when you rolled
