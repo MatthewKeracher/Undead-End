@@ -14,7 +14,7 @@ function load() {
   }
   return vm.runInContext('({ Engine, CONFIG, ITEMS, TILES, START_TILE })', ctx);
 }
-const { Engine: E, CONFIG, TILES } = load();
+const { Engine: E, CONFIG, TILES, ITEMS } = load();
 const def = (name) => TILES.find((t) => t.name === name);
 
 // A fresh one-player game with checks off and an empty backpack (so tests start from a clean slate).
@@ -61,13 +61,13 @@ test('the first move each round is free (but needs 1 AP); the second costs 1 AP 
   assert.equal(p.ap, 1);
 });
 
-test('a mixed row gives both parts: Truck + Fuel, Food + Water', () => {
+test('a mixed row gives both parts: Tractor + Fuel, Food + Water', () => {
   const { S, p } = game();
-  S.forced = [6, 4, 3];                 // Farmhouse 6 = Truck + Fuel: condition 4, fuel 3
+  S.forced = [6, 4, 3];                 // Farmhouse 6 = Tractor + Fuel: condition 4, fuel 3
   act(S, { type: 'scavenge' });
-  assert.equal(E.tileOf(S, p).vehicles[0].cond, 4);
+  assert.deepEqual({ ...E.tileOf(S, p).vehicles[0] }, { id: 'Tractor', cond: 4 });
   assert.equal(p.res.fuel, 3);
-  assert.equal(E.cellText(E.tileOf(S, p).def.table[5]), 'Truck + Fuel');
+  assert.equal(E.cellText(E.tileOf(S, p).def.table[5]), 'Tractor + Fuel');
   const t = tile(S, 1, 0, 'YOLO Foods');   // 4 = Food + Water
   act(S, { type: 'move', q: 1, r: 0 });
   const food = p.res.food, water = p.res.water;
@@ -235,6 +235,40 @@ test('Mountain: impassable on foot and by vehicle', () => {
   assert.deepEqual([p.q, p.r, p.res.fuel], [0, 0, 3]);
 });
 
+test('terrain comes in shapes: Wasteland belts of 3 or 7, Mountains in ranges', () => {
+  const sizes = [], R = 5;
+  let mountains = 0, linked = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const { S, p } = game({ seed });
+    for (let ring = 0; ring < R; ring++) for (const k of Object.keys(S.tiles)) {   // explore outward, scouting everywhere
+      const [q, r] = k.split(',').map(Number);
+      if (Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) !== ring) continue;
+      Object.assign(p, { q, r, ap: 12, acted: false, pending: null, queue: [] });
+      act(S, { type: 'scout' });
+    }
+    const name = (a, b) => S.tiles[`${a},${b}`]?.def.name, seen = new Set();
+    for (const [k, t] of Object.entries(S.tiles)) {
+      const [q, r] = k.split(',').map(Number);
+      if (t.def.name === 'Mountain' && E.neighbors(q, r).every(([a, b]) => name(a, b))) {
+        mountains++; if (E.neighbors(q, r).some(([a, b]) => name(a, b) === 'Mountain')) linked++;
+      }
+      if (t.def.name !== 'Wasteland' || seen.has(k)) continue;
+      const group = [k], todo = [k]; let whole = true; seen.add(k);   // the belt, if it's fully explored
+      while (todo.length) {
+        const [a, b] = todo.pop().split(',').map(Number);
+        for (const [c, d] of E.neighbors(a, b)) {
+          if (!name(c, d)) whole = false;
+          else if (name(c, d) === 'Wasteland' && !seen.has(`${c},${d}`)) { seen.add(`${c},${d}`); group.push(`${c},${d}`); todo.push(`${c},${d}`); }
+        }
+      }
+      if (whole) sizes.push(group.length);
+    }
+  }
+  assert.ok(sizes.length > 20);
+  assert.ok(sizes.filter((n) => n === 3 || n === 7).length / sizes.length > 0.9, `belt sizes: ${sizes}`);
+  assert.ok(linked / mountains > 0.7, `${linked} of ${mountains} mountains touch another`);
+});
+
 // Make every unexplored hex reveal as `name` (for tests that need a particular discovery).
 function rigPool(name, fn) {
   const saved = [...TILES];
@@ -359,6 +393,20 @@ test("binoculars can't see past a Mountain", () => {
   assert.ok(!S.tiles['2,0']);           // only seen through the Mountain: hidden
   assert.ok(S.tiles['2,-1'] && S.tiles['1,1']);   // also next to an open hex: seen
   assert.equal(Object.keys(S.tiles).length, 1 + 6 + 11);
+});
+
+test('every vehicle is a Truck or a Bike underneath: fuel ones drive on fuel, pedal ones on AP', () => {
+  const fuel = ['Truck', 'Tractor', 'Ambulance', 'Police Car', 'Jeep', 'Van', 'Bus', 'Campervan'];
+  for (const id of fuel) assert.equal(ITEMS[id].uses, 'fuel', id);
+  assert.equal(ITEMS.Bike.uses, 'ap');
+  const { S, p } = game();
+  tile(S, 1, 0, 'Forest');
+  E.tileOf(S, p).vehicles.push({ id: 'Ambulance', cond: 3 });
+  p.res.fuel = 2;
+  act(S, { type: 'drive', vehicle: 'Ambulance' });
+  act(S, { type: 'decide', choice: { q: 1, r: 0 } });
+  assert.equal(p.res.fuel, 1);
+  assert.deepEqual([p.q, p.r], [1, 0]);
 });
 
 test('a vehicle at 0 condition stays parked, broken, until a Tool fixes it', () => {

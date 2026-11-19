@@ -430,6 +430,8 @@ function act(name) {
   if (p.pending) return;
   if (name === 'move') { mode = mode === name ? null : name; return render(); }
   if (name === 'pause') return togglePause();
+  if (name === 'driveFuel' || name === 'driveAP') name = keyedVehicle(p, name);
+  if (!name) return;
   if (ITEMS[name]?.vehicle) return send({ type: 'drive', vehicle: name });
   send({ type: name });
 }
@@ -818,7 +820,7 @@ function tableSvg(x, y, t) {
   rows.forEach((row, i) => {
     const ty = y - h / 2 + i * ch + ch / 2 + 5;
     const txt = rowText(row);   // long rows (a stash: "🎒 Survivor's stash") get slightly smaller text to stay in the box
-    s += `<text x="${x - w / 2 + 8}" y="${ty}" class="cell ${rowClass(row)} ${txt.length > 13 ? 'long' : ''}"><tspan class="n">${row.row}</tspan>  ${esc(txt)}</text>`;
+    s += `<text x="${x - w / 2 + 8}" y="${ty}" class="cell ${rowClass(row)} ${txt.length > 14 ? 'long' : ''}"><tspan class="n">${row.row}</tspan>  ${esc(txt)}</text>`;
   });
   return s;
 }
@@ -1089,7 +1091,7 @@ function renderPanel() {
   if ($('#board').classList.toggle('threat', mode === 'threat') === false) requestAnimationFrame(fitRightCol);
   const btn = (id, label, sub, dis) => {
     const keys = mode === 'threat' ? THREAT_KEYS : HOTKEYS;
-    const hk = Object.keys(keys).find((k) => keys[k] === id);
+    const hk = Object.keys(keys).find((k) => keys[k] === id || (ITEMS[id]?.vehicle && keys[k] === (ITEMS[id].uses === 'fuel' ? 'driveFuel' : 'driveAP')));
     if (dis && selected === id) selected = null;
     // the emoji and the words are separate, so phones and upright tablets can show the emoji alone (title has the rest)
     const [icon, ...words] = label.split(' ');
@@ -1184,7 +1186,9 @@ $('#actions').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   if (b.dataset.act) act(b.dataset.act);
 });
-const HOTKEYS = { r: 'sleep', s: 'scout', w: 'move', a: 'scavenge', f: 'fortify', e: 'Truck', b: 'Bike', p: 'pause' };
+const HOTKEYS = { r: 'sleep', s: 'scout', w: 'move', a: 'scavenge', f: 'fortify', e: 'driveFuel', b: 'driveAP', p: 'pause' };   // E / B: a fuel / pedal vehicle here
+// E / B stand for whichever fuel / pedal vehicle is parked here (its button is named after it, e.g. 'Tractor')
+const keyedVehicle = (p, key) => vehiclesHere(p).find((x) => (ITEMS[x.id].uses === 'fuel') === (key === 'driveFuel'))?.id;
 const THREAT_KEYS = { q: 'shoot', w: 'melee', e: 'flee' };
 // Backspace cancels / goes back (Esc still works too, but full-screen Chrome can take it for itself).
 const isBack = (e) => e.key === 'Backspace' || e.key === 'Escape';
@@ -1291,7 +1295,8 @@ document.addEventListener('keydown', (e) => {
     if (b && !b.disabled) { selected = null; b.click(); }
     return;
   }
-  const id = (mode === 'threat' ? THREAT_KEYS : HOTKEYS)[k];
+  let id = (mode === 'threat' ? THREAT_KEYS : HOTKEYS)[k];
+  if (id === 'driveFuel' || id === 'driveAP') id = keyedVehicle(cur(), id);
   if (id) {
     const b = $(`#actions [data-act="${id}"]`);
     if (b && !b.disabled) selectAction(id);

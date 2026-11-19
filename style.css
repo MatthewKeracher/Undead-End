@@ -1,6 +1,11 @@
 :root {
-  --bg: #15171a; --panel: #1e2125; --panel2: #262a2f; --line: #343a41;
-  --text: #e6e2d8; --muted: #8d939a; --good: #7bc47f; --bad: #e86a5a; --accent: #d9a441;
+  /* a dark, muted green theme (halfway between grey and #063115) */
+  --bg: #0e2418; --panel: #142e20; --panel2: #1c3829; --line: #2a4a3a;
+  --panel-a: #142e20ee;   /* floating trays over the map */
+  --ink: #07110b;         /* outlines on the board */
+  --fog: #1b1e2280; --fog-line: #2a2f3580;   /* unexplored hexes: grey, not green, half see-through */
+  --board-in: #143021; --board-out: #0a1911;   /* the board's glow */
+  --text: #e6e2d8; --muted: #8da198; --good: #7bc47f; --bad: #e86a5a; --accent: #d9a441;
   /* board overlay sizes — shrunk for tablets and phones in the media queries at the end */
   --gap: 14px; --clock: 247px; --ap: 170px; --col: 236px; --orbmax: 64px;
   --dockl: calc(var(--gap) * 2 + (var(--clock) + var(--ap)) / 2);   /* action dock starts right of the AP gauge */
@@ -43,7 +48,7 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 0; min-height: 0; posi
 body.log-open main { grid-template-columns: 1fr 380px; }
 body:not(.log-open) #panel { display: none; }
 #board { position: relative; min-height: 0; overflow: hidden; container: board / inline-size;
-  background: radial-gradient(circle at 50% 50%, #1d2125 0%, #111316 100%); }
+  background: radial-gradient(circle at 50% 50%, var(--board-in) 0%, var(--board-out) 100%); }
 #map { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }   /* drag to look around (game.js) */
 #map.dragging, #map.dragging * { cursor: grabbing; }
 #hint { text-align: center; background: #000a; padding: 6px 12px; border-radius: 6px; }
@@ -69,7 +74,7 @@ body:not(.log-open) #panel { display: none; }
 
 /* clock */
 #clock { position: absolute; top: var(--gap); left: var(--gap); width: var(--clock); height: var(--clock); z-index: 2; filter: drop-shadow(0 6px 14px #000a); pointer-events: none; }
-.wedge path { stroke: #0b0c0e; stroke-width: 1.5; transition: fill .3s; }
+.wedge path { stroke: var(--ink); stroke-width: 1.5; transition: fill .3s; }
 .wedge.night path { fill: #1c2238; }
 .wedge.day path { fill: #3a3220; }
 .wedge text { text-anchor: middle; fill: var(--muted); }
@@ -80,20 +85,20 @@ body:not(.log-open) #panel { display: none; }
 .wedge.day.now path { fill: #8a6a22; }
 .wedge.now text { fill: #fff; }
 #hand { transition: transform .8s cubic-bezier(.3, 1.4, .5, 1); }
-#hand path { fill: var(--accent); stroke: #0b0c0e; stroke-width: 1.5; }
+#hand path { fill: var(--accent); stroke: var(--ink); stroke-width: 1.5; }
 #clock .hub { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
 #clock .dl { text-anchor: middle; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; fill: var(--muted); }
 #clock .dn { text-anchor: middle; font-size: 22px; font-weight: 800; fill: var(--accent); }
 
 /* hexes */
-.hex polygon { stroke: #0b0c0e; stroke-width: 3; transition: fill .15s; }
-.fog polygon { fill: #1b1e22; stroke: #2a2f35; stroke-dasharray: 4 4; stroke-width: 1.5; }
+.hex polygon { stroke: var(--ink); stroke-width: 3; transition: fill .15s; }
+.fog polygon { fill: var(--fog); stroke: var(--fog-line); stroke-dasharray: 4 4; stroke-width: 1.5; }
 .tile.d1 polygon { fill: #3d4a33; }
 .tile.d2 polygon { fill: #4e4a2e; }
 .tile.d3 polygon { fill: #5a3a2c; }
 .tile.d4 polygon { fill: #5e2a2a; }
 .tile.barren polygon { fill: #4a4237; }
-.tile.impassable polygon { fill: #3a3d42; stroke: #0b0c0e; }
+.tile.impassable polygon { fill: #3a3d42; stroke: var(--ink); }
 .tile.impassable .name { fill: #b8bec6; }
 .hex .empty { font-size: 12px; font-style: italic; fill: var(--muted); }
 .tile.nofort .pip:not(.zed) { opacity: .35; stroke-dasharray: 2 2; }
@@ -160,7 +165,7 @@ body:not(.log-open) #panel { display: none; }
 .apgauge.high { --c: #4cd964; }
 .apgauge.mid { --c: #f0922b; }
 .apgauge.low { --c: #ff3b30; }
-.apgauge .seg { fill: #ffffff30; stroke: #0b0c0e; stroke-width: 1.5; transition: fill .3s; }
+.apgauge .seg { fill: #ffffff30; stroke: var(--ink); stroke-width: 1.5; transition: fill .3s; }
 .apgauge .seg.on { fill: var(--c); }
 .apgauge .seg.locked { fill: #050505; stroke: #000; }
 .bigap { width: 200px; height: 200px; margin: 4px auto 6px; }
@@ -183,12 +188,13 @@ body:not(.log-open) #panel { display: none; }
 #dock { position: absolute; z-index: 3; left: var(--dockl); right: var(--gap); bottom: var(--gap); width: fit-content; margin-inline: auto; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
 #actions { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; }
 /* with room to spare, the same inset on both sides, so the dock (and the notes above it) centre under your tile */
-@container board (min-width: 1260px) { #dock { right: var(--dockl); } }
-@media (max-height: 860px) { @container board (min-width: 1190px) { #dock { right: var(--dockl); } } }   /* smaller dials there */
+/* (one line, never wrapped: too wide to centre, it starts right of the AP gauge and runs on to the right) */
+@container board (min-width: 1260px) { #dock { right: var(--dockl); width: max-content; } }
+@media (max-height: 860px) { @container board (min-width: 1190px) { #dock { right: var(--dockl); width: max-content; } } }   /* smaller dials there */
 /* round timer: top middle of the board, level with the top of the clock. Seconds left and a bar that
    drains; red and pulsing in the last 10 s, dimmed while animations pause it. Shrinks as the board narrows. */
 #timer { position: absolute; z-index: 3; left: 50%; top: var(--gap); transform: translateX(-50%); pointer-events: none;
-  display: flex; align-items: center; gap: 14px; padding: 10px 22px; background: #1e2125ee; border: 2px solid var(--line); border-radius: 999px;
+  display: flex; align-items: center; gap: 14px; padding: 10px 22px; background: var(--panel-a); border: 2px solid var(--line); border-radius: 999px;
   box-shadow: 0 10px 30px #000a; font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 #timer:empty { display: none; }
 #timer .bar { width: 220px; height: 12px; border-radius: 6px; background: #ffffff1a; overflow: hidden; }
@@ -200,8 +206,8 @@ body:not(.log-open) #panel { display: none; }
 @container board (max-width: 900px) { #timer { font-size: 20px; gap: 10px; padding: 8px 16px; } #timer .bar { width: 140px; height: 10px; } }
 @container board (max-width: 740px) { #timer .bar { display: none; } }
 #actions > * { pointer-events: auto; }
-#actions .note { margin: 0; box-shadow: 0 4px 12px #0008; background: #1e2125ee; border: 1px solid var(--line); }
-.ribbon { display: flex; gap: 6px; padding: 14px 8px 8px; background: #1e2125ee; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px #000a; backdrop-filter: blur(4px); flex-wrap: wrap; justify-content: center; max-width: 100%; }
+#actions .note { margin: 0; box-shadow: 0 4px 12px #0008; background: var(--panel-a); border: 1px solid var(--line); }
+.ribbon { display: flex; gap: 6px; padding: 14px 8px 8px; background: var(--panel-a); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px #000a; backdrop-filter: blur(4px); flex-wrap: wrap; justify-content: center; max-width: 100%; }
 .act { display: flex; flex-direction: column; align-items: flex-start; text-align: left; min-width: 0; padding: 7px 10px; white-space: nowrap; flex-shrink: 0; }
 .act small { color: var(--muted); font-size: 11px; }
 kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--muted); }
@@ -234,7 +240,7 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 /* scavenge popup */
 /* pause: a veil over the whole board */
 #pauseveil { position: absolute; inset: 0; z-index: 8; display: grid; place-content: center; text-align: center; gap: 6px; cursor: pointer;
-  background: #0b0d10cc; backdrop-filter: blur(4px); animation: fade .2s; }
+  background: #071410cc; backdrop-filter: blur(4px); animation: fade .2s; }
 .pv-title { font-size: clamp(32px, 7vw, 56px); font-weight: 900; letter-spacing: .06em; color: var(--text); }
 .pv-sub { color: var(--muted); }
 /* round banner: a band across the middle of the board at the start of every round */
@@ -313,7 +319,7 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 /* backpack */
 /* right column runs down the board; --dockh (set in game.js) lifts its bottom clear of the action dock when they'd overlap */
 #rightcol { position: absolute; top: var(--gap); right: var(--gap); bottom: calc(var(--dockh, 0px) + var(--gap)); z-index: 3; width: var(--col); display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
-#pack { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; pointer-events: auto; padding: 12px; background: #1e2125ee; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px #000a; }
+#pack { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; pointer-events: auto; padding: 12px; background: var(--panel-a); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px #000a; }
 #playersbox { flex-shrink: 0; }
 #playersbox > summary { cursor: pointer; list-style: none; user-select: none; }
 #playersbox > summary::-webkit-details-marker { display: none; }
@@ -330,7 +336,7 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; padding: 0 0 0 2px; background: none; border: 0; border-radius: 0; text-align: left; cursor: default; }
 .packhead .packicons, .packhead .caret, .packhead .bag { display: none; }
 .packhead .packname { white-space: nowrap; }
-.slot-item { display: flex; align-items: center; gap: 8px; height: 42px; padding: 4px 6px 4px 8px; background: #1e2125ee; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 12px #0007; }
+.slot-item { display: flex; align-items: center; gap: 8px; height: 42px; padding: 4px 6px 4px 8px; background: var(--panel-a); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 12px #0007; }
 .slot-item.empty { background: #ffffff06; border-style: dashed; box-shadow: none; }
 .slot-item .ic { font-size: 22px; }
 .slot-item div { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -340,7 +346,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 .slot-item .use { padding: 2px 6px; font-size: 11px; font-weight: 700; color: #111; background: var(--accent); border-color: var(--accent); }
 #popup.tool { cursor: default; }
 .slot-item .use kbd { margin-left: 3px; color: #111; border-color: #0004; }
-#toast { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translate(-50%, 10px); z-index: 6; width: max-content; max-width: calc(100vw - 32px); text-align: center; padding: 8px 14px; border-radius: 8px; background: #1e2125f2; border: 1px solid var(--accent); box-shadow: 0 8px 24px #000a; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
+#toast { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translate(-50%, 10px); z-index: 6; width: max-content; max-width: calc(100vw - 32px); text-align: center; padding: 8px 14px; border-radius: 8px; background: var(--panel-a); border: 1px solid var(--accent); box-shadow: 0 8px 24px #000a; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 .slot-item .drop { padding: 2px 6px; font-size: 11px; color: var(--muted); background: transparent; border-color: transparent; }
 .slot-item .drop:hover { color: var(--bad); border-color: var(--bad); }
@@ -456,7 +462,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   #rightcol { display: contents; }
   /* resources: a tray of big coloured numbers */
   #stats { grid-area: stats; flex: none; container-type: normal; flex-direction: row; justify-content: space-around; align-items: center; align-self: stretch;
-    padding: 2px 10px; background: #1e2125ee; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px #000a; }
+    padding: 2px 10px; background: var(--panel-a); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px #000a; }
   .stat { --o: var(--orbsize); flex-direction: column; gap: 3px; }
   .stat small { display: none; }
   /* the backpack folds to a bar (tap to open). Its row is a fixed height; open, it hangs from the bottom of it, up over the map */
@@ -483,7 +489,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   .packhead .bag { font-size: 22px; letter-spacing: 0; }
   .packhead .packname { font-size: 13px; }
   #pack:not(.open) .slot-item { display: none; }
-  #pack.open { align-self: end; justify-self: start; z-index: 6; width: min(340px, 100%); max-height: 60vh; overflow-y: auto; background: #1e2125; }
+  #pack.open { align-self: end; justify-self: start; z-index: 6; width: min(340px, 100%); max-height: 60vh; overflow-y: auto; background: var(--panel); }
   /* the action tray: one row; the main tray shows just the emoji */
   #dock { grid-area: dock; position: static; width: auto; margin: 0; }
   #actions, #actions .ribbon { width: 100%; }

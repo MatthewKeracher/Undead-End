@@ -136,11 +136,65 @@ const Engine = (() => {
 
   // ---------------------------------------------------------------- setup
   const newTile = (def, safety = 0) => ({ def, safety, zombies: 0, vehicles: [], looted: [], stashes: [] });
-  // An unexplored hex becomes a random location from the scouting pool.
+  // A random location from the scouting pool, each as likely as its count (optionally only those that pass `ok`).
+  function drawTile(S, ok = () => true) {
+    const pool = TILES.filter(ok).length ? TILES.filter(ok) : TILES;
+    let x = rand(S) * pool.reduce((n, t) => n + t.count, 0);
+    return pool.find((t) => (x -= t.count) < 0) ?? pool.at(-1);
+  }
+  // An unexplored hex becomes a random location — unless a belt or range already claimed it (S.planned).
   function reveal(S, q, r) {
-    const def = TILES[Math.floor(rand(S) * TILES.length)], k = key(q, r);
+    const k = key(q, r), plan = S.planned[k];
+    delete S.planned[k];
+    // next to a belt or range (seen or planned), it can't start another of the same kind: shapes stay apart
+    const touches = (name) => neighbors(q, r).some(([a, b]) => (S.tiles[key(a, b)]?.def.name ?? S.planned[key(a, b)]) === name);
+    const def = plan === 'pass' ? drawTile(S, (t) => !t.spread)   // a gap in a range: an ordinary place
+      : (plan && TILES.find((t) => t.name === plan)) || drawTile(S, (t) => !(t.spread && (touches(t.name) || !roomFor(S, q, r, t))));
     S.tiles[k] = newTile(def);
+    if (!plan && def.spread) spread(S, q, r, def);   // a fresh Wasteland or Mountain grows its shape
     return { k, name: def.name, icon: def.icon };
+  }
+  // Room for a shape to start here? A belt needs two touching unexplored neighbours (a triangle at least);
+  // a range needs one unexplored neighbour. Without it, the hex is drawn as something else — no lone ones.
+  function roomFor(S, q, r, def) {
+    const open = ([a, b]) => !S.tiles[key(a, b)] && !S.planned[key(a, b)], around = neighbors(q, r);
+    return def.spread === 'belt' ? around.some((h, i) => open(h) && open(around[(i + 1) % 6])) : around.some(open);
+  }
+  // Terrain comes in shapes, planned onto unexplored hexes (and only those) around a fresh one:
+  // a belt is a triangle of 3 (two neighbours that touch each other) or, CONFIG.beltBig of the time, a cluster
+  // of 7 (a hex and all six around it — centred on it or a neighbour, wherever there's room); a range runs CONFIG.rangeArm hexes off each way in a rough line, bending 60°
+  // CONFIG.rangeTurn of the time, with CONFIG.rangeGap of its hexes (never the first each way) left as passes.
+  function spread(S, q, r, def) {
+    const open = ([a, b]) => !S.tiles[key(a, b)] && !S.planned[key(a, b)];
+    const plan = ([a, b], what) => { if (open([a, b])) S.planned[key(a, b)] = what; };
+    const around = neighbors(q, r);
+    if (def.spread === 'belt') {
+      if (rand(S) < CONFIG.beltBig) {   // centred on whichever of it and its neighbours leaves the most room
+        const room = ([a, b]) => [[a, b], ...neighbors(a, b)].filter((h) => (h[0] === q && h[1] === r) || open(h)).length;
+        const centres = [[q, r], ...around.filter(open)], most = Math.max(...centres.map(room));
+        const [cq, cr] = centres.filter((c) => room(c) === most)[Math.floor(rand(S) * centres.filter((c) => room(c) === most).length)];
+        return [[cq, cr], ...neighbors(cq, cr)].forEach((h) => plan(h, def.name));
+      }
+      const pairs = [0, 1, 2, 3, 4, 5].map((i) => [around[i], around[(i + 1) % 6]]);   // neighbours in turn touch
+      const clear = pairs.filter((pr) => pr.every(open));
+      const pick = (clear.length ? clear : pairs)[Math.floor(rand(S) * (clear.length || 6))];
+      return pick.forEach((h) => plan(h, def.name));
+    }
+    if (def.spread === 'range') {
+      // run it across open country: the line through it with the most unexplored ends
+      const opens = [0, 1, 2].map((d) => [d, open(around[d]) + open(around[d + 3])]);
+      const best = Math.max(...opens.map(([, n]) => n)), lines = opens.filter(([, n]) => n === best);
+      const d0 = lines[Math.floor(rand(S) * lines.length)][0] + (rand(S) < 0.5 ? 3 : 0), [lo, hi] = CONFIG.rangeArm;
+      for (const start of [d0, (d0 + 3) % 6]) {   // two arms, opposite ways
+        let [a, b] = [q, r], d = start;
+        const len = lo + Math.floor(rand(S) * (hi - lo + 1));
+        for (let i = 0; i < len; i++) {
+          if (rand(S) < CONFIG.rangeTurn) d = (d + (rand(S) < 0.5 ? 1 : 5)) % 6;
+          [a, b] = [a + DIRS[d][0], b + DIRS[d][1]];
+          plan([a, b], i > 0 && rand(S) < CONFIG.rangeGap ? 'pass' : def.name);   // the first hex each way is always Mountain
+        }
+      }
+    }
   }
   // Stepping into a hex (on foot, by vehicle or fleeing): an unexplored one is revealed as you arrive.
   // Returns its tile — or null if it turned out to be impassable (you stay put).
@@ -160,7 +214,7 @@ const Engine = (() => {
   // Without it, the host ends rounds with timeUp() (the 30 s timer).
   function createGame({ names = ['Survivor'], seed = (Math.random() * 2 ** 32) >>> 0, autoEnd = true, checksOff = false } = {}) {
     const S = {
-      seed, rng: seed | 0, day: CONFIG.startDay, round: CONFIG.startRound, tiles: {}, players: [],
+      seed, rng: seed | 0, day: CONFIG.startDay, round: CONFIG.startRound, tiles: {}, planned: {}, players: [],
       log: [], events: [], rolls: [], forced: [], autoEnd, timesUp: false, checksOff, badNight: false, over: null,
     };
     S.tiles[key(0, 0)] = newTile(START_TILE, CONFIG.startSafety);

@@ -109,7 +109,19 @@ Repeat until the tile is clear, you escape, or you die.
   - Route: pick a hex, move, then pick again. Only **scouted** tiles. You can drive **through** zombie tiles, but stopping on one (or running out of fuel/AP there) triggers Fight or Flee.
   - **Fleeing:** still needs the flee roll, but on success you can escape by vehicle (more than one tile).
   - Tool can repair vehicles on your tile.
-  - Truck: Farmhouse, Petrol Station — found as **Truck + Fuel** (you also get 1d6 fuel). Bike: School, Campsite.
+  - **Looks** (pure re-skins — same rules, new name and icon): fuel vehicles drive like the Truck, pedal ones like the Bike.
+    | Vehicle | Kind | Found at |
+    |---|---|---|
+    | 🛻 Truck | fuel | Petrol Station (**Truck + Fuel**: you also get 1d6 fuel) |
+    | 🚜 Tractor | fuel | Farmhouse (**Tractor + Fuel**) |
+    | 🚑 Ambulance | fuel | Hospital |
+    | 🚓 Police Car | fuel | Police Station |
+    | 🚙 Jeep | fuel | Army Checkpoint |
+    | 🚚 Van | fuel | YOLO Foods |
+    | 🚌 Bus | fuel | School |
+    | 🚐 Campervan | fuel | Campsite |
+    | 🚲 Bike | pedal (AP) | School, Campsite |
+  - Keys: **E** drives the fuel vehicle parked here, **B** rides the pedal one.
 - **Radio** *(multiplayer, planned)*: talk to players **not on your tile** (same-tile voice is the default). Details in `MULTIPLAYER.md`.
 - **Tools** (e.g. the **Tool**): have a condition like any item. Can be used **at any time, for free**, to transfer any amount of their condition to another item (max 6 condition). At 0 condition the tool is destroyed. Tool found at Hardware Store, Petrol Station, Campsite *(placeholder name & locations)*.
 - **Pills**: taken **at any time, for free** (not your action; not mid-fight): each dose costs **1 condition** and tops your **AP up to your max AP** (max AP itself doesn't change — only food and water do that). Can't be taken when AP is already at max. Found with **1d6 condition**, like any item. Gone at 0 condition. Found at the Pharmacy (two rows) and Hospital *(placeholder)*.
@@ -130,9 +142,9 @@ Repeat until the tile is clear, you escape, or you die.
   - Results 2–6 are the tile's 5 themed items/resources.
   - Every resource result gives **1d6** of that resource (`CONFIG.lootDice`); a **Double** gives **1d6 × 2** (at most one Double per place, on what it's richest in — e.g. YOLO Foods' Double Food, the Gun Shop's Double Ammo). "Triple" (× 3) also works but isn't used. Item condition and zombie counts are **1d6**. A **mix** gives every part, each rolled on its own — used a lot: Food + Water, Food + Booze, Pistol + Ammo, Fuel + Ammo, Tool + Fuel, Truck + Fuel. *(For now, Zombies only ever appear on a 1 — no tile has extra Zombies results.)*
 - Tiles differ in what their 5 results give.
-- **Wasteland** tiles have **no scavenge table** (Scavenge is blocked) and **cannot be fortified** (Safety stays 0, so night attacks hit in full). Zombies only reach them at night. They're the most common tile *(placeholder: 3 in the scouting pool)*.
+- **Wasteland** tiles have **no scavenge table** (Scavenge is blocked) and **cannot be fortified** (Safety stays 0, so night attacks hit in full). Zombies only reach them at night. They come in **belts**: a **triangle of 3** or (30% of the time) a **cluster of 7** — when a fresh one is revealed, the rest of the belt is set on the unexplored hexes around it and appears as you explore (`spread: 'belt'`, `CONFIG.beltBig`). About 14% of the land.
 - **Max Safety differs by place** (`safety:` in `locations.js`): **0 outdoors** — Forest, Lake, Campsite, Wasteland, Mountain can't be fortified (night attacks hit in full; cleared zombies drift back as soon as you leave) — and **3–8 indoors**: Pharmacy & Petrol Station 3, YOLO Foods 4, Farmhouse, Pub & Hardware Store 5, Hospital, School & Gun Shop 6, Church & Army Checkpoint 7, Police Station 8. At 7–8 a single night attack (max 6) can't break through.
-- **Mountain** tiles are **impassable wasteland**: nobody can move, flee or drive onto or through them. Scouting still reveals them, so they shape the map *(placeholder: 2 in the scouting pool)*.
+- **Mountain** tiles are **impassable wasteland**: nobody can move, flee or drive onto or through them. Scouting still reveals them, so they shape the map. They come in **ranges**: a fresh one runs 1–3 more hexes off each way in a rough line (bending now and then), with about a quarter of those left as **passes** — ordinary places to get through (`spread: 'range'`, `CONFIG.rangeArm`, `rangeGap`, `rangeTurn`). About 10% of the land. Belts and ranges don't merge: a hex next to one can't start another of the same kind.
 
 ## Open questions
 - Round 5: water or booze?
