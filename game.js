@@ -67,12 +67,17 @@ async function send(action) {
   await play(res.events);
 }
 
+let held = {};   // tile key → { safety, zombies } to draw instead, while the event that changed them waits to play
 async function play(events) {
   busy = true;
   // the round is over: grey out the action bar until the next one has started and you can act again
   $('#actions').classList.toggle('roundover', events.some((ev) => ev.type === 'round'));
+  // a night attack later in the batch has already happened in the engine: until it plays, draw its tile as it was before
+  held = {};
+  for (const ev of events) if (ev.type === 'night') held[ev.k] ??= ev.c.before;
   for (const ev of events) if (ev.player === undefined || ev.player === cur().id) await show(ev);
   busy = false;
+  held = {};
   $('#actions').classList.remove('roundover');
   const d = cur().pending;
   mode = d ? PENDING_MODE[d.kind] ?? null : null;   // whatever was going on (e.g. a drive cut short by the timer) is over
@@ -89,7 +94,7 @@ async function show(ev) {
     case 'scavenge': return scavengeShow(ev);
     case 'scout': return revealShow(ev);
     case 'reveal': return revealShow(ev, 900);   // stepped into the unknown
-    case 'night': return nightShow(ev);
+    case 'night': await nightShow(ev); delete held[ev.k]; return renderMap();
     case 'checks': return renderStats(ev.stats[cur().id]);   // the check's effect shows before any night attack
     case 'maxApLoss': return maxApLossShow(ev);
     case 'flee': return fleeShow(ev);
@@ -996,7 +1001,7 @@ function renderMap() {
   for (const k in G.tiles) {
     const [q, r] = k.split(',').map(Number);
     const [x, y] = pix(q, r);
-    const t = G.tiles[k];
+    const t = held[k] ? { ...G.tiles[k], ...held[k] } : G.tiles[k];
     const danger = t.def.table.filter((e) => e.zombies).length;
     const isHere = q === p.q && r === p.r;
     const target = adj.has(k) && ((mode === 'move' && canEnter(p, t)) || (mode === 'flee' && passable(t) && !t.zombies) || (mode === 'drive' && passable(t)));
