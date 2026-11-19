@@ -44,12 +44,14 @@ Living rules document for the digital version. Updated as rules are clarified.
 Checked at the **start** of the round, before anyone acts (on night rounds, the check comes before the night attack).
 | Round | Day/Night | Upkeep |
 |---|---|---|
-| 1 | Night | 1 Hope |
-| 2 | Day | 1 Water |
-| 3 | Day | 1 Food |
-| 4 | Day | 1 Water |
-| 5 | Day | 1 Food |
-| 6 | Night | 1 Water *(may become Hope — undecided)* + Safety check |
+| 1 | Day | 1 Water |
+| 2 | Day | 1 Food |
+| 3 | Day | 1 Water |
+| 4 | Day | 1 Food |
+| 5 | Night | 1 Water *(may become Hope — undecided)* + Safety check |
+| 6 | Night | 1 Hope |
+
+Each day starts on round 1, the first morning; rounds 5 and 6 are its night.
 
 ### Failing a check
 - **Max AP:** each player has a max AP (starts at **12**, the most it can be).
@@ -65,9 +67,9 @@ Checked at the **start** of the round, before anyone acts (on night rounds, the 
 - Sleeping can happen in any round and uses up the player's round.
 
 ## Night
-- Rounds **1 and 6** are night.
-- At the **start of round 6** (before anyone acts), each occupied tile is attacked by **1d6 zombies** (same contest as scavenging, below). Round 1 is still night (and has the Hope check) but **no attack** (`CONFIG.attackRounds`)…
-- …**unless it's a bad night.** As round 2 starts each day, a **secret 1d6** is rolled: on a **1–2** the clock shows a 🟡 on round 1 and **round 1 brings a second attack**, straight after round 6's (`CONFIG.badNightOn`). The roll itself is never shown — just the warning.
+- Rounds **5 and 6** are night.
+- At the **start of round 5** (before anyone acts), each occupied tile is attacked by **1d6 zombies** (same contest as scavenging, below). Round 6 is still night (and has the Hope check) but **no attack** (`CONFIG.attackRounds`)…
+- …**unless it's a bad night.** As round 1 starts each day, a **secret 1d6** is rolled: on a **1–2** the clock shows a 🟡 on round 6 and **round 6 brings a second attack**, straight after round 5's (`CONFIG.badNightOn`). The roll itself is never shown — just the warning.
 - Fighting or fleeing zombies **never uses up your action** for the round — whether they came from a night attack or another player's scavenge. You deal with them, then still act.
 
 ## Zombies
@@ -130,13 +132,13 @@ Repeat until the tile is clear, you escape, or you die.
 - **Mountain** tiles are **impassable wasteland**: nobody can move, flee or drive onto or through them. Scouting still reveals them, so they shape the map *(placeholder: 2 in the scouting pool)*.
 
 ## Open questions
-- Round 6: water or hope?
+- Round 5: water or hope?
 - More item cards; what uses Fuel
 - Item cards and their fuel/ammo use
 - Starting tile list and their d6 tables (prototype uses placeholders)
 
 ## Prototype placeholders (in `data.js` and `locations.js`, change freely)
-- Game starts Day 1, Round 2 (first morning).
+- Game starts Day 1, Round 1 (first morning).
 - Each player starts with **full AP (12)**, **4 Food, 6 Water and 3 Hope**, 0 Fuel and 0 Ammo (`CONFIG.startRes`), and an **Axe at condition 3** (`CONFIG.startItems`).
 - A tile holds as much Safety as its place allows (default **5**, `CONFIG.maxSafety`) — and at most **6 zombies** (`CONFIG.maxZombies`). Safety belongs to the tile and is shared by everyone on it; it does not decay.
 - Scouting reveals a random tile from the tile list for each unexplored neighbour; the scout stays put.

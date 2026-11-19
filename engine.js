@@ -20,8 +20,8 @@ const Engine = (() => {
   const isAdjacent = (p, q, r) => neighbors(p.q, p.r).some(([a, b]) => a === q && b === r);
   const isNight = (r) => CONFIG.nightRounds.includes(r);
   const isAttack = (r) => CONFIG.attackRounds.includes(r);   // a night attack starts this round
-  // …plus round 1 when a bad night is coming (see startOfRound)
-  const attackDue = (S, r) => isAttack(r) || (r === 1 && S.badNight);
+  // …plus round 6 when a bad night is coming (see startOfRound)
+  const attackDue = (S, r) => isAttack(r) || (r === 6 && S.badNight);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
   // ---------------------------------------------------------------- dice
@@ -213,7 +213,7 @@ const Engine = (() => {
 
   function endRound(S) {
     S.round++;
-    if (S.round > 6) { S.round = 1; S.day++; log(S, `☀️→🌙 Day ${S.day} begins.`, 'phase'); }
+    if (S.round > 6) { S.round = 1; S.day++; log(S, `🌅 Day ${S.day} begins.`, 'phase'); }
     log(S, roundBanner(S), 'phase');
     for (const p of S.players) { p.acted = false; p.freeMoved = false; }
     emit(S, { type: 'round', day: S.day, round: S.round });
@@ -224,8 +224,8 @@ const Engine = (() => {
   const timeUp = (S) => run(S, () => { S.timesUp = true; });
 
   // Everything that happens at the START of a round, before anyone acts:
-  // 1) this round's resource check, 2) the night attack (CONFIG.attackRounds, or round 1 on a bad night).
-  // As round 2 starts, a secret 1d6 decides whether the coming night is a bad one (CONFIG.badNightOn).
+  // 1) this round's resource check, 2) the night attack (CONFIG.attackRounds, or round 6 on a bad night).
+  // As round 1 starts, a secret 1d6 decides whether the coming night is a bad one (CONFIG.badNightOn).
   // Food & water feed max AP: each check paid → +trackGain[res] (max 12); each missed → −trackLoss[res]. Max AP 0 = death.
   // (Water: ±2, food: ±1.)
   // A Hope check you can't pay is death.
@@ -240,9 +240,9 @@ const Engine = (() => {
   function startOfRound(S) {
     const r = S.round;
     restockZombies(S);
-    if (r === 2) {   // secret: only the result shows (a 🟡 on round 1 of the clock)
+    if (r === 1) {   // secret: only the result shows (a 🟡 on round 6 of the clock)
       S.badNight = d6(S) <= CONFIG.badNightOn;
-      if (S.badNight) log(S, '🌘 Something stirs… a bad night is coming: zombies after midnight too (round 1).', 'bad');
+      if (S.badNight) log(S, '🌘 Something stirs… a bad night is coming: zombies after midnight too (round 6).', 'bad');
     }
     if (S.checksOff && Object.keys(CONFIG.upkeep[r] || {}).length) log(S, `Round ${r} check skipped (cheat: checks off)`, 'cheat');
     const up = S.checksOff ? {} : CONFIG.upkeep[r] || {};
@@ -766,7 +766,7 @@ const Engine = (() => {
         case 'badnight': {
           const v = String(n[0] ?? '').toLowerCase();
           S.badNight = v === 'off' ? false : v === 'on' ? true : !S.badNight;
-          say = `Bad night ${S.badNight ? 'ON — round 1 attacks too' : 'OFF'}`; break;
+          say = `Bad night ${S.badNight ? 'ON — round 6 attacks too' : 'OFF'}`; break;
         }
         case 'round': S.round = Math.max(1, Math.min(6, n[0] ?? 1)); say = `Round ${S.round}`; break;
         case 'day': S.day = Math.max(1, n[0] ?? 1); say = `Day ${S.day}`; break;

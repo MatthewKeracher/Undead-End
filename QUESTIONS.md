@@ -11,7 +11,7 @@ Logged from a playtest. Tick when handled.
 
 - [x] **Bug: on mobile there's no button to stop driving** — stopping is only Enter / Backspace, so touch players can't end a trip. *(Fixed: ⏹ Stop here button while driving.)*
 - [x] **Zombies don't need to be on the tile loot list** — row 1 is always Zombies, so it needn't be shown. *(Fixed: tiles list rows 2–6, in bigger text.)*
-- [ ] **Clock numbers should shift one to the right**, so the game and each day start on 1 (today the game starts on round 2, and round 1 is the late night).
+- [x] **Clock numbers should shift one to the right**, so the game and each day start on 1 (today the game starts on round 2, and round 1 is the late night). *(Done: round 1 is the first morning, 5 and 6 the night; a new day starts each morning.)*
 - [ ] **Starting AP could be lower** — maybe 75% (9 of 12).
 - [ ] **Mobile UI is broken.** *(Touch layout for phones and tablets, either way up: full-screen draggable map, clock and AP dial around it, resource and backpack bars, emoji action tray — needs a playtest.)*
 - [ ] **Resources could look like the inventory on mobile** (same treatment as the backpack). *(Now a tray of big coloured numbers, matching the backpack bar — needs a playtest.)*
@@ -21,7 +21,7 @@ Logged from a playtest. Tick when handled.
 ## Core rules (single player)
 
 ### Clock & checks
-- [ ] **Round 6 check: water or hope?**
+- [ ] **Round 5 check (the first night round): water or hope?**
   *Now: 1 water.*
   > Answer:
 
@@ -31,7 +31,7 @@ Logged from a playtest. Tick when handled.
 - [ ] **When do cleared zombies come back?** *Now: at the start of the next round once the tile is empty with no Safety (placeholder).* Immediately, next round, next night, after 1d6 rounds…?
   > Answer:
 - [x] **Night attacks are the main killer** (balance sim: ~80% of deaths happen at night — two attacks back to back in rounds 6 and 1). Soften them? e.g. one attack per night, 1d6 − 1, or Fortify +2d6.
-  > Answer: One attack per night, at the start of round 6.
+  > Answer: One attack per night, at the start of round 6. *(Now numbered round 5.)*
 - [ ] **Can you Fortify a tile that has zombies on it?**
   *Now: no, blocked until cleared.*
   > Answer:

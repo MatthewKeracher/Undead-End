@@ -4,7 +4,7 @@
 
 const CONFIG = {
   startDay: 1,
-  startRound: 2,          // 1 = first night round; 2 = first morning
+  startRound: 1,          // 1 = first morning; 5 and 6 are the night
   maxAP: 12,              // highest max AP can grow to
   trackGain: { food: 1, water: 2 },   // max AP gained per check paid
   trackLoss: { food: 1, water: 2 },   // max AP lost per check missed (max AP 0 = death)
@@ -23,19 +23,19 @@ const CONFIG = {
   testStartItems: [],
   testStartVehicles: [],   // parked on the start tile
   testStartRes: {},        // added to the starting rolls
-  nightRounds: [1, 6],    // dark on the clock
-  attackRounds: [6],      // rounds that start with a night attack
-  badNightOn: 2,          // as round 2 starts, a secret 1d6: this or less means a bad night — round 1 attacks too
+  nightRounds: [5, 6],    // dark on the clock
+  attackRounds: [5],      // rounds that start with a night attack
+  badNightOn: 2,          // as round 1 starts, a secret 1d6: this or less means a bad night — round 6 attacks too
   roundSeconds: 30,       // round timer: act within this or lose 1 AP (online always; single player: on by default)
 
   // What each round of the clock calls for (checked at the END of the round).
   upkeep: {
-    1: { hope: 1 },
-    2: { water: 1 },
-    3: { food: 1 },
-    4: { water: 1 },
-    5: { food: 1 },
-    6: { water: 1 },
+    1: { water: 1 },
+    2: { food: 1 },
+    3: { water: 1 },
+    4: { food: 1 },
+    5: { water: 1 },
+    6: { hope: 1 },
   },
 };
 

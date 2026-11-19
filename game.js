@@ -102,7 +102,7 @@ async function show(ev) {
 // A new round: a band sweeps across the middle of the board — "Day X · Round Y", with what the round brings.
 async function roundBannerShow({ day, round }) {
   const el = $('#roundbanner'), night = isNight(round), attack = E.attackDue(G, round), check = G.checksOff ? '' : upkeepText(round);
-  const omen = round === 2 && G.badNight ? ' · <b class="omen">🌘 bad night coming</b>' : '';
+  const omen = round === 1 && G.badNight ? ' · <b class="omen">🌘 bad night coming</b>' : '';
   el.className = night ? 'night' : 'day';
   el.innerHTML = `<div class="rb-title">Day ${day} · Round ${round}</div>
     <div class="rb-sub">${night ? '🌙 Night' : '☀️ Day'}${check ? ` · check ${check}` : ''}${attack ? ' · night attack' : ''}${omen}</div>`;
@@ -766,14 +766,14 @@ function wedgePath(a0, a1, r0, r1) {
   const P = (a, r) => `${(r * Math.cos(a)).toFixed(2)} ${(r * Math.sin(a)).toFixed(2)}`;
   return `M${P(a0, r1)} A${r1} ${r1} 0 0 1 ${P(a1, r1)} L${P(a1, r0)} A${r0} ${r0} 0 0 0 ${P(a0, r0)}Z`;
 }
-const wedgeCenterDeg = (r) => -90 + (r - 1) * 60 + 30;   // degrees, 0 = right, clockwise
+const wedgeCenterDeg = (r) => -90 + r * 60 + 30;   // degrees, 0 = right, clockwise: round 1 (first morning) at 3 o'clock, night (5, 6) across the top
 function renderClock() {
   let s = '';
   for (let r = 1; r <= 6; r++) {
     const c = wedgeCenterDeg(r) * Math.PI / 180, a0 = c - Math.PI / 6, a1 = c + Math.PI / 6;
     const now = r === G.round;
     const off = now ? 5 : 0;
-    const icons = Object.keys(CONFIG.upkeep[r] || {}).map((res) => ICON[res]).join('') + (E.attackDue(G, r) ? '🟡' : '');   // a night attack tests your Safety (round 1 only on a bad night)
+    const icons = Object.keys(CONFIG.upkeep[r] || {}).map((res) => ICON[res]).join('') + (E.attackDue(G, r) ? '🟡' : '');   // a night attack tests your Safety (round 6 only on a bad night)
     const lx = 57 * Math.cos(c), ly = 57 * Math.sin(c);
     s += `<g class="wedge ${isNight(r) ? 'night' : 'day'} ${now ? 'now' : ''}" transform="translate(${(off * Math.cos(c)).toFixed(2)} ${(off * Math.sin(c)).toFixed(2)})">
       <path d="${wedgePath(a0 + 0.015, a1 - 0.015, CLOCK_R0 + 2, CLOCK_R)}"/>
@@ -784,7 +784,7 @@ function renderClock() {
   $('#clockday').textContent = G.day;
   $('#banner').innerHTML = `<i style="background:${cur().color}"></i><h1><span class="long">${E.roundBanner(G)}</span><span class="short">Day ${G.day} · Round ${G.round} ${isNight(G.round) ? '🌙' : '☀️'}</span></h1>`;
   // monotonic angle so the hand always sweeps clockwise, even from round 6 → 1
-  const turns = (G.day - 1) * 6 + (G.round - 1);
+  const turns = (G.day - 1) * 6 + G.round;
   $('#hand').style.transform = `rotate(${turns * 60 + 30}deg)`;
 }
 
@@ -1160,7 +1160,7 @@ const CHEATS = {
   'ap(n) maxap(n) food(n) water(n) hope(n) fuel(n) ammo(n)': 'set a value',
   'round(n) day(n)': 'jump the clock (no checks run)',
   'checks() checks(on|off)': 'toggle the food / water / hope checks',
-  'badnight() badnight(on|off)': 'toggle a bad night (round 1 attacks too)',
+  'badnight() badnight(on|off)': 'toggle a bad night (round 6 attacks too)',
   'timer() timer(on|off)': 'the 30 s round timer: act in time or lose 1 AP (remembered)',
   'reset()': 'start a fresh world (admin-only once online)',
 };
@@ -1257,6 +1257,18 @@ document.addEventListener('keydown', (e) => {
 $('#newgame').onclick = () => { if (!busy) newGame(['Survivor']); };
 $('#pauseveil').addEventListener('click', togglePause);
 $('#popup').addEventListener('click', () => { if (!modalKey) popupInput(); });
+// A popup card taller or wider than the board (a phone on its side) is scaled down to fit rather than cut off.
+function fitCard() {
+  const pop = $('#popup'), card = pop.querySelector('.pcard');
+  if (!card || pop.hidden) return;
+  const cs = getComputedStyle(pop);
+  const h = pop.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const w = pop.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  card.style.scale = String(Math.min(1, h / card.offsetHeight, w / card.offsetWidth));   // scale ignores layout, so offset* stay unscaled
+}
+const cardWatch = new ResizeObserver(fitCard);   // the card grows as rows and dice appear
+cardWatch.observe($('#popup'));
+new MutationObserver(() => { const c = $('#popup .pcard'); if (c) cardWatch.observe(c); fitCard(); }).observe($('#popup'), { childList: true, attributes: true, attributeFilter: ['hidden'] });
 $('#pack').addEventListener('click', (e) => {
   if (e.target.closest('[data-packtoggle]')) { $('#pack').classList.toggle('open'); return; }
   const u = e.target.closest('[data-use]'); if (u) { useTool(+u.dataset.use); return; }

@@ -245,7 +245,7 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 .rb-sub .omen { color: var(--bad); }
 .rb-sub { margin-top: 2px; font-size: clamp(13px, 2.4vw, 17px); color: var(--text); opacity: .85; }
 @keyframes rbsweep { 0% { opacity: 0; transform: translate(-30%, -50%); } 18% { opacity: 1; transform: translate(0, -50%); } 82% { opacity: 1; transform: translate(0, -50%); } 100% { opacity: 0; transform: translate(30%, -50%); } }
-#popup { position: absolute; inset: 0; display: grid; place-items: center; background: #0009; backdrop-filter: blur(3px); animation: fade .2s; cursor: pointer; z-index: 5; padding: 16px; }
+#popup { position: absolute; inset: 0; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; background: #0009; backdrop-filter: blur(3px); animation: fade .2s; cursor: pointer; z-index: 5; padding: 16px; }
 .pcard { background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 20px 26px 14px; min-width: min(380px, 100%); text-align: center; box-shadow: 0 20px 60px #000c; animation: popin .3s cubic-bezier(.2, 1.6, .5, 1); }
 .ptitle small { text-transform: uppercase; letter-spacing: .15em; color: var(--muted); font-size: 11px; }
 .ptitle h2 { font-size: 22px; margin: 2px 0 14px; }

@@ -47,10 +47,10 @@ test('the first move each round is free; the second costs 1 AP and is your actio
   act(S, { type: 'move', q: 1, r: 0 });
   assert.equal(p.ap, ap);
   assert.equal(p.acted, false);
-  assert.equal(S.round, 2);
+  assert.equal(S.round, 1);
   act(S, { type: 'move', q: 2, r: 0 });
   assert.equal(p.ap, ap - 1);
-  assert.equal(S.round, 3);             // that was the round's action
+  assert.equal(S.round, 2);             // that was the round's action
   p.ap = 0;
   assert.ok(!act(S, { type: 'move', q: 1, r: 0 }).error);   // the free move needs no AP
 });
@@ -77,7 +77,7 @@ test('sleep gains 2d6 AP up to max and ends the round', () => {
   const { events } = act(S, { type: 'sleep' });
   assert.equal(p.ap, 10);
   assert.deepEqual([...events.find((e) => e.type === 'sleep').dice], [3, 5]);
-  assert.equal(S.round, 3);              // single player: round ends once you've acted
+  assert.equal(S.round, 2);              // single player: round ends once you've acted
   assert.equal(p.acted, false);          // …and you can act again in the new round
   p.ap = 11; S.forced = [6, 6];
   act(S, { type: 'sleep' });
@@ -92,7 +92,7 @@ test('one round action per round when rounds are timed', () => {
   assert.match(act(S, { type: 'sleep' }).error, /already acted/);
   act(S, { type: 'tool', tool: 0 });     // free actions still allowed (this one fails validation, not the round rule)
   E.timeUp(S);
-  assert.equal(S.round, 3);
+  assert.equal(S.round, 2);
 });
 
 test('time up: anyone who has not acted loses 1 AP', () => {
@@ -104,7 +104,7 @@ test('time up: anyone who has not acted loses 1 AP', () => {
   E.timeUp(S);                          // B didn't choose → −1 AP
   assert.equal(a.ap, 7);
   assert.equal(b.ap, 4);
-  assert.equal(S.round, 3);
+  assert.equal(S.round, 2);
   assert.ok(S.log.some((l) => l.msg.includes("B didn't act in time — loses 1")));
 });
 
@@ -120,7 +120,7 @@ test('time up mid-drive: you stop where you are, and lose 1 AP', () => {
   assert.deepEqual([p.q, p.r], [1, 0]);
   assert.equal(E.tileOf(S, p).vehicles[0].cond, 3);   // parked here, −1 for the trip
   assert.equal(p.ap, 2);                              // 3 − 1
-  assert.equal(S.round, 3);
+  assert.equal(S.round, 2);
 });
 
 test('time up waits for an open decision, then that player loses 1 AP', () => {
@@ -131,13 +131,13 @@ test('time up waits for an open decision, then that player loses 1 AP', () => {
   E.cheat(S, 1, 'zombies', [2]);        // B is mid Fight/Flee
   assert.equal(b.pending.kind, 'threat');
   E.timeUp(S);
-  assert.equal(S.round, 2);             // round waits
+  assert.equal(S.round, 1);             // round waits
   E.act(S, 1, { type: 'decide', choice: 'shoot' });
   E.act(S, 1, { type: 'decide', choice: 'attack' });
   S.forced = [1, 1];
   E.act(S, 1, { type: 'decide', choice: 'attack' });   // tile clear → B sleeps → round ends
   assert.equal(b.pending, null);
-  assert.equal(S.round, 3);
+  assert.equal(S.round, 2);
   assert.ok(a.ap > 0);
 });
 
@@ -303,7 +303,7 @@ test('driving is free movement: fuel per tile, −1 condition per trip, round no
   assert.equal(p.res.fuel, 3);
   assert.equal(E.tileOf(S, p).vehicles[0].cond, 2);
   assert.equal(p.acted, false);
-  assert.equal(S.round, 2);
+  assert.equal(S.round, 1);
 });
 
 test('a vehicle at 0 condition stays parked, broken, until a Toolkit fixes it', () => {
@@ -325,46 +325,46 @@ test('a vehicle at 0 condition stays parked, broken, until a Toolkit fixes it', 
 test('night attack: Safety holds, or zombies break through', () => {
   const { S, p } = game();
   tile(S, 1, 0, 'Forest');              // somewhere to run
-  S.round = 5;
+  S.round = 4;
   E.tileOf(S, p).safety = 6;
-  S.forced = [1, 1, 3];                 // sleep 1+1, then 3 zombies at night (round 6)
+  S.forced = [1, 1, 3];                 // sleep 1+1, then 3 zombies at night (round 5)
   act(S, { type: 'sleep' });
-  assert.equal(S.round, 6);
+  assert.equal(S.round, 5);
   assert.equal(E.tileOf(S, p).safety, 3);
   assert.equal(p.pending, null);
   S.badNight = false;                   // (a good night)
-  S.forced = [1, 1];                    // round 1 is night, but there's no attack
+  S.forced = [1, 1];                    // round 6 is night, but there's no attack
   act(S, { type: 'sleep' });
-  assert.equal(S.round, 1);
+  assert.equal(S.round, 6);
   assert.equal(E.tileOf(S, p).safety, 3);
   E.tileOf(S, p).safety = 2;
-  S.round = 5;
-  S.forced = [1, 1, 6];                 // next round 6: 6 zombies vs Safety 2
+  S.round = 4;
+  S.forced = [1, 1, 6];                 // next round 5: 6 zombies vs Safety 2
   act(S, { type: 'sleep' });
   assert.equal(E.tileOf(S, p).zombies, 4);
   assert.equal(p.pending.kind, 'threat');
 });
 
-test('a bad night: round 1 attacks too (after round 6), so two attacks back to back', () => {
+test('a bad night: round 6 attacks too (after round 5), so two attacks back to back', () => {
   const { S, p } = game();
   tile(S, 1, 0, 'Forest');
   E.tileOf(S, p).safety = 6;
   S.badNight = true;
-  assert.equal(E.attackDue(S, 1), true);
-  S.round = 5;
-  S.forced = [1, 1, 2];                 // round 6: 2 zombies, absorbed
+  assert.equal(E.attackDue(S, 6), true);
+  S.round = 4;
+  S.forced = [1, 1, 2];                 // round 5: 2 zombies, absorbed
   act(S, { type: 'sleep' });
-  S.forced = [1, 1, 3];                 // round 1 on a bad night: 3 more
+  S.forced = [1, 1, 3];                 // round 6 on a bad night: 3 more
   act(S, { type: 'sleep' });
   assert.equal(E.tileOf(S, p).safety, 1);
   assert.equal(S.log.filter((l) => l.msg.includes('in the night')).length, 2);
 });
 
-test('the bad-night roll happens secretly as round 2 starts: roughly 1 in 3', () => {
+test('the bad-night roll happens secretly as round 1 starts: roughly 1 in 3', () => {
   let bad = 0;
   for (let seed = 1; seed <= 600; seed++) {
     const S = E.createGame({ seed, checksOff: true });
-    E.start(S);                         // the game starts at round 2
+    E.start(S);                         // the game starts at round 1
     if (S.badNight) bad++;
     assert.ok(!S.log.some((l) => l.dice && l.msg.includes('bad night')));   // no dice shown for it
   }
@@ -374,18 +374,18 @@ test('the bad-night roll happens secretly as round 2 starts: roughly 1 in 3', ()
 test('max AP: water ±2, food ±1', () => {
   const { S, p } = game({ checksOff: false });
   p.maxAP = 6; p.ap = 6; p.res.water = 0; p.res.food = 5;
-  S.round = 3;                          // round 4: water check — missed
+  S.round = 2;                          // round 3: water check — missed
   S.forced = [1, 1]; act(S, { type: 'sleep' });
   assert.equal(p.maxAP, 4);
   p.res.water = 5;
-  S.round = 1;                          // round 2: water check — paid
+  S.round = 6;                          // round 1: water check — paid
   S.badNight = false;
   S.forced = [1, 1]; act(S, { type: 'sleep' });
   assert.equal(p.maxAP, 6);
-  S.forced = [1, 1]; act(S, { type: 'sleep' });   // round 3: food check — paid
+  S.forced = [1, 1]; act(S, { type: 'sleep' });   // round 2: food check — paid
   assert.equal(p.maxAP, 7);
   p.res.food = 0;
-  S.round = 4;                          // round 5: food check — missed
+  S.round = 3;                          // round 4: food check — missed
   S.forced = [1, 1]; act(S, { type: 'sleep' });
   assert.equal(p.maxAP, 6);
 });
@@ -419,7 +419,7 @@ test('each place has its own max Safety: outdoors 0, up to 8 for a stronghold', 
 test('missing water costs max AP; max AP 0 is death', () => {
   const { S, p } = game({ checksOff: false });
   p.res.water = 0; p.maxAP = 2; p.ap = 2;
-  S.round = 3;                          // round 4 checks water
+  S.round = 2;                          // round 3 checks water
   S.forced = [1, 1];
   const { events } = act(S, { type: 'sleep' });
   assert.ok(events.some((e) => e.type === 'maxApLoss' && e.newMax === 0));
