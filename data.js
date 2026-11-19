@@ -9,7 +9,8 @@ const CONFIG = {
   trackGain: { food: 1, water: 2 },   // max AP gained per check paid
   trackLoss: { food: 1, water: 2 },   // max AP lost per check missed (max AP 0 = death)
   startMaxAP: 12,         // max AP at the start (food & water missed lower it; paid raises it back, up to 12)
-  startRes: { food: 4, water: 6, hope: 3, fuel: 0, ammo: 0 },   // what every survivor starts with; AP starts full
+  startAP: 8,             // AP at the start (sleep tops it up to max AP)
+  startRes: { food: 4, water: 6, booze: 3, fuel: 0, ammo: 0 },   // what every survivor starts with
   startItems: [{ id: 'Axe', cond: 3 }],                          // …and carries
   startSafety: 0,         // Safety on the starting tile
   maxSafety: 5,           // most Safety a tile can hold, unless its location says otherwise (safety: 0–8 in locations.js)
@@ -17,7 +18,7 @@ const CONFIG = {
   maxItems: 6,            // backpack size
   maxCondition: 6,        // most condition any item can have
   maxRerolls: 2,          // landing on a crossed-off row rolls again — up to this many times, then you find nothing
-  lootDice: 2,            // a resource find rolls this many d6 (item condition and zombie counts stay 1d6)
+  lootDice: 1,            // a resource find rolls this many d6, × 2 for a Double (item condition and zombie counts stay 1d6)
 
   // TESTING: items every new game starts with in the backpack (full condition). Set to [] to turn off.
   testStartItems: [],
@@ -35,20 +36,24 @@ const CONFIG = {
     3: { water: 1 },
     4: { food: 1 },
     5: { water: 1 },
-    6: { hope: 1 },
+    6: { booze: 1 },
   },
 };
 
 // Item cards. Condition = uses left; at 0 the item breaks.
 const ITEMS = {
-  Handgun: { icon: '🔫', weapon: true, uses: 'ammo', verb: 'Fire', desc: 'Fight: no AP; 1 condition per round; each 🟢 ammo fired kills 1 zombie.' },
+  Pistol: { icon: '🔫', weapon: true, uses: 'ammo', verb: 'Fire', desc: 'Fight: no AP; 1 condition per round; each 🟢 ammo fired kills 1 zombie.' },
   Axe:     { icon: '🪓', weapon: true, uses: 'ap',   verb: 'Swing', desc: 'Fight: 1 condition per round; each swing costs 1 AP and kills 1 zombie.' },
   'Body Armor': { icon: '🦺', armor: true, desc: 'When a flee roll fails: take the hit for −1 condition and reroll (1 AP).' },
   Truck: { icon: '🛻', vehicle: true, uses: 'fuel', verb: 'Drive', desc: 'Parked on a tile. Drive through scouted tiles: 1 🟠 fuel per tile, −1 condition per trip.' },
   Bike:  { icon: '🚲', vehicle: true, uses: 'ap',   verb: 'Ride',  desc: 'Parked on a tile. Ride through scouted tiles: 1 AP per tile, −1 condition per trip.' },
   // Multiplayer (planned — see MULTIPLAYER.md): talk to players on other tiles. No effect in single player; not in any loot table yet.
   Radio:   { icon: '📻', radio: true, desc: 'Multiplayer: lets you talk to players on other tiles who also carry a radio. −1 condition per round used.' },
-  Toolkit: { icon: '🧰', tool: true, desc: 'Use any time (free): transfer some of its condition to another item. Destroyed at 0.' },
+  Tool: { icon: '🧰', tool: true, desc: 'Use any time (free): transfer some of its condition to another item. Destroyed at 0.' },
+  // Map: disabled for now — in no loot table (the cheat item(map) still reads one).
+  Map:   { icon: '🗺️', map: true, desc: 'Used the moment you find it (never carried): reveals every unexplored hex next to an explored one.' },
+  Binoculars: { icon: '🔭', binoculars: true, desc: 'Scouting also reveals the hexes beyond the ones next to you — but not past a Mountain. −1 condition per scout; gone at 0.' },
+  Pills: { icon: '💊', pills: true, desc: 'Take any time (free): AP back up to your max AP. −1 condition per dose; gone at 0.' },
 };
 
 // Tiles are read from LOCATIONS (locations.js): each table entry is written as words
@@ -70,10 +75,10 @@ function parseResult(text, where) {
   const [first, ...rest] = t.split(' ');
   const n = MULTIPLIERS[first] && rest.length ? MULTIPLIERS[first] : 1;
   const res = n > 1 ? rest.join(' ') : t;
-  if (['food', 'water', 'hope', 'fuel', 'ammo'].includes(res)) return { res, n, ...(endless && { endless }) };
+  if (['food', 'water', 'booze', 'fuel', 'ammo'].includes(res)) return { res, n, ...(endless && { endless }) };
   const item = Object.keys(ITEMS).find((id) => id.toLowerCase() === t);
   if (item) return { item, ...(endless && { endless }) };
-  throw new Error(`${where}: "${text}" isn't a result I know. Use Zombies, Food/Water/Hope/Fuel/Ammo (optionally Double/Triple/Quadruple, and/or Endless), or an item: ${Object.keys(ITEMS).join(', ')}.`);
+  throw new Error(`${where}: "${text}" isn't a result I know. Use Zombies, Food/Water/Booze/Fuel/Ammo (optionally Double/Triple/Quadruple, and/or Endless), or an item: ${Object.keys(ITEMS).join(', ')}.`);
 }
 function loadLocations(list) {
   const errors = [];

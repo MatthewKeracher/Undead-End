@@ -23,7 +23,7 @@ Rules decisions still belong in `DESIGN.md`; this file is about **how** multipla
 
 Taking turns one player at a time doesn't scale (100 players × 30 s = 50 min per round). So every round is a **30-second real-time window**:
 
-1. **Start of round:** resource checks (food/water/hope) for everyone; on night rounds, the night attack on every occupied tile.
+1. **Start of round:** resource checks (food/water/booze) for everyone; on night rounds, the night attack on every occupied tile.
 2. **The 30 s window:** every player may take **one action**, and it **resolves the moment it's chosen** — no lock-in, no waiting for others.
    - The server handles actions **in the order they arrive**, so the order on a tile is simply who acted first.
    - **Co-op** comes from timing: talk it through on proximity voice — "I'll fortify now, then you scavenge", "scout north, then I'll move there".
@@ -131,12 +131,12 @@ Single player gets depletion too (shared rules).
 Decided: you can attack another player **if you have a weapon**.
 
 - **Where:** only players **on your tile**. *(decided)*
-- **Cost:** attacking is **your round's action** and makes **one hit**, plus the weapon's usual cost (Handgun: 1 ammo · Axe: 1 AP · −1 condition). One attack per round; free actions still allow hit-and-run (attack, then drive off). *(decided)*
+- **Cost:** attacking is **your round's action** and makes **one hit**, plus the weapon's usual cost (Pistol: 1 ammo · Axe: 1 AP · −1 condition). One attack per round; free actions still allow hit-and-run (attack, then drive off). *(decided)*
 - **A hit costs the victim 1d6 max AP** — the same "health bar" food & water use; **max AP 0 = death**. About 3–4 hits kill from full (12); eating heals (+1 max AP per paid check). *(decided)*
 - **Defender's response** *(decided)* — the target gets the usual **10 s Fight/Flee prompt** (default: fight if armed, else flee). It **doesn't use their action**.
   - **Flee:** roll 1d6 vs the attacker's 1d6 — **beat it** to escape before the hit lands, moving to an adjacent passable tile as when fleeing zombies (1 AP). Fail and the hit lands.
   - **Fight back** (if armed): both roll 1d6; the **higher lands their hit** on the other; **tie: both hit**. The defender pays their weapon's usual cost.
-- **Armor soaks damage like Safety** *(decided)*: each point of a hit uses up 1 armor condition; whatever's left gets through. (A 4-damage hit on armor at condition 3 breaks it and 1 gets through.) It still gives the flee reroll against zombies; a Toolkit repairs it.
+- **Armor soaks damage like Safety** *(decided)*: each point of a hit uses up 1 armor condition; whatever's left gets through. (A 4-damage hit on armor at condition 3 breaks it and 1 gets through.) It still gives the flee reroll against zombies; a Tool repairs it.
 - **Safety protects against zombies only** *(decided)* — everyone on a fortified tile is inside the same walls.
 - **No penalty for killing** *(decided)*. The **killer gets the victim's stash straight away** — no scavenge roll: all their resources, plus items up to the killer's backpack limit (choose what to leave). Anything left over becomes the victim's stash on the tile's loot table as usual. Whoever lands the killing hit is the killer (a defender fighting back can be the one who kills).
 - **Same-tile voice** means attackers and victims can hear each other — good for drama, worth keeping.

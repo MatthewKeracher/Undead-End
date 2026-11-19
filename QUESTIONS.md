@@ -12,16 +12,16 @@ Logged from a playtest. Tick when handled.
 - [x] **Bug: on mobile there's no button to stop driving** — stopping is only Enter / Backspace, so touch players can't end a trip. *(Fixed: ⏹ Stop here button while driving.)*
 - [x] **Zombies don't need to be on the tile loot list** — row 1 is always Zombies, so it needn't be shown. *(Fixed: tiles list rows 2–6, in bigger text.)*
 - [x] **Clock numbers should shift one to the right**, so the game and each day start on 1 (today the game starts on round 2, and round 1 is the late night). *(Done: round 1 is the first morning, 5 and 6 the night; a new day starts each morning.)*
-- [ ] **Starting AP could be lower** — maybe 75% (9 of 12).
+- [x] **Starting AP could be lower** — maybe 75% (9 of 12). *(Done: 8 AP, max AP still 12.)*
 - [ ] **Mobile UI is broken.** *(Touch layout for phones and tablets, either way up: full-screen draggable map, clock and AP dial around it, resource and backpack bars, emoji action tray — needs a playtest.)*
 - [ ] **Resources could look like the inventory on mobile** (same treatment as the backpack). *(Now a tray of big coloured numbers, matching the backpack bar — needs a playtest.)*
-- [ ] **Free movement should need AP banked** — you must have AP left to take the free move (it still doesn't spend it?).
-- [ ] **Feels too easy** with 2d6 resources and a starting weapon.
+- [x] **Free movement should need AP banked** — you must have AP left to take the free move (it still doesn't spend it?). *(Done: needs at least 1 AP, spends none.)*
+- [ ] **Feels too easy** with 2d6 resources and a starting weapon. *(Resources back to 1d6, with one Double per place and more mixes like Pistol + Ammo, Fuel + Ammo — needs a playtest.)*
 
 ## Core rules (single player)
 
 ### Clock & checks
-- [ ] **Round 5 check (the first night round): water or hope?**
+- [ ] **Round 5 check (the first night round): water or booze?**
   *Now: 1 water.*
   > Answer:
 
@@ -58,18 +58,18 @@ Logged from a playtest. Tick when handled.
   > Answer:
 
 ### Items
-- [ ] **Tool name** — "Toolkit" OK?
-  > Answer:
+- [x] **Tool name** — "Tool" OK?
+  > Answer: Renamed to "Tool" (so "Tool + Fuel" fits on a tile).
 - [ ] **Can a tool repair another tool?**
   *Now: yes.*
   > Answer:
 - [ ] **Armor name** — "Body Armor" OK?
   > Answer:
-- [ ] **Item locations** (all placeholders): Handgun — Police Station, Gun Shop, Hardware Store · Axe — Farmhouse, Hardware Store, Forest · Body Armor — Police Station, Gun Shop · Toolkit — Hardware Store, Petrol Station, Campsite. Keep / change?
+- [ ] **Item locations** (all placeholders): Pistol — Police Station, Gun Shop, Hardware Store · Axe — Farmhouse, Hardware Store, Forest · Body Armor — Police Station, Gun Shop · Tool — Hardware Store, Petrol Station, Campsite. Keep / change?
   > Answer:
 - [ ] **More item cards** — what else is in the deck?
   > Answer:
-- [ ] **Fuel** is only used by the Truck. Anything else use fuel (generator, Molotov, fire for hope…)?
+- [ ] **Fuel** is only used by the Truck. Anything else use fuel (generator, Molotov, fire for booze…)?
   > Answer:
 
 ### Tiles
@@ -79,7 +79,7 @@ Logged from a playtest. Tick when handled.
   > Answer:
 
 ### Starting values
-- [x] **Starting max AP:** 12. *(AP starts full; food, water, hope are 1d6; fuel & ammo 0.)*
+- [x] **Starting max AP:** 12. *(AP starts at 8; food, water, booze are 1d6; fuel & ammo 0.)*
   > Answer: 12
 
 ---
@@ -143,7 +143,7 @@ Logged from a playtest. Tick when handled.
   > Answer: Armor soaks damage point for point, like Safety vs zombies; the rest gets through.
 - [x] **Does Safety protect against players**, or only zombies?
   > Answer: Zombies only.
-- [x] **Any penalty for killing** (visible "hostile" mark, hope loss…)?
+- [x] **Any penalty for killing** (visible "hostile" mark, booze loss…)?
   > Answer: No penalty. The killer gets the victim's stash straight away (no roll); anything they can't carry becomes a stash on the tile.
 
 ### Multiplayer fights & sharing

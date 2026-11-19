@@ -26,13 +26,13 @@ function pickNumber(p, q, r) {
 let G = null;        // game state (owned by the engine)
 let mode = null;     // 'move' while picking a hex; mirrors the decision being made: 'threat' | 'flee' | 'drive'
 let modalKey = null;  // when set, receives all key presses (shooting, backpack-full prompt)
-let checksOff = false;   // cheat: skip the food / water / hope checks (kept across new games until reload)
+let checksOff = false;   // cheat: skip the food / water / booze checks (kept across new games until reload)
 let justRevealed = [];    // tile keys to highlight after scouting, in reveal order
 let camInit = false;
 
 const cur = () => G.players[0];   // the survivor on this screen
 const tileOf = (p) => E.tileOf(G, p);
-const emptyAdj = (p) => E.emptyAdj(G, p);
+const scoutTargets = (p) => E.scoutTargets(G, p);   // next to you, or within 2 with Binoculars
 const moveAdj = (p) => E.moveAdj(G, p);
 const fleeAdj = (p) => E.fleeAdj(G, p);
 const driveAdj = (p) => E.driveAdj(G, p);
@@ -92,6 +92,7 @@ async function show(ev) {
     case 'flee': return fleeShow(ev);
     case 'armor': return sfx.armor();
     case 'repair': return sfx.repair();
+    case 'pills': return sfx.win(false);
     case 'driveStep': sfx.drive(ev.fuel); return render();
     case 'outOfFuel': return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'fuel' ? 'fuel' : 'AP'} — stopping here.`);
     case 'die': return tone(200, 1.4, 'sawtooth', 0.12, -170);
@@ -448,7 +449,7 @@ function clickHex(q, r) {
 async function revealShow(ev, pause = 2800) {
   justRevealed = ev.tiles.map((x) => x.k);
   renderMap();
-  toast(`🔭 Discovered: ${ev.tiles.map((x) => `${x.icon} ${x.name}`).join(', ')}`);
+  toast(`${ev.map ? '🗺️ The Map shows' : '🔭 Discovered'}: ${ev.tiles.map((x) => `${x.icon} ${x.name}`).join(', ')}`);
   ev.tiles.forEach((_, i) => setTimeout(() => tone(520 + i * 60, 0.15, 'triangle', 0.07), i * 120));
   await new Promise((res) => { const tm = setTimeout(res, pause + ev.tiles.length * 120); dismissPopup = () => { clearTimeout(tm); res(); }; });
   dismissPopup = null;
@@ -516,11 +517,11 @@ const sfx = {
     if (dir < 0) {
       if (k === 'food') { noise(0.07, 0.25, 1800); setTimeout(() => noise(0.06, 0.2, 1400), 90); setTimeout(() => noise(0.05, 0.15, 1100), 170); }   // crunch crunch
       else if (k === 'water') { tone(520, 0.12, 'sine', 0.15, -260); setTimeout(() => tone(380, 0.14, 'sine', 0.12, -180), 130); }               // gulp gulp
-      else if (k === 'hope') { [392, 349, 294].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.07), i * 140)); }             // sad sigh
+      else if (k === 'booze') { [392, 349, 294].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.07), i * 140)); }             // sad sigh
       else if (k === 'fuel') { noise(0.3, 0.12, 600); tone(140, 0.3, 'sine', 0.08, -40); }                                                      // slosh
       else if (k === 'ammo') { if (!modalKey) tone(1600, 0.03, 'square', 0.05); }                                                             // click (gun fight has its own sound)
     } else {
-      const base = { food: 440, water: 587, hope: 659, fuel: 330, ammo: 784 }[k] || 500;
+      const base = { food: 440, water: 587, booze: 659, fuel: 330, ammo: 784 }[k] || 500;
       tone(base, 0.09, 'triangle', 0.08); setTimeout(() => tone(base * 1.5, 0.12, 'triangle', 0.07), 70);   // little pickup chime
     }
   },
@@ -598,6 +599,12 @@ async function scavengeShow({ name, rows: table, tries, r, hit, amt, amts, dice,
     let big = false, shown = '';
     for (const [i, x] of parts.entries()) {
       const a = amts[i];
+      if (ITEMS[x.item]?.map) {   // no condition to roll: it's read straight away
+        shown += `<div class="big good jackpot">${ITEMS[x.item].icon} ${esc(x.item)}</div><small class="muted">It shows the land all around…</small>`;
+        $('#pres').innerHTML = shown;
+        big = true;
+        continue;
+      }
       $('#pd2').innerHTML = `<span class="muted">${x.item ? `${esc(x.item)} condition?` : parts.length > 1 ? `How much ${x.res}?` : 'How much?'}</span>${dice[i].map((_, j) => `<div class="slot" id="pd2d${j}"></div>`).join('')}${x.n > 1 ? `<span class="mult">× ${x.n}</span>` : ''}`;
       await Promise.all(dice[i].map((v, j) => rollDie($(`#pd2d${j}`), v, 800 + j * 150)));
       await wait(250);
@@ -810,7 +817,8 @@ function tableSvg(x, y, t) {
   let s = `<rect x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" rx="3" class="tbl"/>`;
   rows.forEach((row, i) => {
     const ty = y - h / 2 + i * ch + ch / 2 + 5;
-    s += `<text x="${x - w / 2 + 8}" y="${ty}" class="cell ${rowClass(row)}"><tspan class="n">${row.row}</tspan>  ${esc(rowText(row))}</text>`;
+    const txt = rowText(row);   // long rows (a stash: "🎒 Survivor's stash") get slightly smaller text to stay in the box
+    s += `<text x="${x - w / 2 + 8}" y="${ty}" class="cell ${rowClass(row)} ${txt.length > 13 ? 'long' : ''}"><tspan class="n">${row.row}</tspan>  ${esc(txt)}</text>`;
   });
   return s;
 }
@@ -996,6 +1004,7 @@ function renderPack() {
     h += it
       ? `<div class="slot-item"><span class="ic">${ITEMS[it.id].icon}</span><div><b>${esc(it.id)}</b>${condPips(it.cond)}</div>
           ${ITEMS[it.id].tool ? `<button class="use" data-use="${i}" title="Use tool (T)">Use <kbd>T</kbd></button>` : ''}
+          ${ITEMS[it.id].pills ? `<button class="use" data-pill="${i}" title="Take a dose: AP back up to your max">Take</button>` : ''}
           <button class="drop ${dropArmed === i ? 'armed' : ''}" data-drop="${i}" title="Leave it in your stash on this tile">${dropArmed === i ? 'Leave it?' : '✕'}</button></div>`
       : `<div class="slot-item empty"></div>`;
   }
@@ -1023,11 +1032,11 @@ function renderStats(p = cur()) {
   // AP gets its own big counter in the bottom-left of the board
   const apd = prevStats.ap === undefined ? '' : (p.ap > prevStats.ap || p.maxAP > prevStats.maxAP) ? 'up' : (p.ap < prevStats.ap || p.maxAP < prevStats.maxAP) ? 'down' : '';
   $('#apbox').innerHTML = apGauge(p.ap, apd, p.maxAP);
-  const label = { ap: 'AP', food: 'Food', water: 'Water', hope: 'Hope', fuel: 'Fuel', ammo: 'Ammo' };
+  const label = { ap: 'AP', food: 'Food', water: 'Water', booze: 'Booze', fuel: 'Fuel', ammo: 'Ammo' };
   $('#stats').innerHTML = Object.entries(vals).map(([k, v]) => {
     const prev = prevStats[k];
     const d = prev === undefined ? '' : v > prev ? 'up' : v < prev ? 'down' : '';
-    const low = ['food', 'water', 'hope'].includes(k) && v <= 2 ? (v <= 1 ? 'low1' : 'low2') : '';
+    const low = ['food', 'water', 'booze'].includes(k) && v <= 2 ? (v <= 1 ? 'low1' : 'low2') : '';
     if (d) setTimeout(() => sfx.res(k, d === 'up' ? 1 : -1), 0);
     const delta = d ? `<span class="delta ${d}">${v > prev ? '+' : '−'}${Math.abs(v - prev)}</span>` : '';
     return `<div class="stat ${k} ${d} ${low}" title="${label[k]}"><div class="orb"><b>${v}</b>${delta}</div><small>${label[k]}</small></div>`;
@@ -1096,12 +1105,12 @@ function renderPanel() {
     <div class="ribbon main">
       ${btn('pause', '⏸ Pause', 'Stop the clock', false)}
       ${btn('sleep', '😴 Sleep', 'Gain 2d6 AP', false)}
-      ${btn('scout', '🔭 Scout', emptyAdj(p).length ? `1 AP · reveal ${emptyAdj(p).length} hex${emptyAdj(p).length === 1 ? '' : 'es'}` : 'All explored', noAP || !emptyAdj(p).length)}
-      ${btn('move', '🚶 Move', p.freeMoved ? '1 AP · uses your action' : 'Free move', (p.freeMoved && noAP) || !moveAdj(p).length)}
+      ${btn('scout', '🔭 Scout', scoutTargets(p).length ? `1 AP · reveal ${E.binocularsOf(p) ? 'up to ' : ''}${scoutTargets(p).length} hex${scoutTargets(p).length === 1 ? '' : 'es'}${E.binocularsOf(p) ? ' (binoculars)' : ''}` : 'All explored', noAP || !scoutTargets(p).length)}
+      ${btn('move', '🚶 Move', p.freeMoved ? '1 AP · uses your action' : 'Free move · needs 1 AP', noAP || !moveAdj(p).length)}
       ${btn('scavenge', '🔍 Scavenge', !canScavengeHere(t) ? (t.def.table.length ? 'Picked clean' : 'Nothing to find') : t.zombies ? 'Blocked by zombies' : lootLeft(t) ? `1 AP · ${lootLeft(t)} of 5 left` : '1 AP · only zombies left', noAP || !canScavengeHere(t) || t.zombies > 0)}
       ${Object.keys(ITEMS).filter((id) => ITEMS[id].vehicle && vehiclesHere(p).some((v) => v.id === id)).map((id) => {
         const v = vehicleOf(p, id);
-        if (!v) return btn(id, `${ITEMS[id].icon} ${ITEMS[id].verb}`, 'Broken — needs a Toolkit', true);
+        if (!v) return btn(id, `${ITEMS[id].icon} ${ITEMS[id].verb}`, 'Broken — needs a Tool', true);
         const fuel = vehicleFuel(v) === 'fuel';
         return btn(id, `${ITEMS[id].icon} ${ITEMS[id].verb}`, !driveAdj(p).length ? 'Nowhere to go' : vehicleLeft(p, v) < 1 ? (fuel ? 'No fuel' : 'No AP') : `1 ${fuel ? ICON.fuel : '🎲'}/tile · cond ${v.cond}`, !canDrive(p, id));
       }).join('')}
@@ -1157,9 +1166,9 @@ const CHEATS = {
   'zombies(n)': 'set zombies on your tile (fight/flee if > 0)',
   'safety(n)': 'set your tile\'s Safety',
   'item(name[,cond])': 'add an item (vehicles park on your tile)',
-  'ap(n) maxap(n) food(n) water(n) hope(n) fuel(n) ammo(n)': 'set a value',
+  'ap(n) maxap(n) food(n) water(n) booze(n) fuel(n) ammo(n)': 'set a value',
   'round(n) day(n)': 'jump the clock (no checks run)',
-  'checks() checks(on|off)': 'toggle the food / water / hope checks',
+  'checks() checks(on|off)': 'toggle the food / water / booze checks',
   'badnight() badnight(on|off)': 'toggle a bad night (round 6 attacks too)',
   'timer() timer(on|off)': 'the 30 s round timer: act in time or lose 1 AP (remembered)',
   'reset()': 'start a fresh world (admin-only once online)',
@@ -1272,6 +1281,7 @@ new MutationObserver(() => { const c = $('#popup .pcard'); if (c) cardWatch.obse
 $('#pack').addEventListener('click', (e) => {
   if (e.target.closest('[data-packtoggle]')) { $('#pack').classList.toggle('open'); return; }
   const u = e.target.closest('[data-use]'); if (u) { useTool(+u.dataset.use); return; }
+  const pl = e.target.closest('[data-pill]'); if (pl) { if (!cur().pending) send({ type: 'pills', item: +pl.dataset.pill }); return; }
   const b = e.target.closest('[data-drop]'); if (!b) return;
   const i = +b.dataset.drop;
   if (dropArmed === i) { dropArmed = -1; dropItem(i); } else { dropArmed = i; renderPack(); }

@@ -119,6 +119,7 @@ body:not(.log-open) #panel { display: none; }
 .hex .tbl { fill: #0007; stroke: #0009; stroke-width: 1; }
 .hex .tbl-div { stroke: #fff2; stroke-width: 1; }
 .hex .cell { text-anchor: start; font-size: 14px; }
+.hex .cell.long { font-size: 12.5px; }
 .hex .cell .n { fill: var(--muted); font-weight: 700; }
 .hex .cell.z { fill: #ff8c7c; }
 .pick circle { fill: var(--accent); stroke: #111; stroke-width: 2; animation: pickpulse 1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
@@ -137,7 +138,7 @@ body:not(.log-open) #panel { display: none; }
 .stat .orb b { font-size: calc(var(--o) * .7); font-weight: 900; line-height: 1; color: var(--c); text-shadow: 0 2px 3px #000, 0 0 10px #000c; font-variant-numeric: tabular-nums; }
 .stat.food .orb { --c: #ff5a52; }
 .stat.water .orb { --c: #4aa8ff; }
-.stat.hope .orb { --c: #c084ff; }
+.stat.booze .orb { --c: #c084ff; }
 .stat.fuel .orb { --c: #ffa040; }
 .stat.ammo .orb { --c: #5fd068; }
 .stat.low2 .orb, .stat.low1 .orb { --glow: #f0922b; }
@@ -346,6 +347,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 .cond i.on { background: var(--accent); }
 .hex .cell.it { fill: var(--accent); font-weight: 700; }
 .ptable li.it { color: var(--accent); }
+.ptable li.it.picked, .ptable li.stash.picked { color: #111; }   /* a picked item or stash row: dark on gold, like the rest */
 /* looted rows are crossed off; stashes stand out */
 .hex .cell.looted { opacity: .35; text-decoration: line-through; }
 .ptable li.looted { opacity: .4; text-decoration: line-through; }

@@ -10,8 +10,8 @@
 // =====================================================================
 
 const Engine = (() => {
-  const ICON = { food: '🔴', water: '🔵', hope: '🟣', fuel: '🟠', ammo: '🟢', safety: '🟡', ap: '🎲' };
-  const RES_LABEL = { food: 'Food', water: 'Water', hope: 'Hope', fuel: 'Fuel', ammo: 'Ammo' };
+  const ICON = { food: '🔴', water: '🔵', booze: '🟣', fuel: '🟠', ammo: '🟢', safety: '🟡', ap: '🎲' };
+  const RES_LABEL = { food: 'Food', water: 'Water', booze: 'Booze', fuel: 'Fuel', ammo: 'Ammo' };
   const COLORS = ['#e4572e', '#29a3d6', '#f3c13a', '#9b5de5', '#2ec4b6', '#ff7eb6'];
   const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 
@@ -44,6 +44,26 @@ const Engine = (() => {
   // ---------------------------------------------------------------- lookups
   const tileOf = (S, p) => S.tiles[key(p.q, p.r)];
   const emptyAdj = (S, p) => neighbors(p.q, p.r).filter(([q, r]) => !S.tiles[key(q, r)]);
+  // Binoculars double your scouting range: the hexes next to you, then the ones next to those —
+  // but you can't see past a Mountain.
+  const binocularsOf = (p) => p.items.filter((it) => ITEMS[it.id]?.binoculars && it.cond > 0).sort((a, b) => a.cond - b.cond)[0];
+  // What a scout could reveal: the unexplored hexes next to you, and with Binoculars the unexplored ones
+  // beyond them, seen through a hex next to you that isn't a Mountain (an unexplored one might turn out to be).
+  function scoutTargets(S, p) {
+    const near = neighbors(p.q, p.r), nearKeys = new Set(near.map(([q, r]) => key(q, r))), out = new Map();
+    for (const [q, r] of near) if (!S.tiles[key(q, r)]) out.set(key(q, r), [q, r]);
+    if (binocularsOf(p)) {
+      for (const [q, r] of near) {
+        const t = S.tiles[key(q, r)];
+        if (t && !passable(t)) continue;   // a Mountain blocks the view
+        for (const [a, b] of neighbors(q, r)) {
+          const k = key(a, b);
+          if (!S.tiles[k] && !nearKeys.has(k) && !(a === p.q && b === p.r)) out.set(k, [a, b]);
+        }
+      }
+    }
+    return [...out.values()];
+  }
   const tileAdj = (S, p) => neighbors(p.q, p.r).filter(([q, r]) => S.tiles[key(q, r)]);
   // Impassable tiles (e.g. Mountain) can't be moved, fled or driven onto.
   const passable = (t) => !!t && t.def.passable;
@@ -146,9 +166,9 @@ const Engine = (() => {
     S.tiles[key(0, 0)] = newTile(START_TILE, CONFIG.startSafety);
     for (const id of CONFIG.testStartVehicles || []) S.tiles[key(0, 0)].vehicles.push({ id, cond: CONFIG.maxCondition });
     names.forEach((name, i) => {
-      // full AP, CONFIG.startRes (4 food, 6 water, 3 hope) and CONFIG.startItems (an Axe)
+      // CONFIG.startAP (8 of 12), CONFIG.startRes (4 food, 6 water, 3 booze) and CONFIG.startItems (an Axe)
       const p = {
-        id: i, name, color: COLORS[i % COLORS.length], q: 0, r: 0, ap: CONFIG.startMaxAP, maxAP: CONFIG.startMaxAP,
+        id: i, name, color: COLORS[i % COLORS.length], q: 0, r: 0, ap: Math.min(CONFIG.startAP, CONFIG.startMaxAP), maxAP: CONFIG.startMaxAP,
         res: { ...CONFIG.startRes }, items: [], dead: false, acted: false, freeMoved: false, caught: false, pending: null, queue: [],
       };
       for (const it of CONFIG.startItems || []) p.items.push({ ...it });
@@ -158,7 +178,7 @@ const Engine = (() => {
     });
     log(S, `Day ${S.day} begins. ${plural(names.length, 'survivor')} shelter at the ${START_TILE.name}.`, 'phase');
     for (const p of S.players) {
-      log(S, `${p.name} starts with full 🎲 ${p.ap} AP, ${p.res.food} ${ICON.food} food, ${p.res.water} ${ICON.water} water, ${p.res.hope} ${ICON.hope} hope.`);
+      log(S, `${p.name} starts with 🎲 ${p.ap} AP, ${p.res.food} ${ICON.food} food, ${p.res.water} ${ICON.water} water, ${p.res.booze} ${ICON.booze} booze.`);
     }
     log(S, roundBanner(S), 'phase');
     return S;
@@ -228,7 +248,7 @@ const Engine = (() => {
   // As round 1 starts, a secret 1d6 decides whether the coming night is a bad one (CONFIG.badNightOn).
   // Food & water feed max AP: each check paid → +trackGain[res] (max 12); each missed → −trackLoss[res]. Max AP 0 = death.
   // (Water: ±2, food: ±1.)
-  // A Hope check you can't pay is death.
+  // A Booze check you can't pay is death.
   // Zombies drift back into a tile's table once it has no Safety and nobody is on it.
   function restockZombies(S) {
     for (const [k, t] of Object.entries(S.tiles)) {
@@ -267,9 +287,9 @@ const Engine = (() => {
           emit(S, { type: 'maxApLoss', player: p.id, res, oldMax, newMax: p.maxAP, oldAp, newAp: p.ap });
           log(S, `${p.name} has no ${res}! Max AP ${oldMax} → ${p.maxAP}.`, 'bad');
           if (p.maxAP <= 0) die(S, p, `${p.name} ${res === 'food' ? 'starved' : 'died of thirst'} (max AP 0).`);
-        } else if (res === 'hope') {
+        } else if (res === 'booze') {
           p.res[res] = 0;
-          die(S, p, `${p.name} has lost all hope (no ${ICON.hope} hope to give).`);
+          die(S, p, `${p.name} can't face another night sober (no ${ICON.booze} booze left).`);
         } else {
           p.res[res] = 0;
           log(S, `${p.name} has no ${res}!`, 'bad');
@@ -399,7 +419,7 @@ const Engine = (() => {
   }
 
   // ---------------------------------------------------------------- vehicles
-  // −1 condition per trip; at 0 it stays parked, broken down, until a Toolkit repairs it.
+  // −1 condition per trip; at 0 it stays parked, broken down, until a Tool repairs it.
   // Only scouted tiles; you can pass through zombie tiles but stopping on one triggers them.
   function startDrive(S, p, id, fleeing = false) {
     const t = tileOf(S, p), v = vehicleOf(S, p, id);
@@ -425,8 +445,8 @@ const Engine = (() => {
       v.cond--;
       log(S, `${p.name} ${def.verb.toLowerCase()}s the ${def.icon} ${v.id} ${plural(steps, 'tile')} to the ${t.def.name}.`, t.zombies ? 'bad' : '');
     }
-    t.vehicles.push(v);   // parked here — even broken down, so a Toolkit can fix it
-    if (v.cond <= 0) log(S, `${def.icon} The ${v.id} breaks down at the ${t.def.name} — it needs a Toolkit before it'll go again.`, 'bad');
+    t.vehicles.push(v);   // parked here — even broken down, so a Tool can fix it
+    if (v.cond <= 0) log(S, `${def.icon} The ${v.id} breaks down at the ${t.def.name} — it needs a Tool before it'll go again.`, 'bad');
     if (t.zombies && steps) { log(S, `🧟 ${plural(t.zombies, 'zombie')} at the ${t.def.name}!`, 'bad'); p.queue.unshift({ type: 'threat' }); }
   }
 
@@ -471,12 +491,26 @@ const Engine = (() => {
   // ---------------------------------------------------------------- items
   // Backpack full: destroy one to make room, or leave the new item (a 'backpack' decision).
   function gainItem(S, p, id, cond) {
+    if (ITEMS[id].map) return readMap(S, p);
     if (p.items.length < CONFIG.maxItems) {
       p.items.push({ id, cond });
       log(S, `${p.name} finds a ${ITEMS[id].icon} ${id} (condition ${cond}).`, 'good');
       return;
     }
     p.pending = { kind: 'backpack', item: { id, cond } };
+  }
+
+  // A Map is used the moment it's found, like scouting everywhere at once: every unexplored hex
+  // next to an explored one is revealed.
+  function readMap(S, p) {
+    const edge = new Set();
+    for (const k of Object.keys(S.tiles)) {
+      const [q, r] = k.split(',').map(Number);
+      for (const [a, b] of neighbors(q, r)) if (!S.tiles[key(a, b)]) edge.add(key(a, b));
+    }
+    const found = [...edge].map((k) => reveal(S, ...k.split(',').map(Number)));
+    log(S, found.length ? `${ITEMS.Map.icon} ${p.name} reads the Map: ${plural(found.length, 'new place')} revealed.` : `${ITEMS.Map.icon} The Map shows nothing new.`, 'good');
+    if (found.length) emit(S, { type: 'scout', player: p.id, tiles: found, map: true });
   }
 
   // ---------------------------------------------------------------- actions
@@ -519,7 +553,7 @@ const Engine = (() => {
       const r = tries.at(-1), hit = rows[r - 1], e = hit.e;
       // then dice for each part: a resource rolls CONFIG.lootDice d6; zombies and an item's condition roll 1d6
       const parts = hit.kind === 'stash' || hit.kind === 'looted' ? [] : e.parts ?? [e];
-      const dice = parts.map((x) => Array.from({ length: x.res ? CONFIG.lootDice : 1 }, () => roll(S, true)));
+      const dice = parts.map((x) => Array.from({ length: x.res ? CONFIG.lootDice : ITEMS[x.item]?.map ? 0 : 1 }, () => roll(S, true)));   // a Map has no condition
       const amts = dice.map((d) => d.reduce((a, b) => a + b, 0)), amt = amts[0] ?? null;
       const c = hit.kind === 'zombies' ? zombieContest(t, amt) : null;
       const snap = (x) => JSON.parse(JSON.stringify(x));   // events carry the table as it was when you rolled
@@ -537,7 +571,7 @@ const Engine = (() => {
       } else {
         if (!e.endless) (t.looted ||= []).push(r);   // found: crossed off for good (unless it's Endless)
         const found = parts.map((x, i) => {
-          if (x.item) return `${ITEMS[x.item].icon} ${x.item}, condition ${amts[i]}`;
+          if (x.item) return ITEMS[x.item].map ? `${ITEMS[x.item].icon} ${x.item}` : `${ITEMS[x.item].icon} ${x.item}, condition ${amts[i]}`;
           p.res[x.res] += amts[i] * x.n;
           return `${cellText(x)} → ${dice[i].join(' + ')}${x.n > 1 ? ` ×${x.n}` : ''} = ${amts[i] * x.n} ${ICON[x.res]} ${x.res}`;
         });
@@ -551,24 +585,31 @@ const Engine = (() => {
         });
       }
     },
-    // Scouting reveals every unexplored hex next to you, each a random location.
+    // Scouting reveals every unexplored hex next to you (and beyond, with Binoculars), each a random location.
     scout(S, p) {
-      const around = emptyAdj(S, p);
+      const bino = binocularsOf(p);
       if (p.ap < 1) return 'No AP.';
-      if (!around.length) return 'Everything around you is already explored.';
+      if (!scoutTargets(S, p).length) return `Everything ${bino ? 'in sight' : 'around you'} is already explored.`;
       p.ap--;
-      const found = around.map(([q, r]) => reveal(S, q, r));
+      // the hexes next to you first; then, with Binoculars, what you can see beyond them (Mountains now block)
+      const found = emptyAdj(S, p).map(([q, r]) => reveal(S, q, r));
+      if (bino) found.push(...scoutTargets(S, p).map(([q, r]) => reveal(S, q, r)));
       const names = found.map((f) => `${/^[aeiou]/i.test(f.name) ? 'an' : 'a'} ${f.icon} ${f.name}`);
-      log(S, `${p.name} scouts and discovers ${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}.`);
+      log(S, `${p.name} scouts${bino ? ` with the ${ITEMS[bino.id].icon} ${bino.id}` : ''} and discovers ${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}.`);
       emit(S, { type: 'scout', player: p.id, tiles: found });
+      if (bino && --bino.cond <= 0) {   // each scout with them wears them down
+        p.items.splice(p.items.indexOf(bino), 1);
+        log(S, `${ITEMS[bino.id].icon} The ${bino.id} break.`, 'bad');
+      }
       p.acted = true;
     },
     move: (S, p, { q, r }) => moveTo(S, p, q, r, false),
   };
 
   // Moving: the first move each round is free (no AP, doesn't use your action); another costs 1 AP and is your action.
+  // Either way you need at least 1 AP, so at 0 AP the only thing left is to sleep.
   function moveTo(S, p, q, r, free) {
-    if (!free && p.ap < 1) return 'No AP.';
+    if (p.ap < 1) return 'No AP — you must sleep.';
     if (!isAdjacent(p, q, r)) return "Can't move there.";
     const t = enterHex(S, p, q, r);
     if (!t) return;   // a Mountain was in the way: revealed, nothing spent
@@ -598,6 +639,20 @@ const Engine = (() => {
       if (tool.cond <= 0) {
         p.items.splice(i, 1);
         log(S, `${ITEMS[tool.id].icon} The ${tool.id} is used up and destroyed.`, 'bad');
+      }
+    },
+    // Pills: a dose (−1 condition) tops your AP up to your max AP (max AP itself doesn't change). Gone at 0.
+    pills(S, p, { item: i }) {
+      const it = p.items[i];
+      if (!it || !ITEMS[it.id]?.pills) return 'Pick some pills to take.';
+      if (p.ap >= p.maxAP) return 'Your AP is already full.';
+      const ap = p.ap;
+      it.cond--; p.ap = p.maxAP;
+      emit(S, { type: 'pills', player: p.id, item: it.id, ap, cond: it.cond });
+      log(S, `${p.name} takes the ${ITEMS[it.id].icon} ${it.id}: AP ${ap} → ${p.ap}.`, 'good');
+      if (it.cond <= 0) {
+        p.items.splice(i, 1);
+        log(S, `${ITEMS[it.id].icon} The ${it.id} are all gone.`, 'bad');
       }
     },
     // Dropping leaves the item in your stash on this tile — anyone who rolls that row can take it.
@@ -757,11 +812,11 @@ const Engine = (() => {
         }
         case 'ap': p.ap = Math.max(0, Math.min(p.maxAP, n[0] ?? 0)); say = `AP: ${p.ap}`; break;
         case 'maxap': p.maxAP = Math.max(1, Math.min(CONFIG.maxAP, n[0] ?? CONFIG.maxAP)); p.ap = Math.min(p.ap, p.maxAP); say = `Max AP: ${p.maxAP}`; break;
-        case 'food': case 'water': case 'hope': case 'fuel': case 'ammo': p.res[cmd] = Math.max(0, n[0] ?? 0); say = `${cmd}: ${p.res[cmd]}`; break;
+        case 'food': case 'water': case 'booze': case 'fuel': case 'ammo': p.res[cmd] = Math.max(0, n[0] ?? 0); say = `${cmd}: ${p.res[cmd]}`; break;
         case 'checks': {
           const v = String(n[0] ?? '').toLowerCase();
           S.checksOff = v === 'off' ? true : v === 'on' ? false : !S.checksOff;
-          say = `Resource checks ${S.checksOff ? 'OFF — no food, water or hope is taken' : 'ON'}`; break;
+          say = `Resource checks ${S.checksOff ? 'OFF — no food, water or booze is taken' : 'ON'}`; break;
         }
         case 'badnight': {
           const v = String(n[0] ?? '').toLowerCase();
@@ -778,7 +833,7 @@ const Engine = (() => {
 
   return {
     ICON, RES_LABEL, key, neighbors, isNight, isAttack, attackDue, cellText, upkeepText, roundBanner,
-    tileOf, emptyAdj, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText,
+    tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText,
     fleeAdj, canShoot, canMelee, canFight, canFlee, vehicleFuel, vehicleLeft, vehicleOf, canDrive,
     createGame, start, act, timeUp, cheat,
   };
