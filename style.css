@@ -35,6 +35,8 @@ header { display: flex; align-items: center; gap: 16px; padding: 8px 16px; borde
 @keyframes unreadpop { from { transform: scale(0); } }
 #banner { flex: 1; min-width: 0; }
 #banner h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#banner .short { display: none; }
+@media (max-width: 640px) { #banner .long { display: none; } #banner .short { display: inline; } }
 .hbtns { display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
 .hbtns .ic { display: none; }
 main { flex: 1; display: grid; grid-template-columns: 1fr 0; min-height: 0; position: relative; }
@@ -42,7 +44,8 @@ body.log-open main { grid-template-columns: 1fr 380px; }
 body:not(.log-open) #panel { display: none; }
 #board { position: relative; min-height: 0; overflow: hidden; container: board / inline-size;
   background: radial-gradient(circle at 50% 50%, #1d2125 0%, #111316 100%); }
-#map { width: 100%; height: 100%; display: block; }
+#map { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }   /* drag to look around (game.js) */
+#map.dragging, #map.dragging * { cursor: grabbing; }
 #hint { text-align: center; background: #000a; padding: 6px 12px; border-radius: 6px; }
 #hint:empty { display: none; }
 #panel { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); background: var(--panel); }
@@ -115,7 +118,7 @@ body:not(.log-open) #panel { display: none; }
 .hex .pip.on { fill: #f2c94c; stroke: #8a6d12; filter: drop-shadow(0 0 3px #f2c94c88); }
 .hex .tbl { fill: #0007; stroke: #0009; stroke-width: 1; }
 .hex .tbl-div { stroke: #fff2; stroke-width: 1; }
-.hex .cell { text-anchor: start; font-size: 12px; }
+.hex .cell { text-anchor: start; font-size: 14px; }
 .hex .cell .n { fill: var(--muted); font-weight: 700; }
 .hex .cell.z { fill: #ff8c7c; }
 .pick circle { fill: var(--accent); stroke: #111; stroke-width: 2; animation: pickpulse 1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
@@ -126,32 +129,30 @@ body:not(.log-open) #panel { display: none; }
 /* panel */
 .who { display: flex; align-items: center; gap: 8px; }
 .who i { width: 14px; height: 14px; border-radius: 50%; background: var(--pc); }
-/* resources: a column of orbs filling the space under the backpack, growing with the room available */
+/* resources: a column of coloured numbers filling the space under the backpack, growing with the room available */
 #stats { flex: 1; min-height: 0; container-type: size; display: flex; flex-direction: column; justify-content: space-evenly; align-items: flex-end; }
 .stat { --o: clamp(28px, calc(20cqh - 12px), var(--orbmax)); display: flex; flex-direction: row-reverse; align-items: center; gap: 10px; pointer-events: auto; }
 .stat small { font-size: 12px; font-weight: 600; color: var(--text); text-transform: uppercase; letter-spacing: .1em; text-shadow: 0 1px 3px #000, 0 0 8px #000; }
-.stat .orb { --c: #888; position: relative; width: var(--o); height: var(--o); border-radius: 50%; display: grid; place-items: center;
-  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 70%, #fff) 0%, var(--c) 45%, color-mix(in srgb, var(--c) 60%, #000) 100%);
-  box-shadow: inset 0 -4px 8px #0006, 0 4px 10px #0008; border: 2px solid #0008; }
-.stat .orb b { font-size: calc(var(--o) * .42); font-weight: 900; color: #fff; text-shadow: 0 2px 3px #000a; }
-.stat.food .orb { --c: #e53935; }
-.stat.water .orb { --c: #1e88e5; }
-.stat.hope .orb { --c: #8e44ad; }
-.stat.fuel .orb { --c: #f57c00; }
-.stat.ammo .orb { --c: #43a047; }
+.stat .orb { --c: #888; position: relative; min-width: var(--o); height: var(--o); display: grid; place-items: center; }
+.stat .orb b { font-size: calc(var(--o) * .7); font-weight: 900; line-height: 1; color: var(--c); text-shadow: 0 2px 3px #000, 0 0 10px #000c; font-variant-numeric: tabular-nums; }
+.stat.food .orb { --c: #ff5a52; }
+.stat.water .orb { --c: #4aa8ff; }
+.stat.hope .orb { --c: #c084ff; }
+.stat.fuel .orb { --c: #ffa040; }
+.stat.ammo .orb { --c: #5fd068; }
 .stat.low2 .orb, .stat.low1 .orb { --glow: #f0922b; }
 .stat.low1 .orb { --glow: #ff3b30; }
-.stat.low2 .orb::after, .stat.low1 .orb::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; pointer-events: none; border: 3px solid var(--glow); box-shadow: 0 0 14px 3px var(--glow); animation: glow 1.6s ease-in-out infinite; }
-.stat.low1 .orb::after { animation-duration: .9s; }
-@keyframes glow { 50% { opacity: .3; } }
+.stat.low2 .orb b, .stat.low1 .orb b { animation: lowglow 1.6s ease-in-out infinite; }
+.stat.low1 .orb b { animation-duration: .9s; }
+@keyframes lowglow { 50% { text-shadow: 0 2px 3px #000, 0 0 12px var(--glow), 0 0 4px var(--glow); } }
 .delta { position: absolute; left: 50%; top: -4px; font-size: 18px; font-weight: 900; text-shadow: 0 2px 4px #000; pointer-events: none; animation: deltafloat 1.4s ease-out forwards; }
 .delta.up { color: #4cd964; }
 .delta.down { color: #ff5b4f; }
 @keyframes deltafloat { 0% { opacity: 0; transform: translate(-50%, 0) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -6px) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -26px) scale(1); } }
 .stat.up .orb { animation: orbup .7s cubic-bezier(.2, 1.8, .5, 1); }
 .stat.down .orb { animation: orbdown .7s ease-out; }
-@keyframes orbup { 40% { transform: scale(1.18); box-shadow: 0 0 20px 6px #4cd964; } }
-@keyframes orbdown { 20% { transform: translateX(-4px); box-shadow: 0 0 20px 6px #ff3b30; } 40% { transform: translateX(4px); } }
+@keyframes orbup { 40% { transform: scale(1.25); filter: drop-shadow(0 0 8px #4cd964); } }
+@keyframes orbdown { 20% { transform: translateX(-4px); filter: drop-shadow(0 0 8px #ff3b30); } 40% { transform: translateX(4px); } }
 #apbox { position: absolute; left: calc(var(--gap) + (var(--clock) - var(--ap)) / 2);  /* centre = clock centre */ bottom: var(--gap); z-index: 3; width: var(--ap); height: var(--ap); filter: drop-shadow(0 6px 14px #000a); }
 .apgauge { width: 100%; height: 100%; --c: var(--bad); }
 .apgauge.full { --c: #a259ff; }
@@ -385,7 +386,8 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
    Desktop (≥1200px wide): log docks beside the board.
    Tablet landscape / small laptop (900–1199px): narrower docked log; overlays shrink.
    Tablet portrait (<900px): log slides over the board as a drawer.
-   Phone (≤640px wide, or ≤500px tall in landscape): compact overlays, folding backpack, full-screen log. */
+   Phone (≤640px wide, or ≤500px tall in landscape): compact header, full-screen log.
+   Touch screens, and anything held upright up to tablet size, use the touch layout (end of file). */
 @media (min-width: 900px) and (max-width: 1199px) {
   body.log-open main { grid-template-columns: 1fr 320px; }
 }
@@ -416,18 +418,6 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   .stat { gap: 8px; }
   .stat small { font-size: 10.5px; }
   .delta { font-size: 14px; }
-  /* backpack folds to its header (tap to open); open, it widens over the map */
-  button.packhead { cursor: pointer; min-height: 22px; }
-  .packhead .caret, .packhead .bag { display: inline; }
-  .packhead .word { display: none; }
-  .packhead .caret { margin-left: auto; }
-  .packhead .packicons { min-width: 0; overflow: hidden; white-space: nowrap; }
-  .packhead .caret::after { content: '▾'; font-size: 14px; }
-  #pack.open .packhead .caret::after { content: '▴'; }
-  #pack:not(.open) .packhead .packicons { display: block; font-size: 13px; letter-spacing: 0; }
-  .packhead .bag { font-size: 14px; letter-spacing: 0; }
-  #pack:not(.open) .slot-item { display: none; }
-  #pack.open { align-self: flex-end; width: min(260px, calc(100vw - 2 * var(--gap))); }
   /* actions */
   .ribbon { padding: 8px 6px 6px; gap: 5px; }
   .act { padding: 6px 8px; flex: 1 1 auto; }
@@ -436,16 +426,87 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   #actions .note, #hint { font-size: 12px; }
   .pcard { padding: 16px 14px 12px; }
 }
-/* phone portrait: AP gauge sits beside the clock, the dock spans the full width */
-@media (max-width: 640px) {
-  #timer { top: calc(var(--gap) * 2 + var(--clock)); transform: translateX(-50%); }   /* the top row is full: just below it */
-  :root { --col: clamp(130px, calc(100vw - var(--clock) - var(--ap) - 4 * var(--gap)), 200px); }
-  #apbox { top: calc(var(--gap) + (var(--clock) - var(--ap)) / 2); bottom: auto; left: calc(var(--gap) * 2 + var(--clock)); }
-  #dock { left: var(--gap); width: auto; }
-  #actions, .ribbon { width: 100%; }
+/* ---------------------------------------------------------------- touch layout (phones and tablets, either way up)
+   The map fills the board under everything (game.js frames the open space, #mapframe). Upright:
+   the resources along the top; the clock (timer beside it) above the map; the AP dial below it;
+   then the backpack and the action tray. Sideways: the resources and the backpack along the top;
+   the clock (timer under it) left of the map, the AP dial right of it, both level; the action tray along the
+   bottom. The main action tray shows emoji only (names in the tooltip). Desktop is unchanged. */
+#mapframe { display: none; }
+@media (pointer: coarse), (orientation: portrait) and (max-width: 1100px), (max-width: 640px), (max-height: 500px) {
+  :root { --clock: 210px; --ap: 210px; --orbsize: 58px; --bar: 64px; }
+  #board { display: grid; padding: var(--gap); gap: 8px 10px;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto var(--bar) auto;
+    grid-template-areas: "stats stats stats" ". clock timer" "map map map" ". ap ." "pack pack pack" "dock dock dock"; }
+  #map { grid-area: 1 / 1 / -1 / -1; margin: calc(-1 * var(--gap)); width: calc(100% + 2 * var(--gap)); height: calc(100% + 2 * var(--gap)); min-height: 0; border-radius: 0; background: none; }
+  #mapframe { display: block; grid-area: map; visibility: hidden; pointer-events: none; }
+  #clock { grid-area: clock; position: static; align-self: center; justify-self: center; }
+  #apbox { grid-area: ap; position: static; align-self: center; justify-self: center; }
+  #timer { grid-area: timer; position: static; transform: none; justify-self: center; align-self: center; justify-content: center; padding: 8px 12px; font-size: 18px; }
+  #timer .bar { display: none; }
+  #rightcol { display: contents; }
+  /* resources: a tray of big coloured numbers */
+  #stats { grid-area: stats; flex: none; container-type: normal; flex-direction: row; justify-content: space-around; align-items: center; align-self: stretch;
+    padding: 2px 10px; background: #1e2125ee; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px #000a; }
+  .stat { --o: var(--orbsize); flex-direction: column; gap: 3px; }
+  .stat small { display: none; }
+  /* the backpack folds to a bar (tap to open). Its row is a fixed height; open, it hangs from the bottom of it, up over the map */
+  #pack { grid-area: pack; justify-content: center; width: auto; padding: 8px 12px; border-radius: 12px; }
+  button.packhead { cursor: pointer; min-height: 30px; }
+  .packhead .caret, .packhead .bag { display: inline; }
+  .packhead .word { display: none; }
+  .packhead .caret { margin-left: auto; }
+  .packhead .packicons { min-width: 0; overflow: hidden; white-space: nowrap; }
+  .packhead .caret::after { content: '▾'; font-size: 14px; }
+  #pack.open .packhead .caret::after { content: '▴'; }
+  /* folded: a chip per item — icon, name and condition; with more than 3, the name goes and the condition sits under the icon */
+  #pack:not(.open) .packhead .packicons { display: flex; align-items: center; gap: 14px; flex: 1; text-transform: none; letter-spacing: 0; color: var(--text); }
+  .pchip { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .pchip .ic { font-size: 24px; line-height: 1; }
+  .pchip .pinfo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .pchip b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
+  .packicons.many { gap: 6px; }
+  .packicons.many .pchip { flex-direction: column; gap: 3px; }
+  .packicons.many .pchip b { display: none; }
+  .packicons.many .cond { gap: 1px; }
+  .packicons.many .cond i { width: 4px; height: 4px; }
+  .pchip .cond { flex-shrink: 0; }
+  .packhead .bag { font-size: 22px; letter-spacing: 0; }
+  .packhead .packname { font-size: 13px; }
+  #pack:not(.open) .slot-item { display: none; }
+  #pack.open { align-self: end; justify-self: start; z-index: 6; width: min(340px, 100%); max-height: 60vh; overflow-y: auto; background: #1e2125; }
+  /* the action tray: one row; the main tray shows just the emoji */
+  #dock { grid-area: dock; position: static; width: auto; margin: 0; }
+  #actions, #actions .ribbon { width: 100%; }
+  .ribbon { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; }
+  .act { min-width: 0; white-space: normal; }
+  .ribbon.main .act { align-items: center; justify-content: center; padding: 10px 4px; }
+  .ribbon.main .act .al, .ribbon.main .act small, .ribbon.main .act kbd { display: none; }
+  .ribbon.main .act .ai { font-size: 30px; line-height: 1; }
+  .ribbon.main .act:disabled .ai { filter: grayscale(1); }
+  /* the round notices ("Next round starts with…") would push the map aside — the clock already shows what's coming */
+  #actions:has(.ribbon.main) > .note { display: none; }
+  /* Fight or Flee still takes the middle of the board (out of the grid, so it centres on the whole board) */
+  #board.threat #dock { position: absolute; grid-area: auto; }
+  #board.threat .ribbon { grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); }
 }
-/* phone landscape: AP gauge under the clock */
-@media (max-height: 500px) and (min-width: 641px) {
-  :root { --col: 170px; --dockl: calc(var(--gap) * 2 + var(--clock)); }
-  #apbox { top: calc(var(--gap) * 2 + var(--clock)); bottom: auto; }
+/* sideways: the resources and the backpack share the top row (it opens downward); the clock and AP dial flank the map */
+@media (orientation: landscape) and (pointer: coarse), (orientation: landscape) and (max-width: 640px), (orientation: landscape) and (max-height: 500px) {
+  #board { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto; grid-template-rows: var(--bar) minmax(0, 1fr) auto;
+    grid-template-areas: "stats stats pack pack" "clock map map ap" "dock dock dock dock"; }
+  #timer { grid-area: clock; align-self: end; }   /* tucked under the clock, which stays level with the AP dial */
+  #pack.open { align-self: start; justify-self: end; }
+}
+/* phone sizes */
+@media (max-width: 640px), (max-height: 500px) {
+  :root { --gap: 8px; --clock: 136px; --ap: 136px; --orbsize: 44px; --bar: 50px; }
+  #board { gap: 6px 8px; }
+  .packhead .bag { font-size: 20px; }
+  .pchip .ic { font-size: 22px; }
+  .ribbon.main .act { padding: 8px 2px; }
+  .ribbon.main .act .ai { font-size: 24px; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  :root { --clock: 120px; --ap: 128px; }
+  #timer { padding: 6px 10px; font-size: 16px; }
 }

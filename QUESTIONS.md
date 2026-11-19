@@ -5,6 +5,19 @@ Current behaviour is noted in *italics* where the game already does something as
 
 ---
 
+## Playtest notes (2026-11-18)
+
+Logged from a playtest. Tick when handled.
+
+- [x] **Bug: on mobile there's no button to stop driving** — stopping is only Enter / Backspace, so touch players can't end a trip. *(Fixed: ⏹ Stop here button while driving.)*
+- [x] **Zombies don't need to be on the tile loot list** — row 1 is always Zombies, so it needn't be shown. *(Fixed: tiles list rows 2–6, in bigger text.)*
+- [ ] **Clock numbers should shift one to the right**, so the game and each day start on 1 (today the game starts on round 2, and round 1 is the late night).
+- [ ] **Starting AP could be lower** — maybe 75% (9 of 12).
+- [ ] **Mobile UI is broken.** *(Touch layout for phones and tablets, either way up: full-screen draggable map, clock and AP dial around it, resource and backpack bars, emoji action tray — needs a playtest.)*
+- [ ] **Resources could look like the inventory on mobile** (same treatment as the backpack). *(Now a tray of big coloured numbers, matching the backpack bar — needs a playtest.)*
+- [ ] **Free movement should need AP banked** — you must have AP left to take the free move (it still doesn't spend it?).
+- [ ] **Feels too easy** with 2d6 resources and a starting weapon.
+
 ## Core rules (single player)
 
 ### Clock & checks

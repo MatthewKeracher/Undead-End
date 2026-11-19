@@ -425,6 +425,7 @@ function act(name) {
   if (busy || modalKey || G.over) return;
   const p = cur();
   if (mode === 'threat') { if (['shoot', 'melee', 'flee'].includes(name)) send({ type: 'decide', choice: name }); return; }
+  if (name === 'stopdrive') return send({ type: 'decide', choice: 'stop' });   // the touch way to end a trip
   if (p.pending) return;
   if (name === 'move') { mode = mode === name ? null : name; return render(); }
   if (name === 'pause') return togglePause();
@@ -781,7 +782,7 @@ function renderClock() {
   }
   $('#wedges').innerHTML = s;
   $('#clockday').textContent = G.day;
-  $('#banner').innerHTML = `<i style="background:${cur().color}"></i><h1>${E.roundBanner(G)}</h1>`;
+  $('#banner').innerHTML = `<i style="background:${cur().color}"></i><h1><span class="long">${E.roundBanner(G)}</span><span class="short">Day ${G.day} · Round ${G.round} ${isNight(G.round) ? '🌙' : '☀️'}</span></h1>`;
   // monotonic angle so the hand always sweeps clockwise, even from round 6 → 1
   const turns = (G.day - 1) * 6 + (G.round - 1);
   $('#hand').style.transform = `rotate(${turns * 60 + 30}deg)`;
@@ -801,15 +802,15 @@ const shortName = (n) => (n.length > 9 ? `${n.slice(0, 8)}…` : n);
 const rowText = (row) => (row.kind === 'stash' ? `🎒 ${shortName(row.stash.owner)}'s stash` : row.e ? cellText(row.e) : '—');
 const rowClass = (row) => ({ zombies: 'z', item: 'it', looted: 'looted', stash: 'stash' }[row.kind] || '');
 
-// All six results, including 1 (Zombies) — it's crossed off while the tile is clear of them.
+// Results 2–6. 1 is always Zombies, so it isn't listed — the pips below show any zombies on the tile.
 function tableSvg(x, y, t) {
   if (!t.def.passable) return `<text x="${x}" y="${y + 4}" class="empty">Impassable</text>`;
   if (!canScavengeHere(t)) return `<text x="${x}" y="${y + 4}" class="empty">Nothing to scavenge</text>`;
-  const ch = 18, w = HEX, h = ch * 6;
+  const rows = E.tableView(t).slice(1), ch = 21, w = HEX + 16, h = ch * rows.length;
   let s = `<rect x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" rx="3" class="tbl"/>`;
-  E.tableView(t).forEach((row, i) => {
-    const ty = y - h / 2 + i * ch + ch / 2 + 4;
-    s += `<text x="${x - w / 2 + 8}" y="${ty}" class="cell ${rowClass(row)}"><tspan class="n">${i + 1}</tspan>  ${esc(rowText(row))}</text>`;
+  rows.forEach((row, i) => {
+    const ty = y - h / 2 + i * ch + ch / 2 + 5;
+    s += `<text x="${x - w / 2 + 8}" y="${ty}" class="cell ${rowClass(row)}"><tspan class="n">${row.row}</tspan>  ${esc(rowText(row))}</text>`;
   });
   return s;
 }
@@ -840,14 +841,59 @@ function cameraTo(x, y) {
   };
   cam.anim = requestAnimationFrame(step);
 }
+// the touch layout (phones and tablets, either way up — style.css): the map fills the board under everything else
+const touchUI = matchMedia('(pointer: coarse), (orientation: portrait) and (max-width: 1100px), (max-width: 640px), (max-height: 500px)');
 function applyView() {
   const svg = $('#map'), b = svg.getBoundingClientRect();
   if (!b.width || !b.height) return;
-  const z = Math.min(1, b.width / 520, b.height / 480);   // zoom out a little on small screens
+  // there, frame the open space left between the clock, the AP dial and the trays (#mapframe) rather than the whole map
+  const fr = touchUI.matches ? $('#mapframe').getBoundingClientRect() : b, f = fr.width && fr.height ? fr : b;
+  // zoom out a little on small screens; in the touch layout let it zoom in, keeping your hex (240 tall) and a peek at the next ones in view
+  const z = touchUI.matches ? Math.min(1.3, f.width / 520, f.height / 300) : Math.min(1, b.width / 520, b.height / 480);
   const w = b.width / z, h = b.height / z;
-  svg.setAttribute('viewBox', `${cam.x - w / 2} ${cam.y - h / 2} ${w} ${h}`);
+  const dx = (f.left + f.width / 2 - (b.left + b.width / 2)) / z, dy = (f.top + f.height / 2 - (b.top + b.height / 2)) / z;
+  svg.setAttribute('viewBox', `${cam.x - dx - drag.x / z - w / 2} ${cam.y - dy - drag.y / z - h / 2} ${w} ${h}`);
 }
 window.addEventListener('resize', applyView);
+
+// Dragging the map (mouse or touch) looks around; let go and it springs back to centre on your hex.
+// drag.x/y is how far the map has been pulled, in screen pixels, on top of the camera.
+const drag = { x: 0, y: 0, id: null, sx: 0, sy: 0, ox: 0, oy: 0, moved: false, justDragged: false, anim: null };
+function springBack() {
+  const fx = drag.x, fy = drag.y, t0 = performance.now(), dur = 450;
+  const step = (now) => {
+    const k = Math.max(0, Math.min(1, (now - t0) / dur)), e = 1 + 2.70158 * (k - 1) ** 3 + 1.70158 * (k - 1) ** 2;   // ease-out-back: a little overshoot
+    drag.x = fx * (1 - e); drag.y = fy * (1 - e);
+    applyView();
+    drag.anim = k < 1 ? requestAnimationFrame(step) : null;
+  };
+  drag.anim = requestAnimationFrame(step);
+}
+$('#map').addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || drag.id !== null) return;
+  if (drag.anim) { cancelAnimationFrame(drag.anim); drag.anim = null; }   // grabbed mid-spring: carry on from there
+  Object.assign(drag, { id: e.pointerId, sx: e.clientX - drag.x, sy: e.clientY - drag.y, ox: drag.x, oy: drag.y, moved: false });
+});
+$('#map').addEventListener('pointermove', (e) => {
+  if (e.pointerId !== drag.id) return;
+  const x = e.clientX - drag.sx, y = e.clientY - drag.sy;
+  if (!drag.moved && Math.hypot(x - drag.ox, y - drag.oy) < 8) return;   // still a tap, not a drag
+  if (!drag.moved) { drag.moved = true; $('#map').setPointerCapture(e.pointerId); $('#map').classList.add('dragging'); }
+  drag.x = x; drag.y = y;
+  applyView();
+});
+const dragEnd = (e) => {
+  if (e.pointerId !== drag.id) return;
+  drag.id = null;
+  if (drag.moved) {
+    $('#map').classList.remove('dragging');
+    drag.justDragged = true;   // the click that follows letting go isn't a click on a tile
+    setTimeout(() => { drag.justDragged = false; }, 0);
+  }
+  if (drag.x || drag.y) springBack();
+};
+$('#map').addEventListener('pointerup', dragEnd);
+$('#map').addEventListener('pointercancel', dragEnd);
 
 // Right column (backpack + resources) runs down the board, stopping above the action dock if they'd overlap.
 function fitRightCol() {
@@ -855,6 +901,9 @@ function fitRightCol() {
   const b = $('#board').getBoundingClientRect(), d = $('#dock').getBoundingClientRect(), c = $('#rightcol').getBoundingClientRect();
   $('#board').style.setProperty('--dockh', d.right > c.left ? `${b.bottom - d.top}px` : '0px');
 }
+const viewWatch = new ResizeObserver(applyView);   // the map and its open space change size when the log docks, the phone turns…
+viewWatch.observe($('#map'));
+viewWatch.observe($('#mapframe'));
 const dockWatch = new ResizeObserver(fitRightCol);
 dockWatch.observe($('#dock'));
 dockWatch.observe($('#board'));
@@ -940,7 +989,8 @@ function renderPack() {
   const p = cur();
   // the header folds the backpack away on small screens (see style.css)
   let h = `<button type="button" class="packhead" data-packtoggle><span class="packname"><span class="word">Backpack</span><span class="bag">🎒</span> ${p.items.length}/${CONFIG.maxItems}</span>`
-    + `<span class="packicons">${p.items.map((it) => ITEMS[it.id].icon).join('')}</span><span class="caret"></span></button>`;
+    // folded, it shows each item in brief: icon, name and condition (just icon and condition once there are more than 3)
+    + `<span class="packicons ${p.items.length > 3 ? 'many' : ''}">${p.items.map((it) => `<span class="pchip"><span class="ic">${ITEMS[it.id].icon}</span><span class="pinfo"><b>${esc(it.id)}</b>${condPips(it.cond)}</span></span>`).join('')}</span><span class="caret"></span></button>`;
   for (let i = 0; i < CONFIG.maxItems; i++) {
     const it = p.items[i];
     h += it
@@ -997,7 +1047,9 @@ function renderPanel() {
     const keys = mode === 'threat' ? THREAT_KEYS : HOTKEYS;
     const hk = Object.keys(keys).find((k) => keys[k] === id);
     if (dis && selected === id) selected = null;
-    return `<button class="act ${mode === id ? 'on' : ''} ${selected === id ? 'sel' : ''}" data-act="${id}" ${dis ? 'disabled' : ''}><b>${label}${hk ? `<kbd>${hk.toUpperCase()}</kbd>` : ''}</b><small>${sub}</small></button>`;
+    // the emoji and the words are separate, so phones and upright tablets can show the emoji alone (title has the rest)
+    const [icon, ...words] = label.split(' ');
+    return `<button class="act ${mode === id ? 'on' : ''} ${selected === id ? 'sel' : ''}" data-act="${id}" title="${esc(`${words.join(' ')} — ${sub}`)}" ${dis ? 'disabled' : ''}><b><span class="ai">${icon}</span><span class="al"> ${words.join(' ')}</span>${hk ? `<kbd>${hk.toUpperCase()}</kbd>` : ''}</b><small>${sub}</small></button>`;
   };
 
   if (mode === 'threat') {
@@ -1017,7 +1069,8 @@ function renderPanel() {
     $('#actions').innerHTML = `
       ${t.zombies ? `<div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} here — stopping on this tile triggers them!</div>` : ''}
       <div class="note good">${ITEMS[v.id].icon} ${flee ? 'Escaping' : 'Driving'} the ${v.id} — ${fuel ? `${ICON.fuel} ${p.res.fuel} fuel` : `🎲 ${p.ap} AP`} left · ${steps} tile${steps === 1 ? '' : 's'} so far.
-        Next hex: A Q E D X Z · <b>Enter</b> / <b>Backspace</b> to stop here.</div>`;
+        Next hex: A Q E D X Z or tap one.</div>
+      <div class="ribbon">${btn('stopdrive', '⏹ Stop here', flee && !steps ? 'Pick a hex first' : 'Enter / Backspace', flee && !steps)}</div>`;
     renderLog();
     return;
   }
@@ -1040,7 +1093,7 @@ function renderPanel() {
   $('#actions').innerHTML = `
     ${warn}
     ${noAP ? `<div class="note bad">Out of AP — you must sleep.</div>` : ''}
-    <div class="ribbon">
+    <div class="ribbon main">
       ${btn('pause', '⏸ Pause', 'Stop the clock', false)}
       ${btn('sleep', '😴 Sleep', 'Gain 2d6 AP', false)}
       ${btn('scout', '🔭 Scout', emptyAdj(p).length ? `1 AP · reveal ${emptyAdj(p).length} hex${emptyAdj(p).length === 1 ? '' : 'es'}` : 'All explored', noAP || !emptyAdj(p).length)}
@@ -1079,6 +1132,7 @@ function renderLog() {
 
 // ---------------------------------------------------------------- wiring
 $('#map').addEventListener('click', (e) => {
+  if (drag.justDragged) return;
   const g = e.target.closest('[data-k]');
   if (g) { const [q, r] = g.dataset.k.split(',').map(Number); clickHex(q, r); }
 });
