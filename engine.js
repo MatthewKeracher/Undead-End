@@ -166,7 +166,7 @@ const Engine = (() => {
     S.tiles[key(0, 0)] = newTile(START_TILE, CONFIG.startSafety);
     for (const id of CONFIG.testStartVehicles || []) S.tiles[key(0, 0)].vehicles.push({ id, cond: CONFIG.maxCondition });
     names.forEach((name, i) => {
-      // CONFIG.startAP (8 of 12), CONFIG.startRes (4 food, 6 water, 3 booze) and CONFIG.startItems (an Axe)
+      // CONFIG.startAP (8 of 12), CONFIG.startRes (4 food, 6 water, 3 booze) and CONFIG.startItems (none)
       const p = {
         id: i, name, color: COLORS[i % COLORS.length], q: 0, r: 0, ap: Math.min(CONFIG.startAP, CONFIG.startMaxAP), maxAP: CONFIG.startMaxAP,
         res: { ...CONFIG.startRes }, items: [], dead: false, acted: false, freeMoved: false, caught: false, pending: null, queue: [],

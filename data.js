@@ -11,7 +11,7 @@ const CONFIG = {
   startMaxAP: 12,         // max AP at the start (food & water missed lower it; paid raises it back, up to 12)
   startAP: 8,             // AP at the start (sleep tops it up to max AP)
   startRes: { food: 4, water: 6, booze: 3, fuel: 0, ammo: 0 },   // what every survivor starts with
-  startItems: [{ id: 'Axe', cond: 3 }],                          // …and carries
+  startItems: [],                                                // …and carries (nothing: find a weapon)
   startSafety: 0,         // Safety on the starting tile
   maxSafety: 5,           // most Safety a tile can hold, unless its location says otherwise (safety: 0–8 in locations.js)
   maxZombies: 6,          // most zombies a tile can hold — and that many can't be outrun

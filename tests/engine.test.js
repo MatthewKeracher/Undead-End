@@ -34,12 +34,12 @@ test('same seed, same game', () => {
   assert.equal(a.rng, b.rng);
 });
 
-test('every survivor starts with 8 of 12 AP, 4 food, 6 water, 3 booze, and an Axe at condition 3', () => {
+test('every survivor starts with 8 of 12 AP, 4 food, 6 water, 3 booze, and an empty backpack', () => {
   const S = E.createGame({ seed: 3 });
   assert.equal(S.players[0].ap, 8);
   assert.equal(S.players[0].maxAP, 12);
   assert.deepEqual({ ...S.players[0].res }, { food: 4, water: 6, booze: 3, fuel: 0, ammo: 0 });
-  assert.deepEqual([...S.players[0].items].map((it) => ({ ...it })), [{ id: 'Axe', cond: 3 }]);
+  assert.equal(S.players[0].items.length, 0);
 });
 
 test('the first move each round is free (but needs 1 AP); the second costs 1 AP and is your action', () => {

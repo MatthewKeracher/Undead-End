@@ -182,6 +182,9 @@ body:not(.log-open) #panel { display: none; }
 /* bottom dock: toast, hint, notes and the action ribbon, centred in the space right of the AP gauge */
 #dock { position: absolute; z-index: 3; left: var(--dockl); right: var(--gap); bottom: var(--gap); width: fit-content; margin-inline: auto; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
 #actions { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; }
+/* with room to spare, the same inset on both sides, so the dock (and the notes above it) centre under your tile */
+@container board (min-width: 1260px) { #dock { right: var(--dockl); } }
+@media (max-height: 860px) { @container board (min-width: 1190px) { #dock { right: var(--dockl); } } }   /* smaller dials there */
 /* round timer: top middle of the board, level with the top of the clock. Seconds left and a bar that
    drains; red and pulsing in the last 10 s, dimmed while animations pause it. Shrinks as the board narrows. */
 #timer { position: absolute; z-index: 3; left: 50%; top: var(--gap); transform: translateX(-50%); pointer-events: none;
@@ -389,7 +392,8 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
    Tablet landscape / small laptop (900–1199px): narrower docked log; overlays shrink.
    Tablet portrait (<900px): log slides over the board as a drawer.
    Phone (≤640px wide, or ≤500px tall in landscape): compact header, full-screen log.
-   Touch screens, and anything held upright up to tablet size, use the touch layout (end of file). */
+   Touch screens, and any window that's upright, ≤1100px wide or ≤500px tall (a snapped desktop window too),
+   use the touch layout (end of file). */
 @media (min-width: 900px) and (max-width: 1199px) {
   body.log-open main { grid-template-columns: 1fr 320px; }
 }
@@ -433,10 +437,13 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
    the resources along the top; the clock (timer beside it) above the map; the AP dial below it;
    then the backpack and the action tray. Sideways: the resources and the backpack along the top;
    the clock (timer under it) left of the map, the AP dial right of it, both level; the action tray along the
-   bottom. The main action tray shows emoji only (names in the tooltip). Desktop is unchanged. */
+   bottom. The main action tray shows emoji only (names in the tooltip). Used on touch screens, and on any
+   window that's upright, ≤1100px wide or ≤500px tall — so a desktop window snapped to half or a quarter of
+   the screen gets it too. Keep in step with touchUI in game.js. */
 #mapframe { display: none; }
-@media (pointer: coarse), (orientation: portrait) and (max-width: 1100px), (max-width: 640px), (max-height: 500px) {
-  :root { --clock: 210px; --ap: 210px; --orbsize: 58px; --bar: 64px; }
+@media (pointer: coarse), (orientation: portrait), (max-width: 1100px), (max-height: 500px) {
+  /* the dials shrink on short screens so the map keeps ~280px of height (the rest: header, bars, dock ≈ 324px) */
+  :root { --clock: clamp(110px, calc((100dvh - 604px) / 2), 210px); --ap: var(--clock); --orbsize: 58px; --bar: 64px; }
   #board { display: grid; padding: var(--gap); gap: 8px 10px;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto var(--bar) auto;
     grid-template-areas: "stats stats stats" ". clock timer" "map map map" ". ap ." "pack pack pack" "dock dock dock"; }
@@ -493,15 +500,17 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   #board.threat .ribbon { grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); }
 }
 /* sideways: the resources and the backpack share the top row (it opens downward); the clock and AP dial flank the map */
-@media (orientation: landscape) and (pointer: coarse), (orientation: landscape) and (max-width: 640px), (orientation: landscape) and (max-height: 500px) {
+@media (orientation: landscape) and (pointer: coarse), (orientation: landscape) and (max-width: 1100px), (orientation: landscape) and (max-height: 500px) {
   #board { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto; grid-template-rows: var(--bar) minmax(0, 1fr) auto;
     grid-template-areas: "stats stats pack pack" "clock map map ap" "dock dock dock dock"; }
   #timer { grid-area: clock; align-self: end; }   /* tucked under the clock, which stays level with the AP dial */
   #pack.open { align-self: start; justify-self: end; }
+  /* the dials sit beside the map: keep ~320px of width for it, and room under the clock for the timer */
+  :root { --clock: clamp(110px, min(calc((100dvw - 370px) / 2), calc(100dvh - 300px)), 210px); }
 }
 /* phone sizes */
 @media (max-width: 640px), (max-height: 500px) {
-  :root { --gap: 8px; --clock: 136px; --ap: 136px; --orbsize: 44px; --bar: 50px; }
+  :root { --gap: 8px; --clock: clamp(96px, calc((100dvh - 511px) / 2), 136px); --ap: var(--clock); --orbsize: 44px; --bar: 50px; }
   #board { gap: 6px 8px; }
   .packhead .bag { font-size: 20px; }
   .pchip .ic { font-size: 22px; }

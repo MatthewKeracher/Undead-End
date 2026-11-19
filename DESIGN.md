@@ -142,7 +142,7 @@ Repeat until the tile is clear, you escape, or you die.
 
 ## Prototype placeholders (in `data.js` and `locations.js`, change freely)
 - Game starts Day 1, Round 1 (first morning).
-- Each player starts with **8 AP** (`CONFIG.startAP`) and **max AP 12**, **4 Food, 6 Water and 3 Booze**, 0 Fuel and 0 Ammo (`CONFIG.startRes`), and an **Axe at condition 3** (`CONFIG.startItems`).
+- Each player starts with **8 AP** (`CONFIG.startAP`) and **max AP 12**, **4 Food, 6 Water and 3 Booze**, 0 Fuel and 0 Ammo (`CONFIG.startRes`), and **no items** (`CONFIG.startItems`) — the Farmhouse's Axe (row 5) is the nearest weapon.
 - A tile holds as much Safety as its place allows (default **5**, `CONFIG.maxSafety`) — and at most **6 zombies** (`CONFIG.maxZombies`). Safety belongs to the tile and is shared by everyone on it; it does not decay.
 - Scouting reveals a random tile from the tile list for each unexplored neighbour; the scout stays put.
 - Sharing resources with a player on the same tile is free (doesn't use the round).

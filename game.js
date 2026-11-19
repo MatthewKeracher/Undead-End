@@ -850,19 +850,35 @@ function cameraTo(x, y) {
   cam.anim = requestAnimationFrame(step);
 }
 // the touch layout (phones and tablets, either way up — style.css): the map fills the board under everything else
-const touchUI = matchMedia('(pointer: coarse), (orientation: portrait) and (max-width: 1100px), (max-width: 640px), (max-height: 500px)');
+const touchUI = matchMedia('(pointer: coarse), (orientation: portrait), (max-width: 1100px), (max-height: 500px)');   // same as style.css
 function applyView() {
   const svg = $('#map'), b = svg.getBoundingClientRect();
   if (!b.width || !b.height) return;
   // there, frame the open space left between the clock, the AP dial and the trays (#mapframe) rather than the whole map
   const fr = touchUI.matches ? $('#mapframe').getBoundingClientRect() : b, f = fr.width && fr.height ? fr : b;
-  // zoom out a little on small screens; in the touch layout let it zoom in, keeping your hex (240 tall) and a peek at the next ones in view
-  const z = touchUI.matches ? Math.min(1.3, f.width / 520, f.height / 300) : Math.min(1, b.width / 520, b.height / 480);
+  // zoom out a little on small screens. In the touch layout, fit your hex (208 × 240) to the open space with a
+  // little room, but never below 0.8 — any smaller and the loot table gets hard to read
+  const fit = touchUI.matches ? Math.max(0.8, Math.min(1.3, f.width / 360, f.height / 320)) : Math.min(1, b.width / 520, b.height / 480);
+  const z = fit * userZoom;   // …times however far you've pinched or scrolled
   const w = b.width / z, h = b.height / z;
   const dx = (f.left + f.width / 2 - (b.left + b.width / 2)) / z, dy = (f.top + f.height / 2 - (b.top + b.height / 2)) / z;
   svg.setAttribute('viewBox', `${cam.x - dx - drag.x / z - w / 2} ${cam.y - dy - drag.y / z - h / 2} ${w} ${h}`);
 }
 window.addEventListener('resize', applyView);
+
+// Zooming: pinch on a touch screen, or scroll (mouse wheel, trackpad scroll or trackpad pinch) over the map.
+// It scales the fitted zoom above and stays where you leave it; the view stays centred on your hex.
+const ZOOM_MIN = 0.4, ZOOM_MAX = 2.5;
+let userZoom = 1;
+function setZoom(k) {
+  userZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, k));
+  applyView();
+}
+$('#map').addEventListener('wheel', (e) => {
+  e.preventDefault();   // not the page: the map
+  const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;   // lines / pages → pixels
+  setZoom(userZoom * Math.exp(-px * (e.ctrlKey ? 0.01 : 0.0015)));   // ctrlKey: a trackpad pinch, which sends small steps
+}, { passive: false });
 
 // Dragging the map (mouse or touch) looks around; let go and it springs back to centre on your hex.
 // drag.x/y is how far the map has been pulled, in screen pixels, on top of the camera.
@@ -877,12 +893,24 @@ function springBack() {
   };
   drag.anim = requestAnimationFrame(step);
 }
+// Two fingers down: a pinch. pts tracks the fingers on the map; pinch holds the spread and zoom it started from.
+const pts = new Map();
+let pinch = null;
+const spread = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
 $('#map').addEventListener('pointerdown', (e) => {
-  if (e.button !== 0 || drag.id !== null) return;
+  if (e.pointerType === 'touch') pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pts.size === 2) {   // the second finger: stop dragging, start pinching
+    pinch = { d0: spread(), z0: userZoom };
+    if (drag.id !== null) { drag.id = null; drag.moved = false; $('#map').classList.remove('dragging'); if (drag.x || drag.y) springBack(); }
+    return;
+  }
+  if (e.button !== 0 || drag.id !== null || pinch) return;
   if (drag.anim) { cancelAnimationFrame(drag.anim); drag.anim = null; }   // grabbed mid-spring: carry on from there
   Object.assign(drag, { id: e.pointerId, sx: e.clientX - drag.x, sy: e.clientY - drag.y, ox: drag.x, oy: drag.y, moved: false });
 });
 $('#map').addEventListener('pointermove', (e) => {
+  if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && pts.size >= 2) return setZoom(pinch.z0 * spread() / pinch.d0);
   if (e.pointerId !== drag.id) return;
   const x = e.clientX - drag.sx, y = e.clientY - drag.sy;
   if (!drag.moved && Math.hypot(x - drag.ox, y - drag.oy) < 8) return;   // still a tap, not a drag
@@ -891,6 +919,13 @@ $('#map').addEventListener('pointermove', (e) => {
   applyView();
 });
 const dragEnd = (e) => {
+  pts.delete(e.pointerId);
+  if (pinch) {
+    if (pts.size < 2) pinch = null;
+    drag.justDragged = true;   // lifting a pinching finger isn't a tap on a tile
+    setTimeout(() => { drag.justDragged = false; }, 0);
+    return;
+  }
   if (e.pointerId !== drag.id) return;
   drag.id = null;
   if (drag.moved) {

@@ -16,7 +16,7 @@ Logged from a playtest. Tick when handled.
 - [ ] **Mobile UI is broken.** *(Touch layout for phones and tablets, either way up: full-screen draggable map, clock and AP dial around it, resource and backpack bars, emoji action tray — needs a playtest.)*
 - [ ] **Resources could look like the inventory on mobile** (same treatment as the backpack). *(Now a tray of big coloured numbers, matching the backpack bar — needs a playtest.)*
 - [x] **Free movement should need AP banked** — you must have AP left to take the free move (it still doesn't spend it?). *(Done: needs at least 1 AP, spends none.)*
-- [ ] **Feels too easy** with 2d6 resources and a starting weapon. *(Resources back to 1d6, with one Double per place and more mixes like Pistol + Ammo, Fuel + Ammo — needs a playtest.)*
+- [ ] **Feels too easy** with 2d6 resources and a starting weapon. *(Resources back to 1d6, with one Double per place and more mixes like Pistol + Ammo, Fuel + Ammo; no starting Axe — needs a playtest.)*
 
 ## Core rules (single player)
 
