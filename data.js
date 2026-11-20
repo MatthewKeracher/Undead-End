@@ -114,6 +114,7 @@ const ITEMS = {
 // What a Note says: {name} (who wrote it, and whose stash waits there) and {place} are filled in. Keep each one
 // short — it's read in a glance.
 const LEADS = {
+  places: ['Castle', 'Army Checkpoint', 'Church'],   // where Notes lead: strongholds (high max Safety), standing alone
   names: ['Mara', 'Tom', 'Dad', 'Mum', 'Priya', 'Sam', 'Grandad', 'Jules', 'Ellie', 'Kofi', 'Nana', 'Rob'],
   notes: [
     'Gone to the {place}. Follow if you can. — {name}',

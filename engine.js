@@ -551,7 +551,8 @@ const Engine = (() => {
   // A Note found: a place CONFIG.leadDistance hexes away (or the nearest distance with room) is revealed now,
   // purple-bordered, with a stash left there by whoever wrote the Note, covering one row (2, 4, 5 or 6): their next
   // Note (so the trail goes on), food and water, a melee weapon or a gun and ammo, and pills or binoculars.
-  // It's always open country with a table: never in a settlement's room or next to a Mountain.
+  // It's a stronghold (LEADS.places: a Castle, Army Checkpoint or Church), standing alone — never in a settlement's
+  // room or next to a Mountain.
   function makeLead(S, from, by) {
     const [fq, fr] = from.split(',').map(Number), d0 = CONFIG.leadDistance;
     const ok = ([q, r]) => !S.tiles[key(q, r)] && !S.planned[key(q, r)] && !nearTown(S, q, r)
@@ -563,7 +564,7 @@ const Engine = (() => {
       for (let q = fq - d; q <= fq + d; q++) for (let r = fr - d; r <= fr + d; r++) if (hexDist(fq, fr, q, r) === d && ok([q, r])) ring.push([q, r]);
       if (!ring.length) continue;
       const [q, r] = pick(ring), k = key(q, r);
-      const def = drawTile(S, (t) => !t.spread && !t.settlement && t.table.length > 0 && t.passable);
+      const place = pick(LEADS.places), def = TILES.find((t) => t.name === place) ?? drawTile(S, (t) => !t.spread && !t.settlement && t.table.length > 0 && t.passable);   // (a name not in locations.js: anywhere)
       const t = S.tiles[k] = newTile(S, def), name = by ?? pick(LEADS.names);
       const gun = rand(S) < 0.5, weapon = pick(Object.keys(ITEMS).filter((id) => ITEMS[id].weapon && ITEMS[id].uses === (gun ? 'ammo' : 'ap')));
       t.stashes.push({ owner: name, row: pick([2, 4, 5, 6]), lead: true,

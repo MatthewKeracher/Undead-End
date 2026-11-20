@@ -859,7 +859,7 @@ test('finding a Note reveals a place 6 hexes away, where its writer left a stash
   const [q, r] = note.to.split(',').map(Number);
   assert.equal((Math.abs(q) + Math.abs(r) + Math.abs(q + r)) / 2, 6);
   const there = S.tiles[note.to];
-  assert.ok(there.def.passable && there.def.table.length && !there.def.spread);
+  assert.ok(['Castle', 'Army Checkpoint', 'Church'].includes(there.def.name), there.def.name);   // a stronghold
   assert.ok(E.leadOpen(there));
   assert.equal(events.find((e) => e.type === 'lead').k, note.to);
   // the stash: their next Note, food and water, a melee weapon or a gun and ammo, pills or binoculars
@@ -872,6 +872,16 @@ test('finding a Note reveals a place 6 hexes away, where its writer left a stash
   assert.equal(ITEMS[ids[1]].uses === 'ammo', st.res.ammo >= 2);   // a gun comes with ammo
   assert.ok(['Pills', 'Binoculars'].includes(ids[2]));
   assert.equal(E.tableView(there)[st.row - 1].kind, 'stash');
+});
+
+test('Notes only ever lead to strongholds: a Castle, Army Checkpoint or Church', () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    const S = E.createGame({ seed, checksOff: true });
+    E.start(S);
+    E.cheat(S, 0, 'item', ['note', 3]);
+    const note = S.players[0].items.find((x) => x.id === 'Note');
+    assert.ok(['Castle', 'Army Checkpoint', 'Church'].includes(S.tiles[note.to].def.name), `seed ${seed}: ${S.tiles[note.to].def.name}`);
+  }
 });
 
 test('taking the stash: everything, and its Note leads on — same writer — to the next one', () => {
