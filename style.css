@@ -480,7 +480,8 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 }
 /* ---------------------------------------------------------------- touch layout (phones and tablets, either way up)
    The map fills the board under everything (game.js frames the open space, #mapframe). Upright:
-   the resources along the top; the clock (timer beside it) above the map; the AP dial below it;
+   the resources in a half-width tray at the top left (timer under it), the clock in the top-right corner;
+   the map; the AP dial below it;
    then the backpack and the action tray. Sideways: the resources and the backpack along the top;
    the clock (timer under it) left of the map, the AP dial right of it, both level; the action tray along the
    bottom. The resources and the main action tray lead with colour and emoji, each named in small grey
@@ -492,17 +493,17 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   /* the dials shrink on short screens so the map keeps ~280px of height (the rest: header, bars, dock ≈ 324px) */
   :root { --clock: clamp(110px, calc((100dvh - 604px) / 2), 210px); --ap: var(--clock); --orbsize: 50px; --bar: 64px; }
   #board { display: grid; padding: var(--gap); gap: 8px 10px;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto var(--bar) auto;
-    grid-template-areas: "stats stats stats" ". clock timer" "map map map" ". ap ." "pack pack pack" "dock dock dock"; }
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto var(--bar) auto;
+    grid-template-areas: "stats clock" "timer clock" "map map" "ap ap" "pack pack" "dock dock"; }
   #map { grid-area: 1 / 1 / -1 / -1; margin: calc(-1 * var(--gap)); width: calc(100% + 2 * var(--gap)); height: calc(100% + 2 * var(--gap)); min-height: 0; border-radius: 0; background: none; }
   #mapframe { display: block; grid-area: map; visibility: hidden; pointer-events: none; }
-  #clock { grid-area: clock; position: static; align-self: center; justify-self: center; }
+  #clock { grid-area: clock; position: static; align-self: start; justify-self: end; }
   #apbox { grid-area: ap; position: static; align-self: center; justify-self: center; }
-  #timer { grid-area: timer; position: static; transform: none; justify-self: center; align-self: center; justify-content: center; padding: 8px 12px; font-size: 18px; }
+  #timer { grid-area: timer; position: static; transform: none; justify-self: center; align-self: start; justify-content: center; padding: 8px 12px; font-size: 18px; }
   #timer .bar { display: none; }
   #rightcol { display: contents; }
   /* resources: a tray of big coloured numbers */
-  #stats { grid-area: stats; flex: none; container-type: normal; flex-direction: row; justify-content: space-around; align-items: center; align-self: stretch;
+  #stats { grid-area: stats; flex: none; container-type: normal; flex-direction: row; justify-content: space-around; align-items: center; align-self: start;
     padding: 2px 10px; background: var(--panel-a); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px #000a; }
   .stat { --o: var(--orbsize); flex-direction: column; gap: 1px; }
   .stat small { font-size: 9px; font-weight: 600; line-height: 1; letter-spacing: .14em; color: var(--muted); text-shadow: none; }
