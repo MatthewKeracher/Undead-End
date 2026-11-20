@@ -174,7 +174,7 @@ const Engine = (() => {
     return pool.find((t) => (x -= t.count) < 0) ?? pool.at(-1);
   }
   // An unexplored hex becomes a random location — unless a belt, range or settlement already claimed it (S.planned).
-  // The first hex of a game (start) is never Wasteland or Mountain.
+  // The first hex of a game (start) is somewhere that can be fortified: never outdoors, Wasteland or Mountain.
   function reveal(S, q, r, start = false) {
     const k = key(q, r), plan = S.planned[k];
     delete S.planned[k];
@@ -182,7 +182,7 @@ const Engine = (() => {
     const touches = (name) => neighbors(q, r).some(([a, b]) => (S.tiles[key(a, b)]?.def.name ?? S.planned[key(a, b)]) === name);
     let def = plan === 'pass' ? drawTile(S, (t) => !t.spread && !t.settlement)   // a gap in a range: a place in open country
       : (plan && TILES.find((t) => t.name === plan)) || drawTile(S, (t) => t.settlement ? roomForTown(S, q, r)
-        : !(t.spread && (start || touches(t.name) || !roomFor(S, q, r, t))));
+        : !(t.spread && (start || touches(t.name) || !roomFor(S, q, r, t))) && (!start || t.safety > 0));
     let founded = null;
     if (def.settlement) { founded = foundTown(S, q, r, def.settlement); def = founded.first; }   // a new settlement: this is its first hex
     S.tiles[k] = newTile(S, def);

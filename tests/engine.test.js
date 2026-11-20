@@ -33,13 +33,13 @@ const act = (S, action) => E.act(S, 0, action);
 const decide = (S, choice) => E.act(S, 0, { type: 'decide', choice });
 const tile = (S, q, r, name, extra = {}) => (S.tiles[`${q},${r}`] = { def: def(name), safety: 0, zombies: 0, vehicles: [], ...extra });
 
-test('you start somewhere random — anywhere but Wasteland or Mountain, sometimes in a settlement', () => {
+test('you start somewhere random that can be fortified — never outdoors — sometimes in a settlement', () => {
   const where = new Set();
   let inTown = 0;
   for (let seed = 1; seed <= 200; seed++) {
     const S = E.createGame({ seed });
     const t = S.tiles['0,0'];
-    assert.ok(t.def.passable && !t.def.spread, t.def.name);
+    assert.ok(t.def.passable && !t.def.spread && E.canFortifyHere(t), t.def.name);
     where.add(t.def.name);
     if (t.town !== undefined) inTown++;
   }

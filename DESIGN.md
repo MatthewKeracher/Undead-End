@@ -195,7 +195,7 @@ Repeat until the tile is clear, you escape, or you die.
 
 ## Prototype placeholders (in `data.js` and `locations.js`, change freely)
 - Game starts Day 1, Round 1 (first morning).
-- **You start somewhere random:** the first hex is revealed like any other — a countryside place or the first hex of a village, town or city — but never Wasteland or Mountain. You know nothing else of the map.
+- **You start somewhere random:** the first hex is revealed like any other — a countryside place or the first hex of a village, town or city — but always **somewhere that can be fortified** (max Safety above 0): never outdoors, Wasteland or Mountain. You know nothing else of the map.
 - Each player starts with **8 AP** (`CONFIG.startAP`) and **max AP 12**, **4 Food and 6 Water**, 0 Fuel and 0 Ammo (`CONFIG.startRes`), and a **Booze** (condition 3) (`CONFIG.startItems`) — no weapon: find one.
 - A tile holds as much Safety as its place allows (default **5**, `CONFIG.maxSafety`) — and at most **6 zombies** (`CONFIG.maxZombies`). Safety belongs to the tile and is shared by everyone on it; it does not decay.
 - Scouting reveals a random tile from the tile list for each unexplored neighbour; the scout stays put.
