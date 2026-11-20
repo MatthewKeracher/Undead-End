@@ -89,7 +89,6 @@ const Engine = (() => {
   // scavenged for a stash left there.
   const stashAt = (t, row) => (t.stashes || []).find((s) => s.row === row);
   const rowEntry = (t, row) => {
-    if (t.lead?.row === row) return t.lead.entry;   // a place a Note led to: its purple row
     const e = t.def.table[row - 1] ?? (row === 1 ? { zombies: 1 } : null);
     return e?.random ? t.drawn?.[row] ?? null : e;   // a Random row: what was drawn for it when the tile was placed
   };
@@ -531,39 +530,42 @@ const Engine = (() => {
 
   // ---------------------------------------------------------------- leads
   // A Note found: a place CONFIG.leadDistance hexes away (or the nearest distance with room) is revealed now,
-  // purple-bordered, with a purple row on its table — another hope item, maybe the next Note (up to CONFIG.leadChain).
-  // It's always open country with a table: never inside a settlement's room or next to a Mountain.
-  function makeLead(S, from, depth = 1) {
+  // purple-bordered, with a stash left there by whoever wrote the Note, covering one row (2, 4, 5 or 6): their next
+  // Note (so the trail goes on), food and water, a melee weapon or a gun and ammo, and pills or binoculars.
+  // It's always open country with a table: never in a settlement's room or next to a Mountain.
+  function makeLead(S, from, by) {
     const [fq, fr] = from.split(',').map(Number), d0 = CONFIG.leadDistance;
     const ok = ([q, r]) => !S.tiles[key(q, r)] && !S.planned[key(q, r)] && !nearTown(S, q, r)
       && !neighbors(q, r).some(([a, b]) => (S.tiles[key(a, b)]?.def.name ?? S.planned[key(a, b)]) === 'Mountain');
+    const pick = (list) => list[Math.floor(rand(S) * list.length)];
+    const die = (min = 1) => min + Math.floor(rand(S) * (7 - min));   // not roll(): this isn't a roll anyone makes
     for (const d of [d0, d0 - 1, d0 + 1, d0 - 2, d0 + 2]) {
       const ring = [];
       for (let q = fq - d; q <= fq + d; q++) for (let r = fr - d; r <= fr + d; r++) if (hexDist(fq, fr, q, r) === d && ok([q, r])) ring.push([q, r]);
       if (!ring.length) continue;
-      const [q, r] = ring[Math.floor(rand(S) * ring.length)], k = key(q, r);
+      const [q, r] = pick(ring), k = key(q, r);
       const def = drawTile(S, (t) => !t.spread && !t.settlement && t.table.length > 0 && t.passable);
-      const t = S.tiles[k] = newTile(S, def);
-      const chain = depth < CONFIG.leadChain && rand(S) < 0.5;
-      const rows = [2, 4, 5, 6];
-      t.lead = { row: rows[Math.floor(rand(S) * rows.length)], depth, entry: { item: chain ? 'Note' : LEADS.ends[Math.floor(rand(S) * LEADS.ends.length)] } };
-      const pick = (list) => list[Math.floor(rand(S) * list.length)];
-      const text = pick(LEADS.notes).replace('{place}', def.name).replace('{name}', pick(LEADS.names));
-      return { to: k, text };
+      const t = S.tiles[k] = newTile(S, def), name = by ?? pick(LEADS.names);
+      const gun = rand(S) < 0.5, weapon = pick(Object.keys(ITEMS).filter((id) => ITEMS[id].weapon && ITEMS[id].uses === (gun ? 'ammo' : 'ap')));
+      t.stashes.push({ owner: name, row: pick([2, 4, 5, 6]), lead: true,
+        res: { food: die(CONFIG.lootMin), water: die(CONFIG.lootMin), ...(gun && { ammo: die(CONFIG.lootMin) }) },
+        items: [{ id: 'Note', cond: die(), by: name }, { id: weapon, cond: die() }, { id: pick(['Pills', 'Binoculars']), cond: die() }] });
+      return { to: k, by: name, text: pick(LEADS.notes).replace('{place}', def.name).replace('{name}', name) };
     }
     return null;   // nowhere to point (very unlikely): just a note
   }
-  // Every Note found new (not picked up from a stash) points somewhere: the place it names appears on the map.
-  // depth: how far along a trail of Notes this one is (1 = the first).
-  function readNote(S, p, item, depth = 1) {
+  // A Note read for the first time (found, or taken from a stash) points somewhere: the place it names appears.
+  function readNote(S, p, item) {
     if (!ITEMS[item.id].leads || item.to) return;
-    const lead = makeLead(S, key(p.q, p.r), depth);
+    const lead = makeLead(S, key(p.q, p.r), item.by);
     if (!lead) return;
     Object.assign(item, lead);
     const there = S.tiles[lead.to];
     log(S, `📝 “${lead.text}”`, 'good');
     emit(S, { type: 'lead', player: p.id, k: lead.to, name: there.def.name, icon: there.def.icon, text: lead.text });
   }
+  // a place a Note led to, while the stash it promised is still there (the UI borders it in purple)
+  const leadOpen = (t) => !!t.stashes?.some((s) => s.lead);
 
   const STEPS = {
     hope(S, p) {
@@ -704,6 +706,7 @@ const Engine = (() => {
     if (lone) {
       t.stashes.splice(t.stashes.indexOf(s), 1);   // picked up: the row underneath shows again
       logRoll(S, `${at}: ${ITEMS[lone.id].icon} ${lone.id}, condition ${lone.cond}!`, 'good');
+      readNote(S, p, lone);
       return gainItem(S, p, lone, s.row);
     }
     const got = stashText({ res: s.res, items: [] });
@@ -718,6 +721,7 @@ const Engine = (() => {
     const taken = s.items.filter((_, i) => picks.includes(i));
     s.items = s.items.filter((_, i) => !picks.includes(i));
     p.items.push(...taken);
+    for (const it of taken) readNote(S, p, it);
     if (taken.length) log(S, `${p.name} takes ${taken.map((it) => `${ITEMS[it.id].icon} ${it.id}`).join(', ')} from ${s.owner}'s stash.`, 'good');
     if (s.items.length) log(S, `${plural(s.items.length, 'item')} stay in ${s.owner}'s stash.`);
     if (!hasStuff(s)) t.stashes.splice(t.stashes.indexOf(s), 1);   // emptied: the row underneath shows again
@@ -819,7 +823,7 @@ const Engine = (() => {
             log(S, `${ITEMS[x.item].icon} The ${x.item} ${ITEMS[x.item].animal ? 'waits' : 'is parked'} at the ${t.def.name}.`, 'good');
           } else {
             const item = { id: x.item, cond: amts[i] };
-            readNote(S, p, item, t.lead?.row === r ? t.lead.depth + 1 : 1);   // a Note: the place it names appears
+            readNote(S, p, item);   // a Note: the place it names appears
             gainItem(S, p, item, r);
           }
         });
@@ -1089,7 +1093,7 @@ const Engine = (() => {
 
   return {
     ICON, RES_LABEL, key, neighbors, isNight, isAttack, attackDue, cellText, upkeepText, roundBanner,
-    tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText, loneItem, hopeItems,
+    tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText, loneItem, hopeItems, leadOpen,
     fleeAdj, canShoot, canMelee, canSaw, canFight, canFlee, vehicleFuel, vehicleLeft, vehicleFed, vehicleOf, canDrive,
     createGame, start, act, timeUp, cheat,
   };

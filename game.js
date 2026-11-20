@@ -962,7 +962,7 @@ const rowText = (row) => {
   const lone = E.loneItem(row.stash);
   return lone ? `${lone.id} (${lone.cond})` : `🎒 ${shortName(row.stash.owner)}'s stash`;
 };
-const hopeRow = (row) => (row.kind === 'stash' ? ITEMS[E.loneItem(row.stash)?.id]?.hope : row.kind === 'item' && [row.e, ...(row.e.parts || [])].some((x) => ITEMS[x.item]?.hope));
+const hopeRow = (row) => (row.kind === 'stash' ? row.stash.lead || ITEMS[E.loneItem(row.stash)?.id]?.hope : row.kind === 'item' && [row.e, ...(row.e.parts || [])].some((x) => ITEMS[x.item]?.hope));
 const rowClass = (row) => (row.kind !== 'looted' && hopeRow(row) ? 'hope' : row.kind === 'stash' && E.loneItem(row.stash) ? 'it' : { zombies: 'z', item: 'it', looted: 'looted', stash: 'stash' }[row.kind] || '');
 
 // Results 2–6. 1 is always Zombies, so it isn't listed — the pips below show any zombies on the tile.
@@ -1027,7 +1027,7 @@ function applyView() {
 function leadMarks(vx, vy, z, b, f) {
   const board = $('#board').getBoundingClientRect(), ring = Math.min(f.width / 2 - 30, f.height / 2 - 30, 250);
   const cx = f.left + f.width / 2, cy = f.top + f.height / 2;
-  $('#leadmarks').innerHTML = Object.entries(G?.tiles || {}).filter(([, t]) => t.lead && !t.looted?.includes(t.lead.row)).map(([k, t]) => {
+  $('#leadmarks').innerHTML = Object.entries(G?.tiles || {}).filter(([, t]) => E.leadOpen(t)).map(([k, t]) => {
     const [x, y] = pix(...k.split(',').map(Number));
     const sx = b.left + (x - vx) * z, sy = b.top + (y - vy) * z;   // where it is on screen
     if (sx > f.left && sx < f.right && sy > f.top && sy < f.bottom) return '';   // in view: its border shows it
@@ -1160,7 +1160,7 @@ function renderMap() {
     const isHere = q === p.q && r === p.r;
     const town = G.towns?.[t.town], townLabel = town ? `${town.name} (${town.kind})` : '';
     const target = adj.has(k) && ((mode === 'move' && canEnter(p, t)) || (mode === 'flee' && passable(t) && !t.zombies) || (mode === 'drive' && passable(t)));
-    const g = `<g class="hex tile d${Math.min(danger, 4)} ${t.def.table.length ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${justRevealed.includes(k) ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''} ${town ? 'town' : ''} ${t.lead && !t.looted?.includes(t.lead.row) ? 'lead' : ''}" data-k="${k}" ${justRevealed.includes(k) ? `style="--i:${justRevealed.indexOf(k)}"` : ''}>
+    const g = `<g class="hex tile d${Math.min(danger, 4)} ${t.def.table.length ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${justRevealed.includes(k) ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''} ${town ? 'town' : ''} ${E.leadOpen(t) ? 'lead' : ''}" data-k="${k}" ${justRevealed.includes(k) ? `style="--i:${justRevealed.indexOf(k)}"` : ''}>
       <polygon points="${hexPoints(x, y, HEX - (isHere ? 4 : 2))}" ${isHere ? `style="stroke:${p.color}"` : ''}/>
       ${isHere ? `${town ? `<text x="${x}" y="${y - HEX * 0.72}" class="townname">${esc(town.name)}</text>` : ''}<text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>${tableSvg(x, y + 4, t)}`
         : `<text x="${x}" y="${y - 10}" class="art"><title>${esc(t.def.name)}${town ? ` — ${esc(townLabel)}` : ''}</title>${t.def.icon}</text>`}

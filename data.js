@@ -43,8 +43,7 @@ const CONFIG = {
   townGap: 2,             // at least this many hexes of countryside between two settlements
   edgeChain: [1, 3],      // a stretch of edge land (Fields, Golf Course: edge: in locations.js) is 1–3 hexes long
   roundSeconds: 30,       // round timer: act within this or lose 1 AP (online always; single player: on by default)
-  leadDistance: 6,        // a Note reveals a place this many hexes away (or as near to it as there's room)
-  leadChain: 3,           // …whose purple row may be another Note, up to this many places in a row
+  leadDistance: 6,        // a Note reveals a place this many hexes away (or as near to it as there's room), with a stash
 
   // What each round of the clock calls for (checked at the END of the round).
   upkeep: {
@@ -70,7 +69,7 @@ const melee = (icon, verb = 'Swing') => ({ icon, weapon: true, uses: 'ap', verb,
 
 // Hope items: the night (round 6) asks for hope, and you spend a pip (−1 condition) of one you carry — shown in
 // purple. Some just comfort you; a Note also shows the way: as it's found, a place CONFIG.leadDistance hexes off is
-// revealed with a purple border, and a purple row on its table holds more hope (maybe the next Note).
+// revealed with a purple border, where its writer left a stash — with their next Note in it.
 const hopeItem = (icon, desc, extra = {}) => ({ icon, hope: true, desc: `Hope: ${desc} −1 condition each night you lean on it.`, ...extra });
 
 // Item cards. Condition = uses left; at 0 the item breaks.
@@ -108,10 +107,11 @@ const ITEMS = {
   Booze: hopeItem('🍾', 'a swig gets you through the night.'),
   Photo: hopeItem('🖼️', 'a face to keep going for.'),
   'Music Box': hopeItem('🎶', 'a tune from before.'),
-  Note: hopeItem('📝', 'someone went on ahead — the place it names is marked in purple on the map.', { leads: true }),
+  Note: hopeItem('📝', 'someone went on ahead and left a stash — the place it names is marked in purple on the map.', { leads: true }),
 };
 
-// What a Note says: {name} and {place} are filled in. Keep each one short — it's read in a glance.
+// What a Note says: {name} (who wrote it, and whose stash waits there) and {place} are filled in. Keep each one
+// short — it's read in a glance.
 const LEADS = {
   names: ['Mara', 'Tom', 'Dad', 'Mum', 'Priya', 'Sam', 'Grandad', 'Jules', 'Ellie', 'Kofi', 'Nana', 'Rob'],
   notes: [
@@ -121,7 +121,6 @@ const LEADS = {
     'If you find this, find us at the {place}. — {name}',
     'Safe at the {place}, for now. — {name}',
   ],
-  ends: ['Booze', 'Photo', 'Music Box'],   // what else a lead's purple row can hold
 };
 
 // Tutorial games (chosen from the opening menu): a card before the first round, a card for each action the

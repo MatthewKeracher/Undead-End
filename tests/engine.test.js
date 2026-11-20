@@ -778,35 +778,52 @@ test('Booze, Photo, Music Box and Note are items on the tables now, not a resour
   assert.ok(act(S, { type: 'tool', tool: 0, target: { from: 'pack', index: 1 }, amount: 1 }).error);   // no topping up hope
 });
 
-test('finding a Note reveals a place 6 hexes away, purple-bordered, with a purple row', () => {
+test('finding a Note reveals a place 6 hexes away, where its writer left a stash', () => {
   const { S, p } = game();
   S.forced = [4, 2];                    // Farmhouse 4 = Note, condition 2
   const { events } = act(S, { type: 'scavenge' });
   const note = p.items[0];
   assert.equal(note.id, 'Note');
   assert.equal(note.cond, 2);
-  assert.ok(note.text.length <= 280 && note.text.includes(S.tiles[note.to].def.name), note.text);
+  assert.ok(note.text.length <= 280 && note.text.includes(S.tiles[note.to].def.name) && note.text.includes(note.by), note.text);
   const [q, r] = note.to.split(',').map(Number);
   assert.equal((Math.abs(q) + Math.abs(r) + Math.abs(q + r)) / 2, 6);
   const there = S.tiles[note.to];
   assert.ok(there.def.passable && there.def.table.length && !there.def.spread);
-  assert.ok(ITEMS[E.tableView(there)[there.lead.row - 1].e.item].hope);   // its purple row holds hope
-  assert.equal(there.lead.depth, 1);
+  assert.ok(E.leadOpen(there));
   assert.equal(events.find((e) => e.type === 'lead').k, note.to);
+  // the stash: their next Note, food and water, a melee weapon or a gun and ammo, pills or binoculars
+  const st = there.stashes[0], ids = st.items.map((x) => x.id);
+  assert.equal(st.owner, note.by);
+  assert.ok([2, 4, 5, 6].includes(st.row));
+  assert.equal(ids[0], 'Note');
+  assert.ok(st.res.food >= 2 && st.res.water >= 2);
+  assert.ok(ITEMS[ids[1]].weapon && ITEMS[ids[1]].uses !== 'fuel');
+  assert.equal(ITEMS[ids[1]].uses === 'ammo', st.res.ammo >= 2);   // a gun comes with ammo
+  assert.ok(['Pills', 'Binoculars'].includes(ids[2]));
+  assert.equal(E.tableView(there)[st.row - 1].kind, 'stash');
 });
 
-test('a Note on a trail leads on, up to leadChain places; a Note picked up again leads nowhere new', () => {
+test('taking the stash: everything, and its Note leads on — same writer — to the next one', () => {
   const { S, p } = game();
-  const t = E.tileOf(S, p);
-  t.lead = { row: 5, depth: 1, entry: { item: 'Note' } };
-  S.forced = [5, 3];
+  S.forced = [4, 2];
   act(S, { type: 'scavenge' });
-  assert.equal(S.tiles[p.items[0].to].lead.depth, 2);
+  const first = p.items[0], there = S.tiles[first.to], st = there.stashes[0];
+  [p.q, p.r] = first.to.split(',').map(Number);
+  const food = p.res.food + st.res.food;
+  S.forced = [st.row];
+  act(S, { type: 'scavenge' });
+  assert.equal(p.res.food, food);
+  assert.equal(p.items.length, 4);      // the first Note + the stash's three
+  assert.equal(E.leadOpen(there), false);   // emptied: the border goes
+  const next = p.items[1];
+  assert.equal(next.id, 'Note');
+  assert.equal(next.by, first.by);
+  assert.ok(E.leadOpen(S.tiles[next.to]));
   const tiles = Object.keys(S.tiles).length;
-  act(S, { type: 'drop', item: 0 });
-  S.forced = [5];                       // the dropped Note now covers row 5: roll it back
+  act(S, { type: 'drop', item: 1 });    // a Note picked up again leads nowhere new
+  S.forced = [p.items.length && E.tileOf(S, p).stashes.find((x) => x.owner === 'Survivor').row];
   act(S, { type: 'scavenge' });
-  assert.equal(p.items[0].id, 'Note');
   assert.equal(Object.keys(S.tiles).length, tiles);
 });
 
