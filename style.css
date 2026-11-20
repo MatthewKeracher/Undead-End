@@ -384,6 +384,10 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   #pack { position: absolute; z-index: 3; left: var(--gap); right: var(--gap); bottom: calc(var(--dockh, 0px) + var(--gap) / 2); width: fit-content; max-width: calc(100% - 2 * var(--gap));
     margin-inline: auto; display: grid; grid-template-columns: repeat(6, minmax(96px, 150px)); align-items: center; gap: 8px; padding: 8px 10px; }
   #pack button.packhead { display: none; }   /* six slots say it all */
+  /* the main actions: equal buttons, just name and key — the details (cost, what's left) are in each one's tooltip */
+  .ribbon.main { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding: 8px; }
+  .ribbon.main .act { align-items: center; padding: 10px 14px; }
+  .ribbon.main .act small { display: none; }
   /* each slot: the icon (Use / Take / Drink as a badge under it), its name over its condition, leave (✕) at the right */
   #pack .slot-item { display: grid; grid-template: auto auto / auto minmax(0, 1fr) auto; grid-template-areas: "ic name drop" "ic pips pips";
     align-items: center; column-gap: 6px; row-gap: 3px; height: 50px; min-width: 0; padding: 4px 4px 4px 6px; }
@@ -565,6 +569,10 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   #pack, #pack.open { grid-area: pack; position: static; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: center; gap: 6px;
     align-self: stretch; justify-self: stretch; width: auto; max-height: none; overflow: visible; padding: 6px 8px; border-radius: 12px; background: var(--panel-a); }
   #pack button.packhead { display: none; }   /* six slots say it all */
+  /* the main actions: equal buttons, just name and key — the details (cost, what's left) are in each one's tooltip */
+  .ribbon.main { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding: 8px; }
+  .ribbon.main .act { align-items: center; padding: 10px 14px; }
+  .ribbon.main .act small { display: none; }
   /* each slot: the icon (Use / Take as a badge under it), then its name over its condition, and leave (✕) at the top right */
   #pack .slot-item, #pack:not(.open) .slot-item { display: grid; grid-template: auto auto / auto minmax(0, 1fr) auto; grid-template-areas: "ic name drop" "ic pips pips";
     align-items: center; column-gap: 6px; row-gap: 3px; height: 50px; min-width: 0; padding: 4px 4px 4px 6px; box-shadow: none; }
