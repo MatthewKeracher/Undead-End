@@ -885,14 +885,20 @@ async function sleepShow({ dice, bonus = 0, from, to, max }) {
   pop.className = 'sleep';
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>😴 Sleeping</small><h2>Rest &amp; recover</h2></div>
-    <div class="prow"><div class="dicecol">${dice.map((_, i) => `<div class="slot" id="pdsl${i}"></div>`).join('')}</div></div>
+    <div class="prow sleepsum">${dice.map((_, i) => `<div class="slot" id="pdsl${i}"></div>`).join('')}${bonus
+      ? `<span class="plus">+</span><div class="cpips sleepsafe">${'<i></i>'.repeat(bonus)}</div>` : ''}</div>
     <div class="presult" id="pres"></div>
     <small class="pskip">click or press any key</small></div>`;
   pop.hidden = false;
   await wait(150);
   await Promise.all(dice.map((v, i) => rollDie($(`#pdsl${i}`), v, 900 + i * 150)));
-  $('#pres').innerHTML = `<div class="big good">+${r} AP</div><small class="muted">${bonus ? `${dice[0]} + ${bonus} 🟡 Safety` : '1d6 — no 🟡 Safety here'}</small>`;
-  await popupHold(900);
+  // then the tile's 🟡 Safety, a pip at a time: die + Safety = the AP
+  for (const pip of pop.querySelectorAll('.sleepsafe i')) {
+    pip.className = 'on fill'; tone(520, 0.08, 'triangle', 0.06);
+    await wait(170);
+  }
+  $('#pres').innerHTML = `<div class="big good">= +${r} AP</div>${bonus ? '' : '<small class="muted">No 🟡 Safety here to add</small>'}`;
+  await popupHold(1100);
   pop.hidden = true;
   renderApRing(from, '', max);
   await wait(200);
