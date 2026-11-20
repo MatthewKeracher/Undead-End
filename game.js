@@ -1068,7 +1068,10 @@ function applyView() {
   const svg = $('#map'), b = svg.getBoundingClientRect();
   if (!b.width || !b.height) return;
   // there, frame the open space left between the clock, the AP dial and the trays (#mapframe) rather than the whole map
-  const fr = touchUI.matches ? $('#mapframe').getBoundingClientRect() : b, f = fr.width && fr.height ? fr : b;
+  // on desktop, the space above the backpack and action bars
+  const bars = touchUI.matches ? 0 : (parseFloat($('#board').style.getPropertyValue('--dockh')) || 0) + (parseFloat($('#board').style.getPropertyValue('--packh')) || 0);
+  const fr = touchUI.matches ? $('#mapframe').getBoundingClientRect() : { left: b.left, top: b.top, width: b.width, height: b.height - bars, right: b.right, bottom: b.bottom - bars };
+  const f = fr.width && fr.height > 0 ? fr : b;
   // zoom out a little on small screens. In the touch layout, fit your hex (208 × 240) to the open space with a
   // little room, but never below 0.8 — any smaller and the loot table gets hard to read
   const fit = touchUI.matches ? Math.max(0.8, Math.min(1.3, f.width / 360, f.height / 320)) : Math.min(1, b.width / 520, b.height / 480);
@@ -1166,11 +1169,14 @@ const dragEnd = (e) => {
 $('#map').addEventListener('pointerup', dragEnd);
 $('#map').addEventListener('pointercancel', dragEnd);
 
-// Right column (backpack + resources) runs down the board, stopping above the action dock if they'd overlap.
+// Desktop: the backpack bar sits just above the action dock (--dockh: how much of the board's bottom the dock
+// takes), and the resources run down the right, stopping above both (--packh).
 function fitRightCol() {
-  if ($('#board').classList.contains('threat')) return;   // the dock is in the middle during Fight or Flee
-  const b = $('#board').getBoundingClientRect(), d = $('#dock').getBoundingClientRect(), c = $('#rightcol').getBoundingClientRect();
-  $('#board').style.setProperty('--dockh', d.right > c.left ? `${b.bottom - d.top}px` : '0px');
+  if ($('#board').classList.contains('threat')) return;   // the dock is in the middle during a fight: stay put
+  const board = $('#board'), b = board.getBoundingClientRect(), d = $('#dock').getBoundingClientRect();
+  board.style.setProperty('--dockh', `${b.bottom - d.top}px`);
+  board.style.setProperty('--packh', `${$('#pack').getBoundingClientRect().height}px`);
+  applyView();   // the map centres in the space above the bars
 }
 const viewWatch = new ResizeObserver(applyView);   // the map and its open space change size when the log docks, the phone turns…
 viewWatch.observe($('#map'));
@@ -1178,6 +1184,7 @@ viewWatch.observe($('#mapframe'));
 const dockWatch = new ResizeObserver(fitRightCol);
 dockWatch.observe($('#dock'));
 dockWatch.observe($('#board'));
+dockWatch.observe($('#pack'));
 
 // Vehicles parked on a tile: a vertical column in the space right of the loot table.
 // Broken-down ones (condition 0) are greyed out until repaired.

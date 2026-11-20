@@ -358,7 +358,7 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 
 /* backpack */
 /* right column runs down the board; --dockh (set in game.js) lifts its bottom clear of the action dock when they'd overlap */
-#rightcol { position: absolute; top: var(--gap); right: var(--gap); bottom: calc(var(--dockh, 0px) + var(--gap)); z-index: 3; width: var(--col); display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+#rightcol { position: absolute; top: var(--gap); right: var(--gap); bottom: calc(var(--dockh, 0px) + var(--packh, 0px) + 2 * var(--gap)); z-index: 3; width: var(--col); display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
 #pack { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; pointer-events: auto; padding: 12px; background: var(--panel-a); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px #000a; }
 #playersbox { flex-shrink: 0; }
 #playersbox > summary { cursor: pointer; list-style: none; user-select: none; }
@@ -376,6 +376,29 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; padding: 0 0 0 2px; background: none; border: 0; border-radius: 0; text-align: left; cursor: default; }
 .packhead .packicons, .packhead .caret, .packhead .bag { display: none; }
 .packhead .packname { white-space: nowrap; }
+/* desktop: the backpack is a bar of six slots just above the action bar (tablets and phones have their own, below) */
+@media (not (pointer: coarse)) and (orientation: landscape) and (min-width: 1101px) and (min-height: 501px) {
+  /* the right column dissolves: the resources run down the right on their own, stopping above the two bars */
+  #rightcol { display: contents; }
+  #stats { position: absolute; z-index: 3; top: var(--gap); right: var(--gap); bottom: calc(var(--dockh, 0px) + var(--packh, 0px) + 2 * var(--gap)); width: var(--col); pointer-events: none; }
+  #pack { position: absolute; z-index: 3; left: var(--gap); right: var(--gap); bottom: calc(var(--dockh, 0px) + var(--gap) / 2); width: fit-content; max-width: calc(100% - 2 * var(--gap));
+    margin-inline: auto; display: grid; grid-template-columns: auto repeat(6, minmax(96px, 150px)); align-items: center; gap: 8px; padding: 8px 10px; }
+  #pack button.packhead { pointer-events: none; width: auto; padding: 0 4px 0 2px; }
+  #pack .packhead .bag { display: inline; font-size: 20px; letter-spacing: 0; }
+  #pack .packhead .word { display: none; }
+  #pack .packhead .packname { font-size: 12px; }
+  /* each slot: the icon (Use / Take / Drink as a badge under it), its name over its condition, leave (✕) at the right */
+  #pack .slot-item { display: grid; grid-template: auto auto / auto minmax(0, 1fr) auto; grid-template-areas: "ic name drop" "ic pips pips";
+    align-items: center; column-gap: 6px; row-gap: 3px; height: 50px; min-width: 0; padding: 4px 4px 4px 6px; }
+  #pack .slot-item.empty { display: block; }
+  #pack .slot-item .ic { grid-area: ic; align-self: start; justify-self: center; }
+  #pack .slot-item div { display: contents; }
+  #pack .slot-item b { grid-area: name; overflow: hidden; text-overflow: ellipsis; }
+  #pack .slot-item .cond { grid-area: pips; }
+  #pack .slot-item .use { grid-area: ic; align-self: end; justify-self: center; z-index: 1; padding: 0 3px; font-size: 9px; line-height: 1.35; border-radius: 4px; }
+  #pack .slot-item .use kbd { display: none; }
+  #pack .slot-item .drop { grid-area: drop; align-self: start; padding: 0 4px; line-height: 1.2; }
+}
 .slot-item { display: flex; align-items: center; gap: 8px; height: 42px; padding: 4px 6px 4px 8px; background: var(--panel-a); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 12px #0007; }
 .slot-item.empty { background: #ffffff06; border-style: dashed; box-shadow: none; }
 .slot-item { position: relative; }
