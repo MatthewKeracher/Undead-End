@@ -1359,7 +1359,10 @@ function renderActions() {
   const noAP = p.ap < 1;
   // Fight or Flee moves to the middle of the board; back at the bottom, re-fit the right column around it
   if ($('#board').classList.toggle('threat', mode === 'threat') === false) requestAnimationFrame(fitRightCol);
+  // the action bar never goes away: while something else is being decided (hope, where to run) it's just greyed out
+  const waiting = mode === 'hope' || mode === 'flee';
   const btn = (id, label, sub, dis) => {
+    dis ||= waiting;
     const keys = mode === 'threat' ? THREAT_KEYS : HOTKEYS;
     const hk = Object.keys(keys).find((k) => keys[k] === id || (ITEMS[id]?.vehicle && keys[k] === DRIVE_KEY[ITEMS[id].uses]));
     if (dis && selected === id) selected = null;
@@ -1388,18 +1391,6 @@ function renderActions() {
     renderLog();
     return;
   }
-  if (mode === 'hope') {   // the night asks for hope: it's picked in the backpack (renderPack)
-    $('#actions').innerHTML = `<div class="note hope">🌙 What hope is there? Pick it from your backpack.</div>`;
-    renderLog();
-    return;
-  }
-  if (mode === 'flee') {
-    $('#actions').innerHTML = `
-      <div class="note good">🏃 You got away! Press A Q E D X Z or click a highlighted hex to run to.</div>`;
-    renderLog();
-    return;
-  }
-
   let warn = '';
   const apWarn = p.ap < 2 ? ` Fleeing costs 1 🎲 — keep some AP!` : '';
   const nextRound = G.round % 6 + 1;
@@ -1408,10 +1399,12 @@ function renderActions() {
   if (E.attackDue(G, nextRound)) {
     warn = `<div class="note ${isNight(G.round) ? 'bad' : ''}">🌙 Next round starts with a night attack — 1d6 🧟 vs your 🟡 ${t.safety}${nextUp ? `, then a ${nextUp} check` : ''}.${apWarn}</div>`;
   }
+  if (mode === 'hope') warn = `<div class="note hope">🌙 What hope is there? Pick it from your backpack.</div>`;   // (renderPack)
+  if (mode === 'flee') warn = `<div class="note good">🏃 You got away! Press A Q E D X Z or click a highlighted hex to run to.</div>`;
 
   $('#actions').innerHTML = `
     ${warn}
-    ${noAP ? `<div class="note bad">Out of AP — you must sleep.</div>` : ''}
+    ${noAP && !waiting ? `<div class="note bad">Out of AP — you must sleep.</div>` : ''}
     <div class="ribbon main">${byKeyboard([
       ['pause', btn('pause', '⏸ Pause', 'Stop the clock', false)],
       ['sleep', btn('sleep', '😴 Sleep', t.safety ? `Gain 1d6 + ${t.safety} AP (🟡)` : 'Gain 1d6 AP · no 🟡', false)],
