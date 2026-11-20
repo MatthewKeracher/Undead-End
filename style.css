@@ -450,6 +450,10 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
    (which stay clear). The place, what's happening, the horde, the die, your Safety. Sized off its width (cqw). */
 #battle { position: absolute; z-index: 4; pointer-events: none; container-type: size;
   clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: #e86a5a; }   /* (the red: its edge) */
+/* while it's open everything else goes out of focus but the bars (and a toast, if one comes up) */
+header, #map, #clock, #notes > *, #hint, #stats, #leadmarks, #panel { transition: filter .3s; }
+body.battling :is(header, #map, #clock, #notes > *, #hint, #stats, #leadmarks, #panel) { filter: blur(3px); }
+body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (its shadow kept, so it eases in) */
 #battle::before { content: ''; position: absolute; inset: 1.4cqw; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
   background: radial-gradient(circle at 50% 45%, #22301f, #121a10 75%); }
 .bf-in { position: absolute; inset: 15% 10%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }

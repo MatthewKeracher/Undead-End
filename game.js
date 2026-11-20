@@ -776,6 +776,7 @@ function bfOpen(k) {
   bf.k = k; bf.closing = false;
   el.getAnimations().forEach((a) => a.cancel());
   el.hidden = false;
+  document.body.classList.add('battling');   // everything but the battlefield and the bars goes out of focus
   bfPlace();
   const from = bfFromHex();
   if (from) el.animate([{ transform: from, filter: 'brightness(1.4)' }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2, 1.1, .3, 1)' });
@@ -784,6 +785,7 @@ function bfClose() {
   const el = $('#battle');
   if (el.hidden || bf.closing) { if (!bf.closing) bf.k = null; return; }
   bf.closing = true;
+  document.body.classList.remove('battling');
   const from = bfFromHex();
   const done = () => { if (bf.closing) { bf.closing = false; bf.k = null; el.hidden = true; } };
   if (!from) return done();
@@ -818,11 +820,14 @@ function bfPlace() {
   const left = Math.max(gap, Math.min(h[0] - wide / 2, b.width - gap - wide));
   Object.assign(el.style, { left: `${left}px`, top: `${top}px`, width: `${wide}px`, height: `${tall}px` });
 }
-const bfZed = '<i class="z">🧟</i>';
+// a mixed horde: zombies, men and women, in an order that doesn't repeat for a while (by place in the horde, so the
+// same ones stay put as others arrive or fall from the end)
+const ZEDS = ['🧟', '🧟‍♂️', '🧟‍♀️'], ZED_ORDER = [1, 2, 0, 2, 1, 1, 0, 2, 0, 1, 2, 2, 0, 1, 0];
+const bfZed = (i, cls = 'z') => `<i class="${cls}">${ZEDS[ZED_ORDER[i % ZED_ORDER.length]]}</i>`;
 function bfDraw(safety, zombies) {
   const t = bf.k && G.tiles[bf.k];
   $('#battle').innerHTML = `<div class="bf-in"><div class="bf-place">${t ? esc(t.def.name) : ''}</div><div class="bf-msg"></div>
-    <div class="bf-horde">${bfZed.repeat(zombies)}</div>
+    <div class="bf-horde">${Array.from({ length: zombies }, (_, i) => bfZed(i)).join('')}</div>
     <div class="bf-mid"><div class="bf-die slot"></div></div>
     <div class="bf-safe">${'<i></i>'.repeat(safety)}</div></div>`;
   bfPlace();
@@ -850,7 +855,7 @@ async function bfArrive(k, c, title) {
   $('#battle .bf-die').innerHTML = '';
   const horde = $('#battle .bf-horde');
   for (let j = 0; j < c.after.zombies - c.before.zombies; j++) {
-    horde.insertAdjacentHTML('beforeend', bfZed.replace('class="z"', 'class="z pop"'));
+    horde.insertAdjacentHTML('beforeend', bfZed(horde.children.length, 'z pop'));
     tone(80 + Math.random() * 30, 0.25, 'sawtooth', 0.09, -20);
     await wait(220);
   }
