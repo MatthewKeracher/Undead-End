@@ -560,7 +560,7 @@ const sfx = {
   bow: () => { tone(220, 0.25, 'triangle', 0.12, -120); noise(0.12, 0.12, 4000); },   // twang and whoosh
   saw: () => clip('chainsaw'),
   zombie: () => { tone(95, 0.9, 'sawtooth', 0.12, -50); setTimeout(() => tone(70, 0.7, 'sawtooth', 0.1, -30), 150); },
-  groan: () => clip('groan', 0.8),   // the start of every zombie encounter
+  groan: () => {},   // the start of every zombie encounter — silenced for now (assets/groan.mp3: clip('groan', 0.8)) till a better sound's found
 };
 
 async function rollDie(slot, final, ms, onFace) {
