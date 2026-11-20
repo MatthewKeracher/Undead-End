@@ -23,7 +23,7 @@ Rules decisions still belong in `DESIGN.md`; this file is about **how** multipla
 
 Taking turns one player at a time doesn't scale (100 players × 30 s = 50 min per round). So every round is a **30-second real-time window**:
 
-1. **Start of round:** resource checks (food/water/hope) for everyone; on night rounds, the night attack on every occupied tile.
+1. **Start of round:** on night rounds, the night attack on every occupied tile first (fights settled); then resource checks (food/water/hope) for everyone.
 2. **The 30 s window:** every player may take **one action**, and it **resolves the moment it's chosen** — no lock-in, no waiting for others.
    - The server handles actions **in the order they arrive**, so the order on a tile is simply who acted first.
    - **Co-op** comes from timing: talk it through on proximity voice — "I'll fortify now, then you scavenge", "scout north, then I'll move there".

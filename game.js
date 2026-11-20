@@ -165,7 +165,7 @@ async function show(ev) {
     case 'scout': return revealShow(ev);
     case 'reveal': return revealShow(ev, 900);   // stepped into the unknown
     case 'night': await nightShow(ev); delete held[ev.k]; return renderMap();
-    case 'checks': return renderStats(ev.stats[cur().id]);   // the check's effect shows before any night attack
+    case 'checks': return renderStats(ev.stats[cur().id]);   // the check's effect (after any night attack)
     case 'maxApLoss': return maxApLossShow(ev);
     case 'flee': return fleeShow(ev);
     case 'armor': return sfx.armor();
@@ -187,7 +187,7 @@ async function roundBannerShow({ day, round }) {
   const omen = round === 1 && G.badNight ? ' · <b class="omen">🌘 bad night coming</b>' : '';
   el.className = night ? 'night' : 'day';
   el.innerHTML = `<div class="rb-title">Day ${day} · Round ${round}</div>
-    <div class="rb-sub">${night ? '🌙 Night' : '☀️ Day'}${check ? ` · check ${check}` : ''}${attack ? ' · night attack' : ''}${omen}</div>`;
+    <div class="rb-sub">${night ? '🌙 Night' : '☀️ Day'}${attack ? ' · night attack' : ''}${check ? ` · check ${check}` : ''}${omen}</div>`;
   el.hidden = false;
   if (night) tone(110, 0.9, 'sine', 0.1, -30); else [392, 523].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.06), i * 120));
   await new Promise((res) => { const tm = setTimeout(res, skipAnim ? 0 : 1700); dismissPopup = () => { clearTimeout(tm); res(); }; });
@@ -911,7 +911,7 @@ function renderClock() {
     const c = wedgeCenterDeg(r) * Math.PI / 180, a0 = c - Math.PI / 6, a1 = c + Math.PI / 6;
     const now = r === G.round;
     const off = now ? 3 : 0;
-    const icons = Object.keys(CONFIG.upkeep[r] || {}).map((res) => ICON[res]).join('') + (E.attackDue(G, r) ? '🟡' : '');   // a night attack tests your Safety (round 6 only on a bad night)
+    const icons = (E.attackDue(G, r) ? '🟡' : '') + Object.keys(CONFIG.upkeep[r] || {}).map((res) => ICON[res]).join('');   // a night attack tests your Safety first (round 6 only on a bad night), then the check
     const lx = 57 * Math.cos(c), ly = 57 * Math.sin(c);
     s += `<g class="wedge ${isNight(r) ? 'night' : 'day'} ${now ? 'now' : ''}" transform="translate(${(off * Math.cos(c)).toFixed(2)} ${(off * Math.sin(c)).toFixed(2)})">
       <path d="${wedgePath(a0 + 0.015, a1 - 0.015, CLOCK_R0 + 2, CLOCK_R)}"/>
@@ -1313,7 +1313,7 @@ function renderPanel() {
   const nextUp = G.checksOff ? '' : upkeepText(nextRound);
   if (nextUp && !E.attackDue(G, nextRound)) warn = `<div class="note">Next round starts with a check: ${nextUp}</div>`;
   if (E.attackDue(G, nextRound)) {
-    warn = `<div class="note ${isNight(G.round) ? 'bad' : ''}">🌙 Next round starts with ${nextUp ? `a ${nextUp} check and ` : ''}a night attack — 1d6 🧟 vs your 🟡 ${t.safety}.${apWarn}</div>`;
+    warn = `<div class="note ${isNight(G.round) ? 'bad' : ''}">🌙 Next round starts with a night attack — 1d6 🧟 vs your 🟡 ${t.safety}${nextUp ? `, then a ${nextUp} check` : ''}.${apWarn}</div>`;
   }
 
   $('#actions').innerHTML = `

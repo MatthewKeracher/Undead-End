@@ -711,6 +711,25 @@ test('a bad night: round 6 attacks too (after round 5), so two attacks back to b
   assert.equal(S.log.filter((l) => l.msg.includes('in the night')).length, 2);
 });
 
+test('zombies come first: a night attack is fought or fled before the round\'s check', () => {
+  const { S, p } = game({ checksOff: false });
+  tile(S, 1, 0, 'Forest');
+  p.items.push({ id: 'Booze', cond: 2 }, { id: 'Axe', cond: 3 });
+  p.maxAP = 10; p.ap = 4;
+  S.round = 5; S.badNight = true;
+  S.forced = [1, 1, 4];                 // sleep 1 + 1, then round 6 on a bad night: 4 zombies, no Safety
+  act(S, { type: 'sleep' });
+  assert.equal(S.round, 6);
+  assert.equal(p.pending.kind, 'threat');   // not the hope check
+  assert.equal(p.items[0].cond, 2);
+  S.forced = [6];
+  decide(S, 'flee');
+  decide(S, { q: 1, r: 0 });            // got away…
+  assert.equal(p.pending.kind, 'hope');  // …and only now: what hope is there?
+  decide(S, 0);
+  assert.equal(p.items[0].cond, 1);
+});
+
 test('the bad-night roll happens secretly as round 1 starts: roughly 1 in 3', () => {
   let bad = 0;
   for (let seed = 1; seed <= 600; seed++) {

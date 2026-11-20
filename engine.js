@@ -404,7 +404,8 @@ const Engine = (() => {
   const timeUp = (S) => run(S, () => { S.timesUp = true; });
 
   // Everything that happens at the START of a round, before anyone acts:
-  // 1) this round's resource check, 2) the night attack (CONFIG.attackRounds, or round 6 on a bad night).
+  // 1) the night attack (CONFIG.attackRounds, or round 6 on a bad night) — zombies come first, and any fight or
+  // flight is over before 2) this round's resource check (an 'upkeep' step, queued after it).
   // As round 1 starts, a secret 1d6 decides whether the coming night is a bad one (CONFIG.badNightOn).
   // Food & water feed max AP: each check paid → +trackGain[res] (max 12); each missed → −trackLoss[res]. Max AP 0 = death.
   // (Water: ±2, food: ±1.)
@@ -424,39 +425,39 @@ const Engine = (() => {
       S.badNight = d6(S) <= CONFIG.badNightOn;
       if (S.badNight) log(S, '🌘 Something stirs… a bad night is coming: zombies after midnight too (round 6).', 'bad');
     }
+    if (attackDue(S, r)) nightAttack(S);   // queues Fight or Flee where zombies break through
     if (S.checksOff && Object.keys(CONFIG.upkeep[r] || {}).length) log(S, `Round ${r} check skipped (cheat: checks off)`, 'cheat');
-    const up = S.checksOff ? {} : CONFIG.upkeep[r] || {};
-    if (Object.keys(up).length) log(S, `Round ${r} check — ${upkeepText(r)}`, 'phase');
-    for (const p of S.players) {
-      if (p.dead) continue;
-      for (const [res, n] of Object.entries(up)) {
-        if (p.dead) break;
-        if (res === 'hope') { p.queue.push({ type: 'hope' }); continue; }   // asked before any night attack (queued after it)
-        const body = res === 'food' || res === 'water';   // food & water feed your max AP
-        if (p.res[res] >= n) {
-          p.res[res] -= n;
-          if (body && p.maxAP < CONFIG.maxAP) {
-            const oldMax = p.maxAP;
-            p.maxAP = Math.min(CONFIG.maxAP, p.maxAP + CONFIG.trackGain[res]);
-            log(S, `${p.name} uses ${n} ${ICON[res]} ${res} — max AP ${oldMax} → ${p.maxAP}.`, 'good');
-          } else log(S, `${p.name} uses ${n} ${ICON[res]} ${res}.`);
-        } else if (body) {
-          const oldMax = p.maxAP, oldAp = p.ap;
-          p.res[res] = 0;
-          p.maxAP = Math.max(0, p.maxAP - CONFIG.trackLoss[res]);
-          p.ap = Math.min(p.ap, p.maxAP);
-          emit(S, { type: 'maxApLoss', player: p.id, res, oldMax, newMax: p.maxAP, oldAp, newAp: p.ap });
-          log(S, `${p.name} has no ${res}! Max AP ${oldMax} → ${p.maxAP}.`, 'bad');
-          if (p.maxAP <= 0) die(S, p, `${p.name} ${res === 'food' ? 'starved' : 'died of thirst'} (max AP 0).`);
-        } else {
-          p.res[res] = 0;
-          log(S, `${p.name} has no ${res}!`, 'bad');
-        }
+    if (!S.checksOff && Object.keys(CONFIG.upkeep[r] || {}).length) for (const p of S.players) if (!p.dead) p.queue.push({ type: 'upkeep' });
+  }
+  // This round's check for one survivor (after any night attack is dealt with).
+  function upkeep(S, p) {
+    const r = S.round;
+    log(S, `Round ${r} check — ${upkeepText(r)}`, 'phase');
+    for (const [res, n] of Object.entries(CONFIG.upkeep[r] || {})) {
+      if (p.dead) break;
+      if (res === 'hope') { STEPS.hope(S, p); continue; }   // which hope item to lean on: a decision, or max AP lost
+      const body = res === 'food' || res === 'water';   // food & water feed your max AP
+      if (p.res[res] >= n) {
+        p.res[res] -= n;
+        if (body && p.maxAP < CONFIG.maxAP) {
+          const oldMax = p.maxAP;
+          p.maxAP = Math.min(CONFIG.maxAP, p.maxAP + CONFIG.trackGain[res]);
+          log(S, `${p.name} uses ${n} ${ICON[res]} ${res} — max AP ${oldMax} → ${p.maxAP}.`, 'good');
+        } else log(S, `${p.name} uses ${n} ${ICON[res]} ${res}.`);
+      } else if (body) {
+        const oldMax = p.maxAP, oldAp = p.ap;
+        p.res[res] = 0;
+        p.maxAP = Math.max(0, p.maxAP - CONFIG.trackLoss[res]);
+        p.ap = Math.min(p.ap, p.maxAP);
+        emit(S, { type: 'maxApLoss', player: p.id, res, oldMax, newMax: p.maxAP, oldAp, newAp: p.ap });
+        log(S, `${p.name} has no ${res}! Max AP ${oldMax} → ${p.maxAP}.`, 'bad');
+        if (p.maxAP <= 0) die(S, p, `${p.name} ${res === 'food' ? 'starved' : 'died of thirst'} (max AP 0).`);
+      } else {
+        p.res[res] = 0;
+        log(S, `${p.name} has no ${res}!`, 'bad');
       }
     }
-    if (S.over) return;
-    emit(S, { type: 'checks', stats: Object.fromEntries(S.players.map((p) => [p.id, statsOf(p)])) });
-    if (attackDue(S, r)) nightAttack(S);
+    if (!p.dead) emit(S, { type: 'checks', player: p.id, stats: Object.fromEntries(S.players.map((o) => [o.id, statsOf(o)])) });
   }
 
   // ---------------------------------------------------------------- zombies
@@ -568,6 +569,7 @@ const Engine = (() => {
   const leadOpen = (t) => !!t.stashes?.some((s) => s.lead);
 
   const STEPS = {
+    upkeep,
     hope(S, p) {
       if (hopeItems(p).length) { p.pending = { kind: 'hope' }; return; }
       const oldMax = trackMaxAP(S, p, 'hope', false);

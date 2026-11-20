@@ -41,7 +41,7 @@ Living rules document for the digital version. Updated as rules are clarified.
 - Actions cost only AP, not resources.
 
 ### Upkeep per round
-Checked at the **start** of the round, before anyone acts (on night rounds, the check comes before the night attack).
+Checked at the **start** of the round, before anyone acts. On a night with an attack, **zombies come first**: the night attack, and any Fight or Flee it brings, is over before the check.
 | Round | Day/Night | Upkeep |
 |---|---|---|
 | 1 | Day | 1 Water |
