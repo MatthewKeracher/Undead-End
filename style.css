@@ -377,9 +377,11 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 .packhead .packname { white-space: nowrap; }
 /* desktop: the backpack is a bar of six slots just above the action bar (tablets and phones have their own, below) */
 @media (not (pointer: coarse)) and (orientation: landscape) and (min-width: 1101px) and (min-height: 501px) {
-  /* the right column dissolves: the resources run down the right on their own, stopping above the two bars */
+  /* the right column dissolves: the resources are a row along the top right, each label over its number */
   #rightcol { display: contents; }
-  #stats { position: absolute; z-index: 3; top: var(--gap); right: var(--gap); bottom: calc(var(--dockh, 0px) + var(--packh, 0px) + 2 * var(--gap)); width: var(--col); pointer-events: none; }
+  #stats { position: absolute; z-index: 3; top: var(--gap); right: calc(var(--gap) + 6px); flex: none; container-type: normal; flex-direction: row; align-items: flex-start;
+    gap: 26px; pointer-events: none; }
+  #stats .stat { --o: 58px; flex-direction: column-reverse; gap: 4px; }   /* (label first) */
   /* the backpack and the action bar are the same width: six 150px slots, or the board's width if that's less */
   #board { --barw: min(962px, calc(100cqw - 2 * var(--gap))); }
   #pack { position: absolute; z-index: 3; left: var(--gap); right: var(--gap); bottom: calc(var(--dockh, 0px) + var(--gap) / 2); width: var(--barw);
