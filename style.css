@@ -7,7 +7,7 @@
   --board-in: #143021; --board-out: #0a1911;   /* the board's glow */
   --text: #e6e2d8; --muted: #8da198; --good: #7bc47f; --bad: #e86a5a; --accent: #d9a441;
   /* board overlay sizes — shrunk for tablets and phones in the media queries at the end */
-  --gap: 14px; --clock: 247px; --col: 236px; --orbmax: 64px;
+  --gap: 14px; --clock: 296px; --col: 236px; --orbmax: 64px;
   --dockl: var(--gap);   /* where the action dock may start */
 }
 * { box-sizing: border-box; }
@@ -606,7 +606,7 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
   #panel { position: absolute; top: 0; right: 0; bottom: 0; z-index: 10; width: min(380px, 100%); box-shadow: -12px 0 40px #000a; }
 }
 @media (max-width: 1100px), (max-height: 860px) {
-  :root { --clock: 200px; --col: 220px; }
+  :root { --clock: 240px; --col: 220px; }   /* (desktop: 20% up from 200; the touch layouts set their own below) */
   .slot-item { height: 38px; }
   .slot-item .ic { font-size: 19px; }
 }
