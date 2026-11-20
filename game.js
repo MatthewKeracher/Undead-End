@@ -796,24 +796,33 @@ async function contestAnim(c) {
   $('#popup').classList.add('zombie'); sfx.zombie();
 }
 
-// Hiding: a 🟡 Safety pip and a 🧟 zombie go together, pair by pair, until one side runs out.
+// Hiding: the zombies march left into the 🟡 Safety — the one in front meets the last yellow pip and both go,
+// then the rest march on into the next, until one side runs out. Any left stand where the Safety was.
 async function hideShow({ name, c }) {
   const pop = $('#popup');
   skipAnim = false;
   pop.className = '';
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>🛡️ Hiding</small><h2>${esc(name)}</h2></div>
-    <div class="presult" id="pres"><div class="cpips">${[...Array(c.slots)].map((_, i) =>
+    <div class="presult" id="pres"><div class="cpips ${c.slots > 8 ? 'many' : ''}">${[...Array(c.slots)].map((_, i) =>
       `<i class="${i < c.before.safety ? 'on' : i < c.before.safety + c.before.zombies ? 'zed' : ''}"></i>`).join('')}</div><div id="ctext"></div></div>
     <small class="pskip">click or press any key</small></div>`;
   pop.hidden = false;
   const pips = [...pop.querySelectorAll('.cpips i')];
+  const yellow = pips.slice(0, c.before.safety), zeds = pips.slice(c.before.safety, c.before.safety + c.before.zombies);
+  const slot = pips.length > 1 ? pips[1].offsetLeft - pips[0].offsetLeft : 36;   // one circle's step along the row
+  for (const z of zeds) z.classList.add('march');
   await wait(350);
   for (let i = 0; i < c.absorbed; i++) {
-    pips[c.before.safety - 1 - i].className = 'burst';
-    pips[c.before.safety + i].className = 'burst';
+    // the i-th zombie leads now: march everyone still standing until it's on the last yellow pip left
+    const shift = -(2 * i + 1) * slot;
+    for (const z of zeds.slice(i)) z.style.transform = `translateX(${shift}px)`;
+    tone(70 + i * 6, 0.12, 'square', 0.05, -10);   // footsteps
+    await wait(260);
+    yellow[c.before.safety - 1 - i].className = 'burst';
+    zeds[i].classList.add('gone');
     tone(220 - i * 15, 0.12, 'triangle', 0.1, -80);
-    await wait(280);
+    await wait(180);
   }
   $('#ctext').innerHTML = c.left
     ? `<div class="big bad">🧟 ${c.left} still here!</div><small class="muted">🟡 ${c.before.safety} → 0</small>`
