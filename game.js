@@ -860,7 +860,7 @@ async function bfArrive(k, c) {
   sfx.zombie();
   await wait(500);
 }
-// one attack: on each zombie it kills, 💥 from a gun or 🩸 from a blade (or a chainsaw), and down they go
+// one attack: on each zombie it kills, 💥 from a gun or 💢 from a blade (or a chainsaw), and down they go
 async function bfHit(ev) {
   skipAnim = false;
   const p = cur(), t = tileOf(p), def = ITEMS[ev.weapon];
