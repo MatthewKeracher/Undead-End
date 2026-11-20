@@ -572,35 +572,41 @@ async function rollDie(slot, final, ms, onFace) {
   slot.innerHTML = dieHtml(final, 'land'); onFace?.(final); sfx.land();
 }
 
-// Scavenging: your tile comes forward, as in a fight, with its loot table across the middle (as on the map) and the
-// die up in the top point. The roll picks a row (a looted row shakes and it rolls again); then the amount or condition
-// dice, and what you found takes the table's place. Zombies: the table goes and it's a battlefield.
+// Scavenging: your tile comes forward looking just as it does on the board — its colour, its name, its loot table
+// (2–6: a 1 is always Zombies) — with the die rolling where its Safety pips sit. The roll lights up a row (a looted
+// row shakes and it rolls again); then the amount or condition dice, and what you found takes the table's place.
+// Zombies: it turns into the battlefield.
 async function scavengeShow({ rows: table, tries, r, hit, amts, dice, c }) {
-  const e = hit.e, p = cur(), k = key(p.q, p.r);
+  const e = hit.e, p = cur(), k = key(p.q, p.r), t = tileOf(p), town = G.towns?.[t.town];
+  const W = Math.sqrt(3) * HEX, danger = t.def.table.filter((x) => x.zombies).length;
   skipAnim = false;
   bfOpen(k);
-  bfStage('scav', `<div class="bf-top"></div>
-    <ol class="ptable bf-table">${table.map((row, i) => `<li data-i="${i + 1}" class="${rowClass(row)}"><b>${i + 1}</b>${esc(rowText(row))}</li>`).join('')}</ol>
-    <div class="bf-res"></div>${bfSafeHtml(tileOf(p).safety)}${bfYouHtml()}`);
-  const top = $('#battle .bf-top'), res = $('#battle .bf-res'), rows = [...$('#battle .bf-table').children];
-  const mark = (v) => rows.forEach((li) => li.classList.toggle('hl', +li.dataset.i === v));
-  const found = (html, cls = 'good') => { $('#battle .bf-table').classList.add('done'); res.className = `bf-res ${cls}`; res.innerHTML = html; };
+  bfStage('scav', `<svg class="bf-tile" viewBox="${-W / 2} ${-HEX} ${W} ${2 * HEX}">
+      <g class="hex tile here d${Math.min(danger, 4)} ${town ? 'town' : ''}">
+        <polygon points="${hexPoints(0, 0, HEX - 4)}" style="stroke:${p.color}"/>
+        ${town ? `<text x="0" y="${-HEX * 0.72}" class="townname">${esc(town.name)}</text>` : ''}<text x="0" y="${-HEX * 0.56}" class="name">${esc(t.def.name)}</text>
+        ${tableRowsSvg(0, 4, table.slice(1))}</g></svg>
+    <div class="bf-top"></div><div class="bf-res"></div>`);
+  const top = $('#battle .bf-top'), res = $('#battle .bf-res'), rows = [...$('#battle').querySelectorAll('.trow')];
+  const row = (v) => rows.find((g) => +g.dataset.i === v);   // (a 1 has none: it's Zombies)
+  const mark = (v) => rows.forEach((g) => g.classList.toggle('hl', +g.dataset.i === v));
+  const found = (html, cls = 'good') => { $('#battle .tblrows').classList.add('done'); res.className = `bf-res ${cls}`; res.innerHTML = html; };
   top.innerHTML = '<div class="slot"></div>';
   await wait(150);
   for (const [i, v] of tries.entries()) {
     await rollDie(top.firstChild, v, i ? 700 : 1100, mark);
     if (i === tries.length - 1) break;
-    rows[v - 1].classList.add('nope');   // already looted: roll again
+    row(v)?.classList.add('nope');   // already looted: roll again
     tone(300, 0.15, 'triangle', 0.06, -120);
     await wait(500);
-    rows[v - 1].classList.remove('nope');
+    row(v)?.classList.remove('nope');
   }
-  rows.forEach((li) => li.classList.remove('hl'));
-  rows[r - 1].classList.add('picked');
+  rows.forEach((g) => g.classList.remove('hl'));
+  row(r)?.classList.add('picked');
   await wait(450);
 
   if (hit.kind === 'looted') {   // out of rerolls
-    rows[r - 1].classList.replace('picked', 'nope');
+    row(r)?.classList.replace('picked', 'nope');
     found('Nothing', 'bad');
     tone(300, 0.25, 'triangle', 0.07, -120); setTimeout(() => tone(200, 0.35, 'triangle', 0.07, -80), 160);
   } else if (hit.kind === 'stash') {
@@ -1000,14 +1006,18 @@ const rowClass = (row) => (row.kind !== 'looted' && hopeRow(row) ? 'hope' : row.
 function tableSvg(x, y, t) {
   if (!t.def.passable) return `<text x="${x}" y="${y + 4}" class="empty">Impassable</text>`;
   if (!canScavengeHere(t)) return `<text x="${x}" y="${y + 4}" class="empty">Nothing to scavenge</text>`;
-  const rows = E.tableView(t).slice(1), ch = 21, w = HEX + 16, h = ch * rows.length;
-  let s = `<rect x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" rx="3" class="tbl"/>`;
+  return tableRowsSvg(x, y, E.tableView(t).slice(1));
+}
+// (each row a group, with a bar behind it that the scavenge hex lights up as the die rolls)
+function tableRowsSvg(x, y, rows) {
+  const ch = 21, w = HEX + 16, h = ch * rows.length;
+  let s = `<g class="tblrows"><rect x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" rx="3" class="tbl"/>`;
   rows.forEach((row, i) => {
-    const ty = y - h / 2 + i * ch + ch / 2 + 5;
-    const txt = rowText(row);   // long rows (a stash: "🎒 Survivor's stash") get slightly smaller text to stay in the box
-    s += `<text x="${x - w / 2 + 8}" y="${ty}" class="cell ${rowClass(row)} ${txt.length > 14 ? 'long' : ''}"><tspan class="n">${row.row}</tspan>  ${esc(txt)}</text>`;
+    const top = y - h / 2 + i * ch, txt = rowText(row);   // long rows (a stash: "🎒 Survivor's stash") get slightly smaller text to stay in the box
+    s += `<g class="trow ${rowClass(row)}" data-i="${row.row}"><rect x="${x - w / 2 + 2}" y="${top + 1}" width="${w - 4}" height="${ch - 2}" rx="3" class="rhl"/>
+      <text x="${x - w / 2 + 8}" y="${top + ch / 2 + 5}" class="cell ${rowClass(row)} ${txt.length > 14 ? 'long' : ''}"><tspan class="n">${row.row}</tspan>  ${esc(txt)}</text></g>`;
   });
-  return s;
+  return `${s}</g>`;
 }
 
 // Pips along the bottom of the hex, one thing at a time: a tile with zombies shows just them (black, up to six);

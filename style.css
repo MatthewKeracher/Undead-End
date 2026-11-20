@@ -498,15 +498,21 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
 #battle[data-stage="sleep"] .bf-word { top: 80%; }
 #battle[data-stage="fortify"] .bf-icon.hit { animation: hammer .3s ease-out; }
 @keyframes hammer { 40% { rotate: -35deg; } 70% { rotate: 12deg; } }
-/* scavenging: the die (or the amount / condition dice) in the top point, the loot table across the middle, as on the map */
-.bf-top { position: absolute; left: 50%; top: 21%; translate: -50% -50%; display: flex; align-items: center; gap: 3cqw; }
-.bf-top .slot { width: 16cqw; height: 16cqw; }
-.bf-top .mult { font-size: 7cqw; }
-.bf-table { position: absolute; left: 50%; top: 55%; translate: -50% -50%; width: 70cqw; min-width: 0; font-size: 4.6cqw; transition: opacity .3s; }
-.bf-table li { padding: .6cqw 2.5cqw; border-radius: 1.2cqw; }
-.bf-table li b { width: 5cqw; }
-.bf-table.done { opacity: .06; }
-.bf-res { position: absolute; left: 50%; top: 55%; translate: -50% -50%; width: 76cqw; text-align: center; font-size: 8cqw; font-weight: 900; line-height: 1.25;
+/* scavenging: the tile as it is on the board (an SVG drawn the same way), the die (or the amount / condition dice)
+   where its Safety pips sit; what you found over the faded table */
+#battle[data-stage="scav"] { background: none !important; }
+#battle[data-stage="scav"]::before { display: none; }
+.bf-tile { position: absolute; inset: 0; width: 100%; height: 100%; }
+.bf-tile .tblrows { transition: opacity .3s; } .bf-tile .tblrows.done { opacity: .06; }
+.trow .rhl { fill: transparent; transition: fill .08s; }
+.trow.hl .rhl { fill: #ffffff26; }
+.trow.picked .rhl { fill: var(--accent); } .trow.z.picked .rhl { fill: var(--bad); } .trow.hope.picked .rhl { fill: var(--hope); }
+.hex .trow.picked .cell, .hex .trow.picked .cell .n { fill: #111; font-weight: 800; }
+.trow.nope { animation: nope .3s; } .hex .trow.nope .cell { fill: var(--bad); }
+.bf-top { position: absolute; left: 50%; top: 83%; translate: -50% -50%; display: flex; align-items: center; gap: 3cqw; }
+.bf-top .slot { width: 13cqw; height: 13cqw; }
+.bf-top .mult { font-size: 6cqw; }
+.bf-res { position: absolute; left: 50%; top: 52%; translate: -50% -50%; width: 76cqw; text-align: center; font-size: 8cqw; font-weight: 900; line-height: 1.25;
   text-shadow: 0 .5cqw 0 #000, 0 0 3cqw #000; }
 .bf-res:empty { display: none; }
 .bf-res > * { animation: popin .35s cubic-bezier(.2, 1.8, .5, 1); }
