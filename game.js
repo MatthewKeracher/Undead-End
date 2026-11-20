@@ -841,6 +841,7 @@ async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
 }
 
 // Sleep: roll both dice, then the AP dial fills segment by segment.
+// Sleep: the 2d6 roll in a popup, then the AP ring around the clock fills, a segment at a time.
 async function sleepShow({ dice, from, to, max }) {
   const r = dice[0] + dice[1];
   const pop = $('#popup');
@@ -848,22 +849,26 @@ async function sleepShow({ dice, from, to, max }) {
   pop.className = 'sleep';
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>😴 Sleeping</small><h2>Rest &amp; recover</h2></div>
-    <div class="prow"><div class="dicecol"><div class="slot" id="pd2a"></div><div class="slot" id="pd2b"></div></div><div class="bigap" id="bigap">${apGauge(from, '', max)}</div></div>
+    <div class="prow"><div class="dicecol"><div class="slot" id="pd2a"></div><div class="slot" id="pd2b"></div></div></div>
     <div class="presult" id="pres"></div>
     <small class="pskip">click or press any key</small></div>`;
   pop.hidden = false;
   await wait(150);
   await Promise.all([rollDie($('#pd2a'), dice[0], 900), rollDie($('#pd2b'), dice[1], 1050)]);
-  await wait(250);
+  $('#pres').innerHTML = `<div class="big good">+${r} AP</div><small class="muted">${dice[0]} + ${dice[1]}</small>`;
+  await popupHold(900);
+  pop.hidden = true;
+  renderApRing(from, '', max);
+  await wait(200);
   for (let a = from + 1; a <= to; a++) {
-    $('#bigap').innerHTML = apGauge(a, '', max, -1, a - 1);
+    renderApRing(a, '', max, a - 1);
     tone(330 + a * 45, 0.14, 'sine', 0.09);
-    await wait(260);
+    await wait(220);
   }
   const wasted = from + r - to;
-  $('#pres').innerHTML = `<div class="big good">+${to - from} AP</div><small class="muted">${dice[0]} + ${dice[1]} = ${r}</small>${wasted > 0 ? '<br>' : ''}${wasted > 0 ? `<small class="muted">${wasted} wasted — max AP ${max}</small>` : ''}`;
+  if (wasted > 0) toast(`😴 ${wasted} AP wasted — max AP ${max}`);
   sfx.win(to >= max);
-  await popupHold(1600);
+  await wait(500);
 }
 
 async function nightShow({ name, c }) {
@@ -1168,12 +1173,12 @@ function apLevel(ap, max) {
 }
 // Your AP around the outside of the clock: 12 segments from the top, clockwise — lit up to your AP (coloured by
 // apLevel), dim up to your max AP, black beyond it (food, water and hope raise / lower the max).
-function renderApRing(ap, flash, max) {
+function renderApRing(ap, flash, max, gaining = -1) {
   const n = CONFIG.maxAP, step = (2 * Math.PI) / n, gap = 0.03;
   let s = `<title>${ap} AP (max ${max})</title>`;
   for (let i = 0; i < n; i++) {
     const a0 = -Math.PI / 2 + i * step + gap, a1 = a0 + step - gap * 2;
-    s += `<path d="${wedgePath(a0, a1, 86, 98)}" class="seg ${i < ap ? 'on' : i >= max ? 'locked' : ''}"/>`;
+    s += `<path d="${wedgePath(a0, a1, 86, 98)}" class="seg ${i < ap ? 'on' : i >= max ? 'locked' : ''} ${i === gaining ? 'gaining' : ''}"/>`;
   }
   $('#apring').innerHTML = s;
   const clock = $('#clock');
