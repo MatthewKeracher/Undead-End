@@ -876,30 +876,24 @@ function showSafety(k, n) {
   document.querySelectorAll(`#map .hex[data-k="${k}"] .pip`).forEach((c, i) => c.classList.toggle('on', i < n));
 }
 
-// Missed food / water: pause the game and show the max AP ring losing a segment.
+// A missed food / water / hope check: on the clock's AP ring, no popup — the AP takes the colour of what was
+// missing, and the max AP lost throbs, then swells and goes dark.
 async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
-  const pop = $('#popup');
-  const what = res === 'food' ? `${ICON.food} No food` : res === 'water' ? `${ICON.water} No water` : `${ICON.hope} Nothing to hope for`;
+  const ring = $('#apring');
   skipAnim = false;
-  pop.className = 'zombie';
-  pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>Round ${G.round} check</small><h2>${what}!</h2></div>
-    <div class="bigap" id="bigap">${apGauge(oldAp, '', oldMax)}</div>
-    <div class="presult" id="pres"></div>
-    <small class="pskip">click or press any key</small></div>`;
-  pop.hidden = false;
+  $('#popup').hidden = true;
+  ring.classList.add('tint', res);   // the reason: the AP takes the colour of what was missing…
+  renderApRing(oldAp, '', oldMax, -1, [newMax, oldMax, 'doomed']);   // …and the max AP about to go throbs
   tone(300, 0.5, 'sawtooth', 0.08, -200);
   await wait(900);
-  $('#bigap').innerHTML = apGauge(newAp, '', newMax, newMax, -1, oldMax);   // the lost segments crack and go dark
+  renderApRing(newAp, '', newMax, -1, [newMax, oldMax, 'losing']);   // then it swells and goes dark
   noise(0.25, 0.3, 700); tone(90, 0.6, 'square', 0.12, -40);
-  await wait(500);
-  $('#pres').innerHTML = newMax > 0
-    ? `<div class="big bad">Max AP ${oldMax} → ${newMax}</div><small class="muted">Each ${res === 'hope' ? 'night you find hope' : `${res} check you pay`} raises it by ${CONFIG.trackGain[res]}; each one missed costs ${CONFIG.trackLoss[res]}.</small>`
-    : `<div class="big bad">Max AP 0</div>`;
-  await popupHold(newMax > 0 ? 2600 : 1500);
+  await wait(1100);
+  ring.classList.remove('tint', res);
+  renderApRing(newAp, '', newMax);
+  await wait(250);
 }
 
-// Sleep: roll both dice, then the AP dial fills segment by segment.
 // Sleep: the 1d6 roll (plus the tile's 🟡 Safety) in a popup, then the AP ring around the clock fills, a segment at a time.
 async function sleepShow({ dice, bonus = 0, from, to, max }) {
   const r = dice.reduce((a, b) => a + b, 0) + bonus;
@@ -1238,12 +1232,13 @@ function apLevel(ap, max) {
 }
 // Your AP around the outside of the clock: 12 segments from the top, clockwise — lit up to your AP (coloured by
 // apLevel), dim up to your max AP, black beyond it (food, water and hope raise / lower the max).
-function renderApRing(ap, flash, max, gaining = -1) {
+// mark: [from, to, cls] — segments from..to−1 get cls ('doomed' / 'losing': a missed check, see maxApLossShow).
+function renderApRing(ap, flash, max, gaining = -1, mark = null) {
   const n = CONFIG.maxAP, step = (2 * Math.PI) / n, gap = 0.03;
   let s = `<title>${ap} AP (max ${max})</title>`;
   for (let i = 0; i < n; i++) {
     const a0 = -Math.PI / 2 + i * step + gap, a1 = a0 + step - gap * 2;
-    s += `<path d="${wedgePath(a0, a1, 86, 98)}" class="seg ${i < ap ? 'on' : i >= max ? 'locked' : ''} ${i === gaining ? 'gaining' : ''}"/>`;
+    s += `<path d="${wedgePath(a0, a1, 86, 98)}" class="seg ${i < ap ? 'on' : i >= max ? 'locked' : ''} ${i === gaining ? 'gaining' : ''} ${mark && i >= mark[0] && i < mark[1] ? mark[2] : ''}"/>`;
   }
   $('#apring').innerHTML = s;
   const clock = $('#clock');
@@ -1251,19 +1246,6 @@ function renderApRing(ap, flash, max, gaining = -1) {
   void clock.getBoundingClientRect();   // restart the pop animation
   clock.classList.add(apLevel(ap, max), ...(flash ? [flash] : []));
 }
-// The big AP gauge in popups (sleep, max AP lost). Segments above your current max AP are locked.
-function apGauge(ap, flash, max, losing = -1, gaining = -1, losingEnd = losing + 1) {
-  const n = CONFIG.maxAP, step = (2 * Math.PI) / n, gap = 0.04;
-  let s = '';
-  for (let i = 0; i < n; i++) {
-    const a0 = -Math.PI / 2 + i * step + gap, a1 = a0 + step - gap * 2;
-    s += `<path d="${wedgePath(a0, a1, 52, 80)}" class="seg ${i < ap ? 'on' : i >= max ? 'locked' : ''} ${i >= losing && i < losingEnd && losing >= 0 ? 'losing' : ''} ${i === gaining ? 'gaining' : ''}"/>`;
-  }
-  return `<svg viewBox="-90 -90 180 180" class="apgauge ${apLevel(ap, max)} ${flash}">
-    ${s}<circle r="48" class="hub"/>
-    <text y="8" class="num">${ap}</text><text y="26" class="lbl">AP</text><text y="40" class="maxl">max ${max}</text></svg>`;
-}
-
 // Backpack: 6 slots in the top-right column of the board. ✕ arms, second click leaves it on this tile.
 // Keys 1–6 highlight a slot; Enter then presses its button (Use / Take, or else ✕).
 // Some choices are made here (packPick): when the night asks for hope, hope items get a Hope button; when zombies
