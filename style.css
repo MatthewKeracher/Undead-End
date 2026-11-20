@@ -558,7 +558,8 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 }
 /* phone sizes */
 @media (max-width: 640px), (max-height: 500px) {
-  :root { --gap: 8px; --clock: clamp(96px, calc((100dvh - 511px) / 2), 136px); --ap: var(--clock); --orbsize: 44px; --bar: 50px; }
+  /* the clock fills its corner: half the width, less the gaps (the AP dial keeps to the height left over) */
+  :root { --gap: 8px; --clock: clamp(96px, calc((100dvw - 3 * var(--gap)) / 2), 180px); --ap: clamp(96px, calc((100dvh - 511px) / 2), 136px); --orbsize: 44px; --bar: 50px; }
   #board { gap: 6px 8px; }
   /* six narrow slots: the icon, its condition under it, ✕ in the corner, Use / Take on the icon (no names: tap a slot for it) */
   #pack, #pack.open { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; padding: 4px; }
