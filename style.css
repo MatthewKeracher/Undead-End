@@ -287,7 +287,7 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 /* sleep: the die + the tile's Safety pips (up to 4 to a row) */
 .sleepsum { gap: 14px; }
 .sleepsum .plus { font-size: 44px; font-weight: 900; color: var(--text); line-height: 1; }
-.sleepsum .sleepsafe { display: grid; grid-template-columns: repeat(min(4, var(--n, 4)), 26px); gap: 8px; margin: 0; }
+.sleepsum .sleepsafe { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: calc(4 * 26px + 3 * 8px); margin: 0; }   /* rows of 4, each centred */
 .prow2 { display: flex; align-items: center; justify-content: center; gap: 14px; min-height: 0; margin-top: 14px; }
 .prow2:empty { margin: 0; }
 .mult { font-size: 30px; font-weight: 800; color: var(--accent); }
