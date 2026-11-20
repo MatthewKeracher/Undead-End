@@ -624,7 +624,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   #pack .slot-item .ic { align-self: center; font-size: 21px; line-height: 1; }
   #pack .slot-item .cond { gap: 1px; }
   #pack .slot-item .cond i { width: 4px; height: 4px; }
-  #pack .slot-item .use { position: absolute; left: 1px; top: 1px; }
+  #pack .slot-item .use { display: none; }   /* no Drink / Take / Use / Hope / Fire tags: tap the item (twice, to use it) */
   #pack .slot-item .drop { position: absolute; right: 0; top: 0; padding: 1px 4px; font-size: 10px; }
   #pack .slot-item .drop.armed { inset: 0; z-index: 2; padding: 0; font-size: 10px; font-weight: 700; border-radius: 8px; }   /* "Leave it?" covers the slot */
   .ribbon.main .act { padding: 8px 2px; }

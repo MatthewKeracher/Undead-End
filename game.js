@@ -1269,7 +1269,7 @@ function renderApRing(ap, flash, max, gaining = -1, mark = null) {
 // Keys 1–6 highlight a slot; Enter then presses its button (Use / Take, or else ✕).
 // Some choices are made here (packPick): when the night asks for hope, hope items get a Hope button; when zombies
 // are on you, each weapon you can use gets its verb (Fire, Swing…) — everything else greys out.
-let dropArmed = -1, packSel = -1;
+let dropArmed = -1, packSel = -1, useArmed = -1;   // useArmed: phones — the slot tapped once, a second tap uses it
 const FIGHT_EXPLAIN = { ammo: 'shoot', ap: 'melee', fuel: 'saw' };   // the tutorial card for each kind of weapon
 function packPick(p, it, i) {
   if (mode === 'hope') return ITEMS[it.id].hope && { cls: 'hope', btn: `<button class="use hope" data-pick="${i}" title="Lean on it tonight (−1 condition)">Hope</button>` };
@@ -1617,16 +1617,24 @@ $('#pack').addEventListener('click', (e) => {
   const pk = e.target.closest('[data-pick]') ?? (picking() && e.target.closest('.slot-item.pickable'));   // hope, or a weapon: tap the item
   if (pk) { pickFromPack(+(pk.dataset.pick ?? pk.dataset.slot)); return; }
   const b = e.target.closest('[data-drop]');
-  if (!b) {   // the slot itself: what is it? (phones show only the icon)
-    const it = cur().items[e.target.closest('[data-slot]')?.dataset.slot];
-    if (it) toast(it.text ? `${ITEMS[it.id].icon} “${it.text}”` : `${ITEMS[it.id].icon} ${it.id} — condition ${it.cond}. ${ITEMS[it.id].desc}`);
+  if (!b) {   // the slot itself: what is it? On phones (no Use / Drink / Take badge), a second tap uses it.
+    const slot = e.target.closest('[data-slot]'), i = +slot?.dataset.slot, it = cur().items[i];
+    if (!it) return;
+    const use = slot.querySelector('.use');
+    if (use && !use.offsetParent && useArmed === i) { useArmed = -1; use.click(); return; }   // the badge is hidden: tap again to use
+    useArmed = use && !use.offsetParent ? i : -1;
+    const again = useArmed === i ? ` Tap again to ${use.firstChild.textContent.trim().toLowerCase()}.` : '';
+    toast(it.text ? `${ITEMS[it.id].icon} “${it.text}”${again}` : `${ITEMS[it.id].icon} ${it.id} — condition ${it.cond}. ${ITEMS[it.id].desc}${again}`);
     return;
   }
   const i = +b.dataset.drop;
   if (dropArmed === i) { dropArmed = -1; dropItem(i); } else { dropArmed = i; renderPack(); }
 });
 // a tap anywhere else disarms ✕ (composedPath, as the tapped button may already have been redrawn away)
-document.addEventListener('click', (e) => { if (dropArmed >= 0 && !e.composedPath().includes($('#pack'))) { dropArmed = -1; renderPack(); } });
+document.addEventListener('click', (e) => {
+  if (!e.composedPath().includes($('#pack'))) useArmed = -1;
+  if (dropArmed >= 0 && !e.composedPath().includes($('#pack'))) { dropArmed = -1; renderPack(); }
+});
 // Log panel: hidden by default; remembered per browser.
 // Unread counter: log messages (not round markers) added while the log is hidden.
 let logSeen = 0;
