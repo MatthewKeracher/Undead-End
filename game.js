@@ -520,7 +520,7 @@ function tone(freq, dur = 0.05, type = 'square', vol = 0.04, slide = 0) {
   } catch { /* audio unavailable */ }
 }
 // Recorded sounds (assets/), restarted rather than stacked when played again quickly.
-const CLIPS = { axe: 'assets/axe.mp3', chainsaw: 'assets/chainsaw.mp3', pistol: 'assets/pistol.mp3', shotgun: 'assets/shotgun.mp3' }, clipEls = {};
+const CLIPS = { axe: 'assets/axe.mp3', chainsaw: 'assets/chainsaw.mp3', groan: 'assets/groan.mp3', pistol: 'assets/pistol.mp3', shotgun: 'assets/shotgun.mp3' }, clipEls = {};
 function clip(name, volume = 0.7) {
   if (muted) return;
   try {
@@ -560,6 +560,7 @@ const sfx = {
   bow: () => { tone(220, 0.25, 'triangle', 0.12, -120); noise(0.12, 0.12, 4000); },   // twang and whoosh
   saw: () => clip('chainsaw'),
   zombie: () => { tone(95, 0.9, 'sawtooth', 0.12, -50); setTimeout(() => tone(70, 0.7, 'sawtooth', 0.1, -30), 150); },
+  groan: () => clip('groan', 0.8),   // the start of every zombie encounter
 };
 
 async function rollDie(slot, final, ms, onFace) {
@@ -608,9 +609,8 @@ async function scavengeShow({ rows: table, tries, r, hit, amts, dice, c }) {
       : `<div>🎒 ${esc(shortName(st.owner))}'s stash</div><small>${E.stashText(st) || 'empty'}</small>`, 'jackpot');
     sfx.win(true);
   } else if (e.zombies) {   // the row says Zombies: the table goes, and it's a battlefield — which rolls how many
-    sfx.zombie();
     await wait(600);
-    return bfArrive(k, c);
+    return bfArrive(k, c);   // (which groans)
   } else {
     // one roll per part of the row (a mix like Food + Water or Truck + Fuel has two), up in the top point
     const parts = e.parts ?? [e];
@@ -763,7 +763,7 @@ const bf = { k: null };
 // tile's size to fill the open space above the bars; when the encounter's over it shrinks back down into it.
 function bfOpen(k) {
   const el = $('#battle');
-  if (bf.k === k && !el.hidden && !bf.closing) return bfPlace();
+  if (bf.k === k && !el.hidden && !bf.closing) { bfPlace(); return false; }
   bf.k = k; bf.closing = false;
   el.getAnimations().forEach((a) => a.cancel());
   el.hidden = false;
@@ -772,6 +772,7 @@ function bfOpen(k) {
   bfPlace();
   const from = bfFromHex();
   if (from) el.animate([{ transform: from, filter: 'brightness(1.4)' }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2, 1.1, .3, 1)' });
+  return true;
 }
 function bfClose() {
   const el = $('#battle');
@@ -832,12 +833,13 @@ function renderBattle() {
   const p = cur(), t = tileOf(p), k = key(p.q, p.r);
   // (open while you face them; once you've got away — picking which way to run, or what to ride — it's gone)
   if (G.over || !t.zombies || !(mode === 'threat' || mode === 'armor')) { if (!busy) bfClose(); return; }
-  bfOpen(k);
+  if (bfOpen(k)) sfx.groan();   // walked in on them: that's an encounter starting too
   bfDraw(t.safety, t.zombies);
 }
 // zombies arrive: the die says how many, and in they come, one by one
 async function bfArrive(k, c) {
   skipAnim = false;
+  sfx.groan();
   bfOpen(k);
   bfDraw(c.before.safety, c.before.zombies);
   await wait(200);
@@ -851,7 +853,6 @@ async function bfArrive(k, c) {
     tone(80 + Math.random() * 30, 0.25, 'sawtooth', 0.09, -20);
     await wait(220);
   }
-  sfx.zombie();
   await wait(500);
 }
 // one attack: on each zombie it kills, 💥 from a gun or 💢 from a blade (or a chainsaw), and down they go
