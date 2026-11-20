@@ -720,19 +720,21 @@ async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
 }
 
 // Sleep: the 1d6 roll (plus the tile's 🟡 Safety) in a popup, then the AP ring around the clock fills, a segment at a time.
-// Sleeping: the tile comes forward — 💤 up top, the die in the middle, then the tile's 🟡 Safety counted in a pip at a
-// time (die + Safety = the AP). Then it goes, and the AP charges on the clock.
+// Sleeping: the tile comes forward — you up top, 💤; in the middle the die + the tile's 🟡 Safety, its pips laid out as
+// on a die; and in the bottom third what that comes to. Then it goes, and the AP charges on the clock.
+const FACE = { ...PIPS, 7: [0, 2, 3, 4, 5, 6, 8], 8: [0, 1, 2, 3, 5, 6, 7, 8], 9: [0, 1, 2, 3, 4, 5, 6, 7, 8] };   // (Safety goes to 8)
 async function sleepShow({ dice, bonus = 0, from, to, max }) {
   const r = dice.reduce((a, b) => a + b, 0) + bonus, p = cur();
   skipAnim = false;
   bfOpen(key(p.q, p.r));
-  bfStage('sleep', `<div class="bf-in"><div class="bf-icon">💤</div></div><div class="bf-mid">${dice.map(() => '<div class="bf-die slot"></div>').join('')}</div>
-    ${bfSafeHtml(bonus)}${bfYouHtml()}`);
+  bfStage('sleep', `<div class="bf-sleeper">🧔‍♂️<span class="zz">💤</span></div>
+    <div class="bf-mid">${dice.map(() => '<div class="bf-die slot"></div>').join('')}${bonus
+      ? `<span class="plus">+</span><div class="bf-face">${[...Array(9)].map((_, i) => `<i class="${FACE[bonus].includes(i) ? 'on' : ''}"></i>`).join('')}</div>` : ''}</div>`);
   await wait(150);
-  const slots = [...$('#battle .bf-mid').children];
+  const slots = [...$('#battle').querySelectorAll('.bf-mid .slot')];
   await Promise.all(dice.map((v, i) => rollDie(slots[i], v, 900 + i * 150)));
-  for (const pip of $('#battle .bf-safe').children) {
-    pip.className = 'count'; tone(520, 0.08, 'triangle', 0.06);
+  for (const pip of $('#battle').querySelectorAll('.bf-face i.on')) {   // die + Safety = the AP: counted in a pip at a time
+    pip.classList.add('count'); tone(520, 0.08, 'triangle', 0.06);
     await wait(170);
   }
   bfWord(`+${r} AP`, 'good');

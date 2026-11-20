@@ -484,8 +484,18 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
 .bf-safe i.count { animation: pipcount .3s ease-out; }
 @keyframes pipcount { 50% { scale: 1.45; box-shadow: 0 0 3cqw #f2c94c; } }
 .bf-icon { font-size: 15cqw; line-height: 1; }
-#battle[data-stage="sleep"] .bf-icon { animation: drift 2.4s ease-in-out infinite; }
-@keyframes drift { 50% { translate: 0 -2cqw; opacity: .7; } }
+/* sleep: you up top with 💤 drifting off you; the die + your Safety as a die face in the middle; the AP in the bottom third */
+.bf-sleeper { position: absolute; left: 50%; top: 23%; translate: -50% -50%; font-size: 13cqw; line-height: 1; }
+.bf-sleeper .zz { position: absolute; left: 85%; bottom: 60%; font-size: 8cqw; animation: drift 2.4s ease-in-out infinite; }
+@keyframes drift { 50% { translate: 1cqw -2cqw; opacity: .6; } }
+#battle[data-stage="sleep"] .bf-mid { align-items: center; }
+.bf-mid .plus { font-size: 10cqw; font-weight: 900; color: var(--muted); }
+.bf-face { width: 19cqw; height: 19cqw; padding: 2.6cqw; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); border-radius: 16%;
+  border: .5cqw solid #f2c94c55; background: #0005; }
+.bf-face i { border-radius: 50%; margin: 10%; }
+.bf-face i.on { background: #f2c94c; box-shadow: 0 0 1.4cqw #f2c94c88; }
+.bf-face i.count { animation: pipcount .3s ease-out; }
+#battle[data-stage="sleep"] .bf-word { top: 80%; }
 #battle[data-stage="fortify"] .bf-icon.hit { animation: hammer .3s ease-out; }
 @keyframes hammer { 40% { rotate: -35deg; } 70% { rotate: 12deg; } }
 /* scavenging: the die (or the amount / condition dice) in the top point, the loot table across the middle, as on the map */
