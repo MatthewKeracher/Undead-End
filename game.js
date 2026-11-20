@@ -1411,20 +1411,21 @@ function renderActions() {
   $('#actions').innerHTML = `
     ${warn}
     ${noAP ? `<div class="note bad">Out of AP — you must sleep.</div>` : ''}
-    <div class="ribbon main">
-      ${btn('pause', '⏸ Pause', 'Stop the clock', false)}
-      ${btn('sleep', '😴 Sleep', t.safety ? `Gain 1d6 + ${t.safety} AP (🟡)` : 'Gain 1d6 AP · no 🟡', false)}
-      ${btn('scout', '🗺️ Scout', scoutTargets(p).length ? `1 AP · reveal ${E.binocularsOf(p) ? 'up to ' : ''}${scoutTargets(p).length} hex${scoutTargets(p).length === 1 ? '' : 'es'}${E.binocularsOf(p) ? ' (binoculars)' : ''}` : 'All explored', noAP || !scoutTargets(p).length)}
-      ${btn('move', '🚶 Move', p.freeMoved ? '1 AP · uses your action' : 'Free move · needs 1 AP', noAP || !moveAdj(p).length)}
-      ${btn('scavenge', '🔍 Scavenge', !canScavengeHere(t) ? (t.def.table.length ? 'Picked clean' : 'Nothing to find') : t.zombies ? 'Blocked by zombies' : lootLeft(t) ? `1 AP · ${lootLeft(t)} of 5 left` : '1 AP · only zombies left', noAP || !canScavengeHere(t) || t.zombies > 0)}
-      ${Object.keys(ITEMS).filter((id) => ITEMS[id].vehicle && vehiclesHere(p).some((v) => v.id === id)).map((id) => {
+    <div class="ribbon main">${byKeyboard([
+      ['pause', btn('pause', '⏸ Pause', 'Stop the clock', false)],
+      ['sleep', btn('sleep', '😴 Sleep', t.safety ? `Gain 1d6 + ${t.safety} AP (🟡)` : 'Gain 1d6 AP · no 🟡', false)],
+      ['scout', btn('scout', '🗺️ Scout', scoutTargets(p).length ? `1 AP · reveal ${E.binocularsOf(p) ? 'up to ' : ''}${scoutTargets(p).length} hex${scoutTargets(p).length === 1 ? '' : 'es'}${E.binocularsOf(p) ? ' (binoculars)' : ''}` : 'All explored', noAP || !scoutTargets(p).length)],
+      ['move', btn('move', '🚶 Move', p.freeMoved ? '1 AP · uses your action' : 'Free move · needs 1 AP', noAP || !moveAdj(p).length)],
+      ['scavenge', btn('scavenge', '🔍 Scavenge', !canScavengeHere(t) ? (t.def.table.length ? 'Picked clean' : 'Nothing to find') : t.zombies ? 'Blocked by zombies' : lootLeft(t) ? `1 AP · ${lootLeft(t)} of 5 left` : '1 AP · only zombies left', noAP || !canScavengeHere(t) || t.zombies > 0)],
+      ...Object.keys(ITEMS).filter((id) => ITEMS[id].vehicle && vehiclesHere(p).some((v) => v.id === id)).map((id) => {
         const v = vehicleOf(p, id);
-        if (!v) return btn(id, `${itemIcon(id)} ${ITEMS[id].verb}`, 'Broken — needs a Tool', true);
+        if (!v) return [DRIVE_KEY[ITEMS[id].uses], btn(id, `${itemIcon(id)} ${ITEMS[id].verb}`, 'Broken — needs a Tool', true)];
         const uses = vehicleFuel(v), eats = ITEMS[id].eats;
-        return btn(id, `${itemIcon(id)} ${ITEMS[id].verb}`, !driveAdj(p).length ? 'Nowhere to go' : vehicleLeft(p, v) < 1 ? `No ${uses === 'ap' ? 'AP' : uses}` : !E.vehicleFed(p, v) ? `No ${eats}`
-          : `1 ${ICON[uses]}/tile · ${eats ? `1 ${ICON[eats]}/trip` : `cond ${v.cond}`}`, !canDrive(p, id));
-      }).join('')}
-      ${btn('fortify', '🔨 Fortify', !canFortifyHere(t) ? "Can't be fortified" : t.zombies ? 'Blocked by zombies' : t.safety >= E.maxSafetyOf(t) ? `Safety full (${E.maxSafetyOf(t)})` : `1 AP · +1d6 🟡 (max ${E.maxSafetyOf(t)})`, noAP || !canFortifyHere(t) || t.zombies > 0 || t.safety >= E.maxSafetyOf(t))}
+        return [DRIVE_KEY[uses], btn(id, `${itemIcon(id)} ${ITEMS[id].verb}`, !driveAdj(p).length ? 'Nowhere to go' : vehicleLeft(p, v) < 1 ? `No ${uses === 'ap' ? 'AP' : uses}` : !E.vehicleFed(p, v) ? `No ${eats}`
+          : `1 ${ICON[uses]}/tile · ${eats ? `1 ${ICON[eats]}/trip` : `cond ${v.cond}`}`, !canDrive(p, id))];
+      }),
+      ['fortify', btn('fortify', '🔨 Fortify', !canFortifyHere(t) ? "Can't be fortified" : t.zombies ? 'Blocked by zombies' : t.safety >= E.maxSafetyOf(t) ? `Safety full (${E.maxSafetyOf(t)})` : `1 AP · +1d6 🟡 (max ${E.maxSafetyOf(t)})`, noAP || !canFortifyHere(t) || t.zombies > 0 || t.safety >= E.maxSafetyOf(t))],
+    ])}
     </div>`;
 
   renderLog();
@@ -1462,6 +1463,11 @@ $('#actions').addEventListener('click', (e) => {
 const HOTKEYS = { r: 'sleep', s: 'scout', w: 'move', a: 'scavenge', f: 'fortify', e: 'driveFuel', b: 'driveAP', h: 'driveWater', p: 'pause' };   // E / B / H: a fuel / pedal vehicle / animal here
 // E / B / H stand for whichever fuel vehicle / pedal vehicle / animal is here (its button is named after it, e.g. 'Tractor')
 const DRIVE_KEY = { fuel: 'driveFuel', ap: 'driveAP', water: 'driveWater' };
+// Buttons run left to right in the order their keys do on a QWERTY keyboard (rows staggered: Q at 0, A at ¼, Z at ¾),
+// on every screen — so the button for R is where your finger is. pairs: [action, html]; the action's key is in HOTKEYS.
+const KEY_X = Object.fromEntries(['qwertyuiop', 'asdfghjkl', 'zxcvbnm'].flatMap((row, r) => [...row].map((k, i) => [k, i + [0, 0.25, 0.75][r]])));
+const keyX = (action) => KEY_X[Object.keys(HOTKEYS).find((k) => HOTKEYS[k] === action)] ?? 99;
+const byKeyboard = (pairs) => pairs.sort((a, b) => keyX(a[0]) - keyX(b[0])).map(([, html]) => html).join('');
 const isDriveKey = (name) => Object.values(DRIVE_KEY).includes(name);
 const keyedVehicle = (p, key) => vehiclesHere(p).find((x) => DRIVE_KEY[ITEMS[x.id].uses] === key)?.id;
 const THREAT_KEYS = { e: 'flee', r: 'hide' };   // weapons: 1–6 picks the slot, Enter swings it
