@@ -268,6 +268,14 @@ function togglePause() {
   tone(paused ? 330 : 494, 0.12, 'triangle', 0.06);
   renderTimer();
 }
+// Looking away pauses it: switching tab, minimising, another app or window taking focus. You come back to the
+// pause screen and carry on when ready. (Not while the opening menu is up — nothing's running yet.)
+function pauseWhileAway() {
+  const menuUp = !$('#popup').hidden && $('#popup').classList.contains('menu');
+  if (!paused && G && !G.over && !menuUp) togglePause();
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseWhileAway(); });
+window.addEventListener('blur', pauseWhileAway);
 
 function setTimer(on) {
   timerOn = on;

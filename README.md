@@ -28,7 +28,7 @@ The game opens on a small menu: **Play**, or **Tutorial**, which explains each a
 | Shift+Enter | Keep attacking until clear |
 | T | Use tool |
 | Tab | Open / close the log & note box |
-| P | Pause / resume (single player) |
+| P | Pause / resume (single player) — it also pauses by itself when you switch tab or window |
 | M | Mute |
 
 ## Files
