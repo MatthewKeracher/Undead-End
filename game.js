@@ -1345,7 +1345,15 @@ function renderStats(p = cur()) {
 // Rows 2–6 still worth rolling for (unlooted finds and stashes).
 const lootLeft = (t) => E.tableView(t).filter((row) => row.row > 1 && row.kind !== 'looted' && row.kind !== 'zombies').length;
 
+// The action tray, and the messages that go with it: those go up top, under the timer (#msgs) — except a fight's,
+// which stays with Flee and Hide in the middle of the board.
 function renderPanel() {
+  renderActions();
+  const notes = mode === 'threat' ? [] : [...$('#actions').querySelectorAll(':scope > .note')];
+  $('#notes').replaceChildren(...notes);
+  $('#notes').classList.toggle('main', !mode);   // the everyday ones (next round…): phones leave them to the clock
+}
+function renderActions() {
   const p = cur(), t = tileOf(p);
   const noAP = p.ap < 1;
   // Fight or Flee moves to the middle of the board; back at the bottom, re-fit the right column around it

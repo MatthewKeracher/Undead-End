@@ -382,11 +382,8 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   #rightcol { display: contents; }
   #stats { position: absolute; z-index: 3; top: var(--gap); right: var(--gap); bottom: calc(var(--dockh, 0px) + var(--packh, 0px) + 2 * var(--gap)); width: var(--col); pointer-events: none; }
   #pack { position: absolute; z-index: 3; left: var(--gap); right: var(--gap); bottom: calc(var(--dockh, 0px) + var(--gap) / 2); width: fit-content; max-width: calc(100% - 2 * var(--gap));
-    margin-inline: auto; display: grid; grid-template-columns: auto repeat(6, minmax(96px, 150px)); align-items: center; gap: 8px; padding: 8px 10px; }
-  #pack button.packhead { pointer-events: none; width: auto; padding: 0 4px 0 2px; }
-  #pack .packhead .bag { display: inline; font-size: 20px; letter-spacing: 0; }
-  #pack .packhead .word { display: none; }
-  #pack .packhead .packname { font-size: 12px; }
+    margin-inline: auto; display: grid; grid-template-columns: repeat(6, minmax(96px, 150px)); align-items: center; gap: 8px; padding: 8px 10px; }
+  #pack button.packhead { display: none; }   /* six slots say it all */
   /* each slot: the icon (Use / Take / Drink as a badge under it), its name over its condition, leave (✕) at the right */
   #pack .slot-item { display: grid; grid-template: auto auto / auto minmax(0, 1fr) auto; grid-template-areas: "ic name drop" "ic pips pips";
     align-items: center; column-gap: 6px; row-gap: 3px; height: 50px; min-width: 0; padding: 4px 4px 4px 6px; }
@@ -415,8 +412,12 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 .slot-item .use { padding: 2px 6px; font-size: 11px; font-weight: 700; color: #111; background: var(--accent); border-color: var(--accent); }
 #popup.tool { cursor: default; }
 .slot-item .use kbd { margin-left: 3px; color: #111; border-color: #0004; }
-#toast { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translate(-50%, 10px); z-index: 6; width: max-content; max-width: calc(100vw - 32px); text-align: center; padding: 8px 14px; border-radius: 8px; background: var(--panel-a); border: 1px solid var(--accent); box-shadow: 0 8px 24px #000a; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
-#toast.show { opacity: 1; transform: translate(-50%, 0); }
+/* messages: up top, under the timer — notes for what's going on, the hint, and toasts */
+#msgs { position: absolute; z-index: 4; top: calc(var(--gap) + 72px); left: var(--gap); right: var(--gap); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+#notes { display: contents; }
+#notes .note { margin: 0; box-shadow: 0 4px 12px #0008; background: var(--panel-a); border: 1px solid var(--line); }
+#toast { position: relative; transform: translateY(-10px); z-index: 6; width: max-content; max-width: calc(100vw - 32px); text-align: center; padding: 8px 14px; border-radius: 8px; background: var(--panel-a); border: 1px solid var(--accent); box-shadow: 0 8px 24px #000a; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
+#toast.show { opacity: 1; transform: none; }
 .slot-item .drop { padding: 2px 6px; font-size: 11px; color: var(--muted); background: transparent; border-color: transparent; }
 .slot-item .drop:hover { color: var(--bad); border-color: var(--bad); }
 .slot-item .drop.armed { color: #fff; background: var(--bad); border-color: var(--bad); }
@@ -561,12 +562,9 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   .stat { --o: var(--orbsize); flex-direction: column; gap: 1px; }
   .stat small { font-size: 9px; font-weight: 600; line-height: 1; letter-spacing: .14em; color: var(--muted); text-shadow: none; }
   /* the backpack is a full bar above the actions — all six slots, each with its Use / Take / leave buttons, no need to open it */
-  #pack, #pack.open { grid-area: pack; position: static; display: grid; grid-template-columns: auto repeat(6, minmax(0, 1fr)); align-items: center; gap: 6px;
+  #pack, #pack.open { grid-area: pack; position: static; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: center; gap: 6px;
     align-self: stretch; justify-self: stretch; width: auto; max-height: none; overflow: visible; padding: 6px 8px; border-radius: 12px; background: var(--panel-a); }
-  #pack button.packhead { pointer-events: none; min-height: 0; width: auto; padding: 0 6px 0 2px; }
-  .packhead .bag { display: inline; font-size: 22px; letter-spacing: 0; }
-  .packhead .word, #pack .packhead .packicons, #pack .packhead .caret { display: none !important; }
-  .packhead .packname { font-size: 13px; }
+  #pack button.packhead { display: none; }   /* six slots say it all */
   /* each slot: the icon (Use / Take as a badge under it), then its name over its condition, and leave (✕) at the top right */
   #pack .slot-item, #pack:not(.open) .slot-item { display: grid; grid-template: auto auto / auto minmax(0, 1fr) auto; grid-template-areas: "ic name drop" "ic pips pips";
     align-items: center; column-gap: 6px; row-gap: 3px; height: 50px; min-width: 0; padding: 4px 4px 4px 6px; box-shadow: none; }
@@ -590,7 +588,9 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   .ribbon.main .act .ai { font-size: 28px; line-height: 1; }
   .ribbon.main .act:disabled .ai { filter: grayscale(1); }
   /* the round notices ("Next round starts with…") would push the map aside — the clock already shows what's coming */
-  #actions:has(.ribbon.main) > .note { display: none; }
+  #notes.main { display: none; }
+  /* messages: over the top of the map's open space */
+  #msgs { grid-area: map; top: 4px; left: 0; right: 0; }
   /* Fight or Flee still takes the middle of the board (out of the grid, so it centres on the whole board) */
   #board.threat #dock { position: absolute; grid-area: auto; }
   #board.threat #actions .ribbon { width: auto; grid-auto-columns: minmax(160px, auto); }   /* just Flee: sized to it, centred */
