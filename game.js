@@ -785,11 +785,11 @@ function bfPlace() {
   Object.assign(el.style, { left: `${p.x - b.left}px`, top: `${top}px` });
 }
 const bfZed = '<i class="z">🧟</i>';
-function bfDraw(safety, zombies, info = '') {
+function bfDraw(safety, zombies) {
   const t = bf.k && G.tiles[bf.k];
-  $('#battle').innerHTML = `<div class="ptitle"><small>🧟 ${t ? esc(t.def.name) : ''}</small><h2 class="bf-msg"></h2></div>
+  $('#battle').innerHTML = `<div class="ptitle"><small>${t ? esc(t.def.name) : ''}</small><h2 class="bf-msg"></h2></div>
     <div class="bf-horde">${bfZed.repeat(zombies)}</div>
-    <div class="bf-mid"><div class="bf-die slot"></div><div class="bf-info">${info}</div></div>
+    <div class="bf-mid"><div class="bf-die slot"></div></div>
     <div class="bf-safe">${'<i></i>'.repeat(safety)}</div>`;
   bfPlace();
 }
@@ -798,22 +798,12 @@ async function bfSay(text, cls = '', ms = 0) {
   if (m) { m.className = `bf-msg ${cls}`; m.innerHTML = text; }
   if (ms) await wait(ms);
 }
-// what the choices would do, under the field (phones have no tooltips)
-function bfInfo(p, t) {
-  if (mode === 'armor') return `${ITEMS[p.items[p.pending.item].id].icon} Armor can take the hit`;
-  if (mode === 'escape') return 'Got away — on foot, or ride?';
-  if (mode === 'flee') return 'Run! Pick a hex';
-  if (p.caught) return 'Caught — fight!';
-  const odds = [canFlee(p, t) ? `🏃 roll > ${t.zombies}` : '', E.canHide(p, t) ? `🟡 stops ${Math.min(t.safety, t.zombies)}` : ''].filter(Boolean);
-  return odds.join(' · ');
-}
 // drawn from the game as it stands — between animations
 function renderBattle() {
   const p = cur(), t = tileOf(p), k = key(p.q, p.r);
   if (G.over || !t.zombies || !(fightMode() || mode === 'flee')) { if (!busy) bfClose(); return; }
   bfOpen(k);
-  bfDraw(t.safety, t.zombies, bfInfo(p, t));
-  bfSay(`${t.zombies} zombie${t.zombies > 1 ? 's' : ''}`, 'bad');
+  bfDraw(t.safety, t.zombies);   // (the heading's only for what's happening: a roll, a hit, an escape)
 }
 // zombies arrive: the die says how many, and in they come, one by one
 async function bfArrive(k, c, title) {
