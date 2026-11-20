@@ -768,29 +768,63 @@ async function sleepShow({ dice, bonus = 0, from, to, max }) {
 // them — it can't be put away. Every choice is made in the bars: weapons in the backpack (each click, one attack),
 // Flee / Hide in the action bar (and armor, or a ride, when those come up).
 const bf = { k: null };
+// The hex itself comes forward: the battlefield is hex-shaped, and opens by lifting off the tile and growing from the
+// tile's size to fill the open space above the bars; when the encounter's over it shrinks back down into it.
 function bfOpen(k) {
   const el = $('#battle');
-  if (bf.k !== k || el.hidden) { bf.k = k; el.hidden = false; }
+  if (bf.k === k && !el.hidden && !bf.closing) return bfPlace();
+  bf.k = k; bf.closing = false;
+  el.getAnimations().forEach((a) => a.cancel());
+  el.hidden = false;
   bfPlace();
+  const from = bfFromHex();
+  if (from) el.animate([{ transform: from, filter: 'brightness(1.4)' }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2, 1.1, .3, 1)' });
 }
-function bfClose() { bf.k = null; $('#battle').hidden = true; }
-// centred over the hex (follows the camera: applyView calls this), but kept clear of the bars below
+function bfClose() {
+  const el = $('#battle');
+  if (el.hidden || bf.closing) { if (!bf.closing) bf.k = null; return; }
+  bf.closing = true;
+  const from = bfFromHex();
+  const done = () => { if (bf.closing) { bf.closing = false; bf.k = null; el.hidden = true; } };
+  if (!from) return done();
+  el.animate([{ transform: 'none', opacity: 1 }, { transform: from, opacity: 0.2 }], { duration: 300, easing: 'ease-in', fill: 'forwards' }).finished.then(done, done);
+  setTimeout(done, 400);   // (in case the animation never reports back)
+}
+// where the tile is on screen: [centre x, centre y, width] in board pixels — or null if the map isn't laid out
+function bfHexRect() {
+  const m = $('#map').getScreenCTM();
+  if (!bf.k || !m) return null;
+  const [x, y] = pix(...bf.k.split(',').map(Number)), b = $('#board').getBoundingClientRect(), p = new DOMPoint(x, y).matrixTransform(m);
+  return [p.x - b.left, p.y - b.top, Math.sqrt(3) * HEX * m.a];
+}
+// the transform that shrinks the battlefield back onto its tile (FLIP: it's laid out big, and animated from / to this)
+function bfFromHex() {
+  const el = $('#battle'), h = bfHexRect();
+  if (!h) return null;
+  const w = el.offsetWidth, cx = el.offsetLeft + w / 2, cy = el.offsetTop + el.offsetHeight / 2;
+  return `translate(${h[0] - cx}px, ${h[1] - cy}px) scale(${h[2] / w})`;
+}
+// as big as the open space allows (a pointy-top hex, ~430px across at most), centred on the tile's column and kept
+// clear of the bars below and the top of the board (follows the camera: applyView calls this)
 function bfPlace() {
-  const el = $('#battle'), svg = $('#map'), m = svg.getScreenCTM();
-  if (!bf.k || el.hidden || !m) return;
-  const [x, y] = pix(...bf.k.split(',').map(Number)), b = $('#board').getBoundingClientRect();
-  const p = new DOMPoint(x, y).matrixTransform(m), h = el.offsetHeight, gap = 8;
+  const el = $('#battle'), h = bfHexRect();
+  if (el.hidden || !h) return;
+  const b = $('#board').getBoundingClientRect(), gap = 8;
   const floor = Math.min($('#pack').getBoundingClientRect().top, $('#dock').getBoundingClientRect().top) - b.top - gap;
-  const top = Math.max(gap, Math.min(p.y - b.top - h / 2, floor - h));
-  Object.assign(el.style, { left: `${p.x - b.left}px`, top: `${top}px` });
+  // phones and tablets: below the resources and clock too (the map's open space), so ammo and AP stay in view
+  const ceil = touchUI.matches ? $('#mapframe').getBoundingClientRect().top - b.top : gap;
+  const tall = Math.min(500, floor - ceil, (b.width - 2 * gap) * 2 / Math.sqrt(3)), wide = tall * Math.sqrt(3) / 2;
+  const top = Math.max(ceil, Math.min(h[1] - tall / 2, floor - tall));
+  const left = Math.max(gap, Math.min(h[0] - wide / 2, b.width - gap - wide));
+  Object.assign(el.style, { left: `${left}px`, top: `${top}px`, width: `${wide}px`, height: `${tall}px` });
 }
 const bfZed = '<i class="z">🧟</i>';
 function bfDraw(safety, zombies) {
   const t = bf.k && G.tiles[bf.k];
-  $('#battle').innerHTML = `<div class="ptitle"><small>${t ? esc(t.def.name) : ''}</small><h2 class="bf-msg"></h2></div>
+  $('#battle').innerHTML = `<div class="bf-in"><div class="bf-place">${t ? esc(t.def.name) : ''}</div><div class="bf-msg"></div>
     <div class="bf-horde">${bfZed.repeat(zombies)}</div>
     <div class="bf-mid"><div class="bf-die slot"></div></div>
-    <div class="bf-safe">${'<i></i>'.repeat(safety)}</div>`;
+    <div class="bf-safe">${'<i></i>'.repeat(safety)}</div></div>`;
   bfPlace();
 }
 async function bfSay(text, cls = '', ms = 0) {

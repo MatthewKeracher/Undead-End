@@ -446,31 +446,32 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 .hex.lead polygon { stroke: var(--hope); stroke-width: 5; filter: drop-shadow(0 0 10px #c084ffaa); animation: leadglow 2.4s ease-in-out infinite; }
 @keyframes leadglow { 50% { filter: drop-shadow(0 0 3px #c084ff55); } }
 #leadmarks { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
-/* the battlefield: an encounter, in a card over your hex — the bars below stay clear and usable. The horde above your
-   Safety, the dice (or the odds) between. */
-#battle { position: absolute; z-index: 4; translate: -50% 0; width: min(400px, calc(100% - 2 * var(--gap))); pointer-events: none;
-  background: var(--panel); border: 2px solid var(--bad); border-radius: 14px; padding: 16px 20px 18px; text-align: center;
-  box-shadow: 0 0 40px #c0392b55, 0 20px 60px #000c; animation: popin .3s cubic-bezier(.2, 1.6, .5, 1); }
-#battle .ptitle h2 { margin-bottom: 10px; min-height: 1.2em; }
+/* the battlefield: the tile come forward — hex-shaped, grown from the tile to fill the open space above the bars
+   (which stay clear). The place, what's happening, the horde, the die, your Safety. Sized off its width (cqw). */
+#battle { position: absolute; z-index: 4; pointer-events: none; container-type: size;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: #e86a5a; }   /* (the red: its edge) */
+#battle::before { content: ''; position: absolute; inset: 1.4cqw; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: radial-gradient(circle at 50% 45%, #22301f, #121a10 75%); }
+.bf-in { position: absolute; inset: 15% 10%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.bf-place { font-size: 3.6cqw; text-transform: uppercase; letter-spacing: .15em; color: var(--muted); }
+.bf-msg { font-size: 6.5cqw; font-weight: 800; line-height: 1.2; min-height: 1.2em; margin: 1.5cqw 0 3cqw; color: var(--text); }
 .bf-msg.bad { color: #ff8a7a; } .bf-msg.good { color: var(--good); }
-.bf-horde { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 8px; min-height: 48px; }
-.bf-horde .z { position: relative; font-style: normal; font-size: 40px; line-height: 1.15; display: inline-block; transition: transform .38s ease-in, opacity .38s ease-in; }
+.bf-horde { display: flex; flex-wrap: wrap; justify-content: center; gap: 1cqw 2cqw; max-width: 82cqw; min-height: 13cqw; }
+.bf-horde .z { position: relative; font-style: normal; font-size: 11cqw; line-height: 1.15; display: inline-block; transition: transform .38s ease-in, opacity .38s ease-in; }
 .bf-horde .z.pop { animation: zpop .3s cubic-bezier(.2, 1.8, .5, 1); }
 .bf-horde .z.shot::after { content: '💥'; position: absolute; left: 50%; top: 45%; translate: -50% -50%; font-size: 1.2em; animation: bang .3s ease-out both; }
 @keyframes bang { from { scale: .2; opacity: 0; } 50% { scale: 1.3; opacity: 1; } to { scale: 1; } }
 .bf-horde .z.fall { transform: rotate(90deg) translateX(30%); opacity: 0; }
 .bf-horde .z.gone, .bf-safe i.gone { animation: zgone .25s ease-out forwards; }
-/* the die, while one's rolling — its space kept, so the card doesn't jump */
-.bf-mid { height: 78px; margin: 10px 0 16px; display: grid; place-items: center; }
+/* the die, while one's rolling — its space kept, so nothing jumps */
+.bf-mid { width: 19cqw; height: 19cqw; margin: 3cqw 0 4cqw; display: grid; place-items: center; }
+.bf-mid .slot { width: 100%; height: 100%; }
+.bf-mid .die { width: 100%; height: 100%; padding: 14%; border-radius: 16%; }
+.bf-mid .die i { margin: 8%; }
 .bf-die:empty { display: none; }
-.bf-safe { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; min-height: 26px; }
-.bf-safe i { width: 24px; height: 24px; border-radius: 50%; background: #f2c94c; border: 2px solid #8a6d12; box-shadow: 0 0 10px #f2c94c88; }
-@media (max-width: 640px), (max-height: 500px) {
-  #battle { padding: 12px 14px 14px; }
-  .bf-horde .z { font-size: 32px; }
-  .bf-mid { height: 64px; margin: 8px 0 12px; }
-  .bf-mid .slot { width: 64px; height: 64px; } .bf-mid .die { width: 58px; height: 58px; padding: 7px; }
-}
+.bf-safe { display: flex; flex-wrap: wrap; justify-content: center; gap: 2cqw; max-width: 60cqw; min-height: 6cqw; }
+.bf-safe i { width: 6cqw; height: 6cqw; border-radius: 50%; background: #f2c94c; border: 2px solid #8a6d12; box-shadow: 0 0 10px #f2c94c88; }
+
 .leadmark { position: absolute; width: 40px; height: 40px; margin: -20px 0 0 -20px; display: grid; place-items: center; border-radius: 50%;
   background: #241038e6; border: 2px solid var(--hope); box-shadow: 0 0 14px #c084ff88; }
 .leadmark span { font-size: 20px; line-height: 1; }
