@@ -84,10 +84,10 @@ Each day starts on round 1, the first morning; rounds 5 and 6 are its night.
 ## Fight or Flee
 Triggered when zombies break through onto your tile, or when you move onto a tile with zombies.
 Repeat until the tile is clear, you escape, or you die.
-- **Fight:** **using an item costs no AP**; the weapon loses **1 condition per fight round** (not per attack). Attack one at a time (**Enter** each): each attack kills 1 zombie. Stop any time (Esc).
+- **Fight:** pick the weapon **in your backpack** — the ones you can use right now (with the ammo, fuel or AP they take) light up; everything else greys out, and **Flee** is the one button in the middle. **Using an item costs no AP**; the weapon loses **1 condition per fight round** (not per attack). Attack one at a time (**Enter** each): each attack kills 1 zombie. Stop any time (Esc).
   - **Gun (Pistol):** each shot costs **1 ammo** (no AP).
   - **Melee (Axe):** each swing costs **1 AP** — so swinging eats the AP you'd need to flee.
-  - **Chainsaw:** each rev costs **1 fuel** and kills **up to 3 zombies** (key **R** to pick it).
+  - **Chainsaw:** each rev costs **1 fuel** and kills **up to 3 zombies**.
 - **Flee:** 1 AP. Roll 1d6 — must roll **higher than the number of zombies** (so 6 zombies can't be outrun).
   On success, move to an adjacent **already-scouted** tile with no zombies.
   **On failure:** only **armor** allows a reroll (−1 armor condition, 1 AP). Otherwise you're **caught**: you can't flee again this encounter and must fight —
@@ -115,7 +115,7 @@ Repeat until the tile is clear, you escape, or you die.
   - The fight buttons show the weapon you'll use (the lowest-condition one of that kind).
 - **Chainsaw** (fuel): see Fight. Found at the Hardware Store and Fire Station.
 - *To come back to:* 💣 **Bomb** and 🧨 **Firecracker** — weapons with their own mechanics (not designed yet; e.g. clearing a whole tile, or drawing zombies away).
-- With several kinds of weapon you choose which to fight with.
+- With several weapons you choose which to fight with — the exact one, in the backpack.
 - **Armor** (e.g. **Body Armor**): when a **flee roll fails**, armor can take the punch for **−1 condition**, allowing a **reroll** if you have AP left (the reroll costs 1 AP, like any flee attempt). Can repeat while armor and AP last. Found at the Gun Shop, Sheriff's Office, Police Station and Castle.
 - **Vehicles: Truck and Bike.** Work like the gun / axe but for movement. They sit **on a tile, not in the backpack** (found by scavenging → parked on that tile; condition rolled 1d6).
   - **Truck:** 1 **fuel** per tile (no AP). A truck without fuel must be left behind, but can be returned to.
@@ -155,7 +155,6 @@ Repeat until the tile is clear, you escape, or you die.
 - Off screen, each place you've been led to shows as a **purple marker** circling your hex, with its icon, pointing the way.
 - A Note picked up again (from a stash) leads nowhere new. Words in `LEADS` (data.js).
 - Found at: Farmhouse, Campsite, Church, Post Office, Library, Train Station (Note); Cottage, Graveyard (Photo); Pub, Shopping Mall (Music Box); Orchard, Castle, Petrol Station, Pub, Corner Shop, YOLO Foods, Hotel, Stadium (Booze).
-- If you carry several weapons of the same kind, the one with the **lowest condition** is used first *(placeholder)*.
 
 ## Fuel & Ammo
 - Used by item cards (not designed yet).

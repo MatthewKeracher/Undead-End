@@ -414,8 +414,13 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 .note.hope { color: var(--hope); border: 1px solid #c084ff66; }
 #pack.hoping { border-color: var(--hope); box-shadow: 0 0 24px #c084ff55, 0 10px 30px #000a; }
 #pack .slot-item.greyed { opacity: .3; filter: grayscale(1); }
-#pack .slot-item.hopeable { border-color: var(--hope); cursor: pointer; }
+#pack .slot-item.pickable { cursor: pointer; }
+#pack .slot-item.hope { border-color: var(--hope); }
 #pack .slot-item .use.hope { background: var(--hope); border-color: var(--hope); }
+/* zombies on you: the weapons you can use light up red in the backpack; flee is the one button left in the middle */
+#pack.fighting { border-color: var(--bad); box-shadow: 0 0 24px #e86a5a55, 0 10px 30px #000a; }
+#pack .slot-item.fight { border-color: var(--bad); box-shadow: 0 0 10px #e86a5a66; }
+#pack .slot-item .use.fight { background: var(--bad); border-color: var(--bad); color: #fff; }
 /* looted rows are crossed off; stashes stand out */
 .hex .cell.looted { opacity: .35; text-decoration: line-through; }
 .ptable li.looted { opacity: .4; text-decoration: line-through; }
@@ -558,7 +563,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   #actions:has(.ribbon.main) > .note { display: none; }
   /* Fight or Flee still takes the middle of the board (out of the grid, so it centres on the whole board) */
   #board.threat #dock { position: absolute; grid-area: auto; }
-  #board.threat .ribbon { grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); }
+  #board.threat #actions .ribbon { width: auto; grid-auto-columns: minmax(160px, auto); }   /* just Flee: sized to it, centred */
 }
 /* sideways: the resources and the backpack share the top row; the clock sits left of the map */
 @media (orientation: landscape) and (pointer: coarse), (orientation: landscape) and (max-width: 1100px), (orientation: landscape) and (max-height: 500px) {

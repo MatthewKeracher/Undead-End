@@ -75,6 +75,8 @@ const Engine = (() => {
   const weaponOf = (p, uses) => p.items
     .filter((it) => ITEMS[it.id]?.weapon && it.cond > 0 && (!uses || ITEMS[it.id].uses === uses))
     .sort((a, b) => a.cond - b.cond)[0];
+  // a weapon you can fight with right now: in one piece, with the ammo, fuel or AP it takes
+  const canWield = (p, it) => !!ITEMS[it?.id]?.weapon && it.cond > 0 && (ITEMS[it.id].uses === 'ap' ? p.ap : p.res[ITEMS[it.id].uses]) >= 1;
   const armorOf = (p) => p.items.filter((it) => ITEMS[it.id]?.armor && it.cond > 0).sort((a, b) => a.cond - b.cond)[0];
   // Tiles with zombies can only be entered by a player carrying a weapon.
   const canEnter = (p, t) => passable(t) && (!t.zombies || !!weaponOf(p));
@@ -591,8 +593,8 @@ const Engine = (() => {
   // One round of fighting: no AP to start, weapon loses 1 condition. Each attack costs 1 of what the weapon
   // uses (gun: ammo, melee: AP, chainsaw: fuel) and kills 1 zombie — or up to its `kills` (Chainsaw: 3).
   const fuelLeft = (p, uses) => (uses === 'ap' ? p.ap : p.res[uses]);
-  function startFight(S, p, uses) {
-    const w = weaponOf(p, uses), t = tileOf(S, p);
+  function startFight(S, p, w) {
+    const t = tileOf(S, p);
     w.cond--;
     p.pending = { kind: 'fight', weapon: p.items.indexOf(w), start: t.zombies, shots: 0, kills: 0 };
     emit(S, { type: 'fight', player: p.id, weapon: w.id });
@@ -936,12 +938,13 @@ const Engine = (() => {
       p.pending = null;
       spendHope(S, p, it);
     },
+    // 'flee', or { weapon: backpack index } to fight with that weapon ('shoot' / 'melee' / 'saw' pick your
+    // most worn gun / melee weapon / chainsaw)
     threat(S, p, choice) {
       const t = tileOf(S, p);
-      if (choice === 'shoot' && canShoot(p)) { p.pending = null; return startFight(S, p, 'ammo'); }
-      if (choice === 'melee' && canMelee(p)) { p.pending = null; return startFight(S, p, 'ap'); }
-      if (choice === 'saw' && canSaw(p)) { p.pending = null; return startFight(S, p, 'fuel'); }
       if (choice === 'flee' && canFlee(S, p, t)) { p.pending = null; p.ap--; return flee(S, p); }
+      const w = choice?.weapon !== undefined ? p.items[choice.weapon] : weaponOf(p, { shoot: 'ammo', melee: 'ap', saw: 'fuel' }[choice]);
+      if (w && canWield(p, w)) { p.pending = null; return startFight(S, p, w); }
       return "You can't do that now.";
     },
     fight(S, p, choice) {
@@ -1106,7 +1109,7 @@ const Engine = (() => {
   return {
     ICON, RES_LABEL, key, neighbors, isNight, isAttack, attackDue, cellText, upkeepText, roundBanner,
     tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText, loneItem, hopeItems, leadOpen, sleepDice,
-    fleeAdj, canShoot, canMelee, canSaw, canFight, canFlee, vehicleFuel, vehicleLeft, vehicleFed, vehicleOf, canDrive,
+    fleeAdj, canShoot, canMelee, canSaw, canFight, canFlee, canWield, vehicleFuel, vehicleLeft, vehicleFed, vehicleOf, canDrive,
     createGame, start, act, timeUp, cheat,
   };
 })();

@@ -5,7 +5,7 @@
 
 const E = Engine;
 const { ICON, RES_LABEL, key, neighbors, isNight, cellText, upkeepText, passable, canEnter, canScavengeHere, canFortifyHere,
-  weaponOf, canShoot, canMelee, canSaw, canFight, vehicleFuel, vehicleLeft } = E;
+  canFight, vehicleFuel, vehicleLeft } = E;
 const HEX = 120;
 
 const $ = (s) => document.querySelector(s);
@@ -537,7 +537,7 @@ async function takePills(i) {
 async function act(name) {
   if (busy || modalKey || G.over) return;
   const p = cur();
-  if (mode === 'threat') { if (['shoot', 'melee', 'saw', 'flee'].includes(name) && await explain(name)) send({ type: 'decide', choice: name }); return; }
+  if (mode === 'threat') { if (name === 'flee' && await explain(name)) send({ type: 'decide', choice: name }); return; }   // weapons: in the backpack
   if (name === 'stopdrive') return send({ type: 'decide', choice: 'stop' });   // the touch way to end a trip
   if (p.pending) return;
   if (name === 'move') { if (mode !== name && !(await explain('move'))) return; mode = mode === name ? null : name; return render(); }
@@ -1207,22 +1207,38 @@ function apGauge(ap, flash, max, losing = -1, gaining = -1, losingEnd = losing +
 
 // Backpack: 6 slots in the top-right column of the board. ✕ arms, second click leaves it on this tile.
 // Keys 1–6 highlight a slot; Enter then presses its button (Use / Take, or else ✕).
-// When the night asks for hope, it's chosen here: hope items get a Hope button, everything else greys out.
+// Some choices are made here (packPick): when the night asks for hope, hope items get a Hope button; when zombies
+// are on you, each weapon you can use gets its verb (Fire, Swing…) — everything else greys out.
 let dropArmed = -1, packSel = -1;
+const FIGHT_EXPLAIN = { ammo: 'shoot', ap: 'melee', fuel: 'saw' };   // the tutorial card for each kind of weapon
+function packPick(p, it, i) {
+  if (mode === 'hope') return ITEMS[it.id].hope && { cls: 'hope', btn: `<button class="use hope" data-pick="${i}" title="Lean on it tonight (−1 condition)">Hope</button>` };
+  if (mode === 'threat') return E.canWield(p, it) && { cls: 'fight', btn: `<button class="use fight" data-pick="${i}" title="Fight with it">${ITEMS[it.id].verb}</button>` };
+  return null;
+}
+const picking = () => mode === 'hope' || mode === 'threat';
+async function pickFromPack(i) {
+  const p = cur(), it = p.items[i];
+  if (busy || modalKey || !it || !packPick(p, it, i)) return;
+  packSel = -1;
+  if (mode === 'hope') return send({ type: 'decide', choice: i });
+  if (await explain(FIGHT_EXPLAIN[ITEMS[it.id].uses])) send({ type: 'decide', choice: { weapon: i } });
+}
 function renderPack() {
-  const p = cur(), hoping = mode === 'hope';
-  if (!p.items[packSel] || (hoping && !ITEMS[p.items[packSel].id].hope)) packSel = -1;
-  $('#pack').classList.toggle('hoping', hoping);
+  const p = cur(), choosing = picking();
+  if (!p.items[packSel] || (choosing && !packPick(p, p.items[packSel], packSel))) packSel = -1;
+  $('#pack').classList.toggle('hoping', mode === 'hope');
+  $('#pack').classList.toggle('fighting', mode === 'threat');
   // the header folds the backpack away on small screens (see style.css)
   let h = `<button type="button" class="packhead" data-packtoggle><span class="packname"><span class="word">Backpack</span><span class="bag">🎒</span> ${p.items.length}/${CONFIG.maxItems}</span>`
     // folded, it shows each item in brief: icon, name and condition (just icon and condition once there are more than 3)
     + `<span class="packicons ${p.items.length > 3 ? 'many' : ''}">${p.items.map((it) => `<span class="pchip"><span class="ic">${itemIcon(it.id)}</span><span class="pinfo"><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</span></span>`).join('')}</span><span class="caret"></span></button>`;
   for (let i = 0; i < CONFIG.maxItems; i++) {
     const it = p.items[i];
-    const hope = hoping && ITEMS[it?.id]?.hope;
-    h += it && hoping
-      ? `<div class="slot-item ${hope ? 'hopeable' : 'greyed'} ${packSel === i ? 'sel' : ''}" data-slot="${i}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</div>
-          ${hope ? `<button class="use hope" data-hope="${i}" title="Lean on it tonight (−1 condition)">Hope</button>` : ''}</div>`
+    const pick = it && choosing && packPick(p, it, i);
+    h += it && choosing
+      ? `<div class="slot-item ${pick ? `pickable ${pick.cls}` : 'greyed'} ${packSel === i ? 'sel' : ''}" data-slot="${i}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</div>
+          ${pick ? pick.btn : ''}</div>`
       : it
       ? `<div class="slot-item ${packSel === i ? 'sel' : ''}" data-slot="${i}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</div>
           ${ITEMS[it.id].tool ? `<button class="use" data-use="${i}" title="Use tool (T)">Use <kbd>T</kbd></button>` : ''}
@@ -1283,14 +1299,10 @@ function renderPanel() {
     return `<button class="act ${mode === id ? 'on' : ''} ${selected === id ? 'sel' : ''}" data-act="${id}" title="${esc(`${words.join(' ')} — ${sub}`)}" ${dis ? 'disabled' : ''}><b><span class="ai">${icon}</span><span class="al"> ${words.join(' ')}</span>${hk ? `<kbd>${hk.toUpperCase()}</kbd>` : ''}</b><small>${sub}</small></button>`;
   };
 
-  if (mode === 'threat') {
-    const gun = weaponOf(p, 'ammo'), axe = weaponOf(p, 'ap'), saw = weaponOf(p, 'fuel');
+  if (mode === 'threat') {   // fight with a weapon picked in the backpack (renderPack) — or flee, here
     $('#actions').innerHTML = `
-      <div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} on the ${esc(t.def.name)}! ${p.caught ? 'You were caught — fight!' : canFight(p) ? 'Fight or flee.' : 'No weapon — if you fail to flee, you die.'}</div>
+      <div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} on the ${esc(t.def.name)}! ${p.caught ? 'Caught — fight with a weapon from your backpack!' : canFight(p) ? 'Pick a weapon from your backpack, or flee.' : 'Nothing to fight with — if you fail to flee, you die.'}</div>
       <div class="ribbon threat">
-        ${btn('shoot', `${gun ? itemIcon(gun.id) : '🔫'} Shoot`, !gun ? 'Needs a gun' : !p.res.ammo ? 'No ammo' : `1 ${ICON.ammo} per shot · ${gun.id} ${gun.cond}`, !canShoot(p))}
-        ${btn('melee', `${axe ? itemIcon(axe.id) : '🪓'} Melee`, !axe ? 'Needs a melee weapon' : p.ap < 1 ? 'No AP' : `1 🎲 per swing · ${axe.id} ${axe.cond}`, !canMelee(p))}
-        ${saw ? btn('saw', `${itemIcon(saw.id)} Saw`, !p.res.fuel ? 'No fuel' : `1 ${ICON.fuel} per rev, up to ${ITEMS[saw.id].kills} 🧟 · ${saw.cond}`, !canSaw(p)) : ''}
         ${btn('flee', '🏃 Flee', p.caught ? 'Caught — must fight' : !fleeAdj(p).length ? 'Nowhere to run' : t.zombies >= 6 ? 'Too many to outrun' : p.ap < 1 ? 'No AP' : `1 AP · roll > ${t.zombies}`, !canFlee(p, t))}
       </div>`;
     renderLog();
@@ -1383,7 +1395,7 @@ const HOTKEYS = { r: 'sleep', s: 'scout', w: 'move', a: 'scavenge', f: 'fortify'
 const DRIVE_KEY = { fuel: 'driveFuel', ap: 'driveAP', water: 'driveWater' };
 const isDriveKey = (name) => Object.values(DRIVE_KEY).includes(name);
 const keyedVehicle = (p, key) => vehiclesHere(p).find((x) => DRIVE_KEY[ITEMS[x.id].uses] === key)?.id;
-const THREAT_KEYS = { q: 'shoot', w: 'melee', r: 'saw', e: 'flee' };
+const THREAT_KEYS = { e: 'flee' };   // weapons: 1–6 picks the slot, Enter swings it
 // Backspace cancels / goes back (Esc still works too, but full-screen Chrome can take it for itself).
 const isBack = (e) => e.key === 'Backspace' || e.key === 'Escape';
 // ---------------------------------------------------------------- cheats (testing)
@@ -1486,7 +1498,7 @@ document.addEventListener('keydown', (e) => {
   if (/^[1-6]$/.test(k)) {   // highlight a backpack slot (again to un-highlight)
     const i = +k - 1;
     if (!cur().items[i]) return toast(`Backpack slot ${k} is empty.`);
-    if (mode === 'hope' && !ITEMS[cur().items[i].id].hope) return;   // greyed out: no hope in it
+    if (picking() && !packPick(cur(), cur().items[i], i)) return;   // greyed out: not a choice now
     selectSlot(packSel === i ? -1 : i);
     return;
   }
@@ -1536,8 +1548,8 @@ $('#pack').addEventListener('click', (e) => {
   if (e.target.closest('[data-packtoggle]')) { $('#pack').classList.toggle('open'); return; }
   const u = e.target.closest('[data-use]'); if (u) { useTool(+u.dataset.use); return; }
   const pl = e.target.closest('[data-pill]'); if (pl) { takePills(+pl.dataset.pill); return; }
-  const hp = e.target.closest('[data-hope]') ?? (mode === 'hope' && e.target.closest('.slot-item.hopeable'));   // the night's hope: tap the item
-  if (hp) { if (!busy) { packSel = -1; send({ type: 'decide', choice: +(hp.dataset.hope ?? hp.dataset.slot) }); } return; }
+  const pk = e.target.closest('[data-pick]') ?? (picking() && e.target.closest('.slot-item.pickable'));   // hope, or a weapon: tap the item
+  if (pk) { pickFromPack(+(pk.dataset.pick ?? pk.dataset.slot)); return; }
   const b = e.target.closest('[data-drop]');
   if (!b) {   // the slot itself: what is it? (phones show only the icon)
     const it = cur().items[e.target.closest('[data-slot]')?.dataset.slot];

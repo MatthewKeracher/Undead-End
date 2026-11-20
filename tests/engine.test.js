@@ -434,6 +434,21 @@ test('weapon looks: melee ones cost AP, the Bow fires ammo like the Pistol', () 
   assert.equal(E.tileOf(S, p).zombies, 0);
 });
 
+test('fight with the weapon you pick from the backpack — if you have what it takes to use it', () => {
+  const { S, p } = game();
+  p.items.push({ id: 'Pistol', cond: 4 }, { id: 'Axe', cond: 1 }, { id: 'Sword', cond: 5 }, { id: 'Booze', cond: 2 });
+  p.res.ammo = 0;
+  E.cheat(S, 0, 'zombies', [2]);
+  assert.equal(p.pending.kind, 'threat');
+  assert.ok(decide(S, { weapon: 0 }).error);   // the Pistol: no ammo
+  assert.ok(decide(S, { weapon: 3 }).error);   // Booze is no weapon
+  assert.equal(E.canWield(p, p.items[2]), true);
+  decide(S, { weapon: 2 });                    // the Sword, not the more worn Axe
+  assert.equal(p.pending.kind, 'fight');
+  assert.equal(p.items[p.pending.weapon].id, 'Sword');
+  assert.equal(p.items[2].cond, 4);            // −1 condition for the fight round
+});
+
 test('chainsaw: each rev burns 1 fuel and kills up to 3 zombies; −1 condition per fight round', () => {
   const { S, p } = game();
   p.items.push({ id: 'Chainsaw', cond: 3 });
