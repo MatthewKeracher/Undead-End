@@ -121,8 +121,9 @@ test('a mixed row gives both parts: Tractor + Fuel, Food + Water', () => {
   assert.equal(E.tableView(t)[3].kind, 'looted');
 });
 
-test('sleep gains 2d6 AP up to max and ends the round', () => {
+test('sleep: 2d6 AP on a tile with Safety, 1d6 without — up to max AP — and it ends the round', () => {
   const { S, p } = game();
+  E.tileOf(S, p).safety = 1;
   p.ap = 2; S.forced = [3, 5];
   const { events } = act(S, { type: 'sleep' });
   assert.equal(p.ap, 10);
@@ -132,11 +133,16 @@ test('sleep gains 2d6 AP up to max and ends the round', () => {
   p.ap = 11; S.forced = [6, 6];
   act(S, { type: 'sleep' });
   assert.equal(p.ap, 12);                // capped at max AP
+  E.tileOf(S, p).safety = 0;             // out in the open: 1d6
+  p.ap = 2; S.forced = [4, 6];
+  const { events: open } = act(S, { type: 'sleep' });
+  assert.deepEqual([...open.find((e) => e.type === 'sleep').dice], [4]);
+  assert.equal(p.ap, 6);
 });
 
 test('one round action per round when rounds are timed', () => {
   const { S, p } = game({ autoEnd: false });
-  S.forced = [1, 1];
+  S.forced = [1];
   act(S, { type: 'sleep' });
   assert.equal(p.acted, true);
   assert.match(act(S, { type: 'sleep' }).error, /already acted/);
@@ -149,10 +155,10 @@ test('time up: anyone who has not acted loses 1 AP', () => {
   const { S, p } = game({ autoEnd: false, names: ['A', 'B'] });
   const [a, b] = S.players;
   a.ap = 5; b.ap = 5;
-  S.forced = [1, 1];
-  E.act(S, 0, { type: 'sleep' });       // A sleeps (+2)
+  S.forced = [1];
+  E.act(S, 0, { type: 'sleep' });       // A sleeps (+1: no Safety, 1d6)
   E.timeUp(S);                          // B didn't choose → −1 AP
-  assert.equal(a.ap, 7);
+  assert.equal(a.ap, 6);
   assert.equal(b.ap, 4);
   assert.equal(S.round, 2);
   assert.ok(S.log.some((l) => l.msg.includes("B didn't act in time — loses 1")));
@@ -717,7 +723,7 @@ test('zombies come first: a night attack is fought or fled before the round\'s c
   p.items.push({ id: 'Booze', cond: 2 }, { id: 'Axe', cond: 3 });
   p.maxAP = 10; p.ap = 4;
   S.round = 5; S.badNight = true;
-  S.forced = [1, 1, 4];                 // sleep 1 + 1, then round 6 on a bad night: 4 zombies, no Safety
+  S.forced = [1, 4];                    // sleep 1 (no Safety: 1d6), then round 6 on a bad night: 4 zombies
   act(S, { type: 'sleep' });
   assert.equal(S.round, 6);
   assert.equal(p.pending.kind, 'threat');   // not the hope check
@@ -745,18 +751,18 @@ test('max AP: water ±2, food ±1', () => {
   const { S, p } = game({ checksOff: false });
   p.maxAP = 6; p.ap = 6; p.res.water = 0; p.res.food = 5;
   S.round = 2;                          // round 3: water check — missed
-  S.forced = [1, 1]; act(S, { type: 'sleep' });
+  S.forced = [1]; act(S, { type: 'sleep' });
   assert.equal(p.maxAP, 4);
   p.res.water = 5;
   S.round = 6;                          // round 1: water check — paid
   S.badNight = false;
-  S.forced = [1, 1]; act(S, { type: 'sleep' });
+  S.forced = [1]; act(S, { type: 'sleep' });
   assert.equal(p.maxAP, 6);
-  S.forced = [1, 1]; act(S, { type: 'sleep' });   // round 2: food check — paid
+  S.forced = [1]; act(S, { type: 'sleep' });   // round 2: food check — paid
   assert.equal(p.maxAP, 7);
   p.res.food = 0;
   S.round = 3;                          // round 4: food check — missed
-  S.forced = [1, 1]; act(S, { type: 'sleep' });
+  S.forced = [1]; act(S, { type: 'sleep' });
   assert.equal(p.maxAP, 6);
 });
 
@@ -765,7 +771,7 @@ test('round 6 asks for hope: you pick a hope item and spend a pip of it', () => 
   p.items.push({ id: 'Axe', cond: 3 }, { id: 'Photo', cond: 1 }, { id: 'Booze', cond: 2 });
   p.maxAP = 8; p.ap = 4;
   S.round = 5; S.badNight = false;
-  S.forced = [1, 1]; act(S, { type: 'sleep' });
+  S.forced = [1]; act(S, { type: 'sleep' });
   assert.equal(S.round, 6);
   assert.equal(p.pending.kind, 'hope');
   assert.ok(decide(S, 0).error);        // the Axe is no hope
@@ -780,12 +786,12 @@ test('nothing to hope for: max AP −2 (and at 0, you give up)', () => {
   p.items.push({ id: 'Axe', cond: 3 });
   p.maxAP = 5; p.ap = 4;
   S.round = 5; S.badNight = false;
-  S.forced = [1, 1]; act(S, { type: 'sleep' });
+  S.forced = [1]; act(S, { type: 'sleep' });
   assert.equal(p.pending, null);
   assert.equal(p.maxAP, 3);
   assert.equal(p.dead, false);
   p.maxAP = 2; S.round = 5;
-  S.forced = [1, 1]; act(S, { type: 'sleep' });
+  S.forced = [1]; act(S, { type: 'sleep' });
   assert.equal(p.dead, true);
 });
 
@@ -876,7 +882,7 @@ test('missing water costs max AP; max AP 0 is death', () => {
   const { S, p } = game({ checksOff: false });
   p.res.water = 0; p.maxAP = 2; p.ap = 2;
   S.round = 2;                          // round 3 checks water
-  S.forced = [1, 1];
+  S.forced = [1];
   const { events } = act(S, { type: 'sleep' });
   assert.ok(events.some((e) => e.type === 'maxApLoss' && e.newMax === 0));
   assert.equal(p.dead, true);

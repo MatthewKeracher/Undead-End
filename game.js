@@ -841,21 +841,21 @@ async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
 }
 
 // Sleep: roll both dice, then the AP dial fills segment by segment.
-// Sleep: the 2d6 roll in a popup, then the AP ring around the clock fills, a segment at a time.
+// Sleep: the roll (2d6 with Safety, 1d6 without) in a popup, then the AP ring around the clock fills, a segment at a time.
 async function sleepShow({ dice, from, to, max }) {
-  const r = dice[0] + dice[1];
+  const r = dice.reduce((a, b) => a + b, 0);
   const pop = $('#popup');
   skipAnim = false;
   pop.className = 'sleep';
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>😴 Sleeping</small><h2>Rest &amp; recover</h2></div>
-    <div class="prow"><div class="dicecol"><div class="slot" id="pd2a"></div><div class="slot" id="pd2b"></div></div></div>
+    <div class="prow"><div class="dicecol">${dice.map((_, i) => `<div class="slot" id="pdsl${i}"></div>`).join('')}</div></div>
     <div class="presult" id="pres"></div>
     <small class="pskip">click or press any key</small></div>`;
   pop.hidden = false;
   await wait(150);
-  await Promise.all([rollDie($('#pd2a'), dice[0], 900), rollDie($('#pd2b'), dice[1], 1050)]);
-  $('#pres').innerHTML = `<div class="big good">+${r} AP</div><small class="muted">${dice[0]} + ${dice[1]}</small>`;
+  await Promise.all(dice.map((v, i) => rollDie($(`#pdsl${i}`), v, 900 + i * 150)));
+  $('#pres').innerHTML = `<div class="big good">+${r} AP</div><small class="muted">${dice.length > 1 ? dice.join(' + ') : `1d6 — no 🟡 Safety here`}</small>`;
   await popupHold(900);
   pop.hidden = true;
   renderApRing(from, '', max);
@@ -1326,7 +1326,7 @@ function renderPanel() {
     ${noAP ? `<div class="note bad">Out of AP — you must sleep.</div>` : ''}
     <div class="ribbon main">
       ${btn('pause', '⏸ Pause', 'Stop the clock', false)}
-      ${btn('sleep', '😴 Sleep', 'Gain 2d6 AP', false)}
+      ${btn('sleep', '😴 Sleep', E.sleepDice(t) > 1 ? `Gain ${E.sleepDice(t)}d6 AP` : `Gain 1d6 AP · no 🟡`, false)}
       ${btn('scout', '🔭 Scout', scoutTargets(p).length ? `1 AP · reveal ${E.binocularsOf(p) ? 'up to ' : ''}${scoutTargets(p).length} hex${scoutTargets(p).length === 1 ? '' : 'es'}${E.binocularsOf(p) ? ' (binoculars)' : ''}` : 'All explored', noAP || !scoutTargets(p).length)}
       ${btn('move', '🚶 Move', p.freeMoved ? '1 AP · uses your action' : 'Free move · needs 1 AP', noAP || !moveAdj(p).length)}
       ${btn('scavenge', '🔍 Scavenge', !canScavengeHere(t) ? (t.def.table.length ? 'Picked clean' : 'Nothing to find') : t.zombies ? 'Blocked by zombies' : lootLeft(t) ? `1 AP · ${lootLeft(t)} of 5 left` : '1 AP · only zombies left', noAP || !canScavengeHere(t) || t.zombies > 0)}
