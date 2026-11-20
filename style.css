@@ -455,7 +455,7 @@ body.battling :is(header, #map, #clock, #notes > *, #hint, #stats, #leadmarks, #
 body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (its shadow kept, so it eases in) */
 #battle::before { content: ''; position: absolute; inset: 1.4cqw; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
   background: radial-gradient(circle at 50% 45%, #22301f, #121a10 75%); }
-.bf-in { position: absolute; inset: 15% 10%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.bf-in { position: absolute; inset: 12% 10% 24%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; text-align: center; }   /* (the die sits just above the pips; the horde grows up from it) */
 .bf-horde { --zs: 13cqw; font-size: var(--zs); display: flex; flex-wrap: wrap; justify-content: center; gap: .1em .2em; max-width: 4em; min-height: 1.2em; }   /* (three to a row) */
 .bf-horde .z { position: relative; font-style: normal; width: 1.2em; line-height: 1.15; display: inline-block; text-align: center; transition: transform .38s ease-in, opacity .38s ease-in; }
 .bf-horde .z.pop { animation: zpop .3s cubic-bezier(.2, 1.8, .5, 1); }
@@ -466,13 +466,17 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
 .bf-horde .z.fall { transform: rotate(90deg) translateX(30%); opacity: 0; }
 .bf-horde .z.gone, .bf-safe i.gone { animation: zgone .25s ease-out forwards; }
 /* the die, while one's rolling — its space kept, so nothing jumps */
-.bf-mid { width: 19cqw; height: 19cqw; margin: 3cqw 0 4cqw; display: grid; place-items: center; }
+.bf-mid { width: 19cqw; height: 19cqw; margin-top: 3cqw; display: grid; place-items: center; flex: none; }
 .bf-mid .slot { width: 100%; height: 100%; }
 .bf-mid .die { width: 100%; height: 100%; padding: 14%; border-radius: 16%; }
 .bf-mid .die i { margin: 8%; }
 .bf-die:empty { display: none; }
-.bf-safe { display: flex; flex-wrap: wrap; justify-content: center; gap: 2cqw; max-width: 60cqw; min-height: 6cqw; }
-.bf-safe i { width: 6cqw; height: 6cqw; border-radius: 50%; background: #f2c94c; border: 2px solid #8a6d12; box-shadow: 0 0 10px #f2c94c88; }
+/* your Safety: fixed where the pips sit on your hex on the map — in a row 82% of the way down, the same size and spacing
+   in proportion (a 13px pip, 17px apart, on a 208px-wide hex; smaller and closer when there are more, as there) */
+.bf-safe { position: absolute; left: 0; right: 0; top: 82%; translate: 0 -50%; display: flex; justify-content: center; gap: 1.92cqw; }
+.bf-safe i { width: 6.26cqw; height: 6.26cqw; border-radius: 50%; background: #f2c94c; border: .5cqw solid #8a6d12; box-shadow: 0 0 10px #f2c94c88; }
+.bf-safe.n7 { gap: 1.44cqw; } .bf-safe.n7 i { width: 5.77cqw; height: 5.77cqw; }
+.bf-safe.n9 { gap: .96cqw; } .bf-safe.n9 i { width: 4.81cqw; height: 4.81cqw; }
 
 .leadmark { position: absolute; width: 40px; height: 40px; margin: -20px 0 0 -20px; display: grid; place-items: center; border-radius: 50%;
   background: #241038e6; border: 2px solid var(--hope); box-shadow: 0 0 14px #c084ff88; }
