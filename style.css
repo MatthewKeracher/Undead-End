@@ -195,8 +195,9 @@ body:not(.log-open) #panel { display: none; }
 @keyframes tagpop { from { scale: .3; opacity: 0; } }
 #apring .seg.losing { animation: ringloss 1s ease-out forwards; transform-box: fill-box; transform-origin: center; }
 @keyframes ringloss { 0% { fill: var(--lc); transform: scale(1.35); filter: drop-shadow(0 0 10px var(--lc)); } 50% { fill: var(--lc); transform: scale(1); } 100% { fill: #050505; } }
-/* bottom dock: toast, hint, notes and the action ribbon, centred along the bottom */
-#dock { position: absolute; z-index: 3; left: var(--dockl); right: var(--gap); bottom: var(--gap); width: fit-content; margin-inline: auto; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+/* bottom dock: the action ribbon, centred along the bottom — drawn above the backpack bar (z 3), so the backpack's
+   shadow doesn't fall across it */
+#dock { position: absolute; z-index: 4; left: var(--dockl); right: var(--gap); bottom: var(--gap); width: fit-content; margin-inline: auto; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
 #actions { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; }
 /* with room to spare, the same inset on both sides, so the dock (and the notes above it) centre under your tile */
 /* (one line, never wrapped: too wide to centre, it starts at the left and runs on to the right) */
