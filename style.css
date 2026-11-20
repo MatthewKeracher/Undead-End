@@ -118,7 +118,6 @@ body:not(.log-open) #panel { display: none; }
 .hex .veh.broken { filter: grayscale(1) brightness(.7); opacity: .6; }
 .hex .pip { fill: #0006; stroke: #f2c94c66; stroke-width: 1.5; }
 .hex .pip.zed { fill: #0b0b0b; stroke: #c0392b; stroke-width: 2; }
-.hex .pip.zonly:not(.zed) { stroke: #c0392b66; stroke-dasharray: 2 2; }   /* past max Safety: zombies only */
 .tile.revealed { animation: reveal .7s cubic-bezier(.2, 1.4, .5, 1) backwards; animation-delay: calc(var(--i, 0) * 120ms); transform-box: fill-box; transform-origin: center; }   /* a ripple when several appear */
 .tile.revealed polygon { stroke: #fff; stroke-width: 4; animation: revealglow 1.4s ease-in-out infinite alternate; }
 @keyframes reveal { from { transform: scale(.3) rotate(-30deg); opacity: 0; } }

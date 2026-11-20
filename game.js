@@ -693,7 +693,7 @@ async function fortifyShow({ name, r, before, after, max }) {
 // Fill a tile's Safety pips straight away. The map is only redrawn once the whole batch has played, and fortifying
 // ends the round, so the new round's banner, check and night attack would otherwise all play over the old pips.
 function showSafety(k, n) {
-  document.querySelectorAll(`#map .hex[data-k="${k}"] .pip`).forEach((c, i) => c.classList.toggle('on', i < n));
+  document.querySelectorAll(`#map .hex[data-k="${k}"] .pip:not(.zed)`).forEach((c, i) => c.classList.toggle('on', i < n));
 }
 
 // A missed food / water / hope check: on the clock's AP ring, no popup — the clock shakes, a tag over it says
@@ -989,14 +989,14 @@ function tableSvg(x, y, t) {
   return s;
 }
 
-// Safety pips along the bottom of the hex: filled = current Safety, hollow = room to fortify, black = zombies.
-// There's a circle for every zombie a tile can hold; the last (beyond max Safety) only ever holds zombies.
+// Pips along the bottom of the hex, one thing at a time: a tile with zombies shows just them (black, up to six);
+// otherwise its Safety (filled = current, hollow = room to fortify, as many as it can hold).
 function safetySvg(x, y, t) {
-  const top = E.maxSafetyOf(t), n = t.safety, z = t.zombies, max = Math.max(CONFIG.maxZombies, top, n + z), gap = max > 8 ? 12 : max > 6 ? 15 : 17;   // both on a tile: side by side
+  const z = Math.min(t.zombies, CONFIG.maxZombies), max = z || E.maxSafetyOf(t), gap = max > 8 ? 12 : max > 6 ? 15 : 17;
   let s = '';
   for (let i = 0; i < max; i++) {
     const cx = x + (i - (max - 1) / 2) * gap;
-    s += `<circle cx="${cx}" cy="${y}" r="${max > 8 ? 5 : max > 6 ? 6 : 6.5}" class="pip ${i < n ? 'on' : i < n + z ? 'zed' : ''} ${i >= top ? 'zonly' : ''}"/>`;
+    s += `<circle cx="${cx}" cy="${y}" r="${max > 8 ? 5 : max > 6 ? 6 : 6.5}" class="pip ${z ? 'zed' : i < t.safety ? 'on' : ''}"/>`;
   }
   return s;
 }
@@ -1237,7 +1237,17 @@ async function pickFromPack(i) {
   packSel = -1;
   if (mode === 'hope') return send({ type: 'decide', choice: i });
   if (mode === 'armor') return send({ type: 'decide', choice: true });   // the armor takes the hit: reroll
-  if (await explain(FIGHT_EXPLAIN[ITEMS[it.id].uses])) send({ type: 'decide', choice: { weapon: i } });
+  if (await explain(FIGHT_EXPLAIN[ITEMS[it.id].uses])) return send({ type: 'decide', choice: { weapon: i } });
+}
+// Shift+Enter on a weapon: attack with it again and again — until the tile's clear, or it can't attack any more (out
+// of ammo, AP or fuel), or the encounter's over
+async function attackAll(i) {
+  const p = cur(), it = p.items[i];
+  while (mode === 'threat' && !G.over && p.items[i] === it && packPick(p, it, i)) {
+    const left = tileOf(p).zombies;
+    await pickFromPack(i);
+    if (tileOf(p).zombies >= left) return;   // (it didn't go through)
+  }
 }
 function renderPack() {
   const p = cur(), choosing = picking();
@@ -1534,6 +1544,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Enter') {
     e.preventDefault();
+    if (e.shiftKey && mode === 'threat' && packSel >= 0) return attackAll(packSel);
     if (packSel >= 0) {   // the slot's own button: Use / Take, otherwise ✕ (Enter again to leave it)
       const slot = $('#pack .slot-item.sel'), btn = slot?.querySelector('.use') ?? slot?.querySelector('.drop');
       btn?.click();
