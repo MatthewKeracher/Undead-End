@@ -192,7 +192,7 @@ async function roundBannerShow({ day, round }) {
   el.innerHTML = `<div class="rb-sky">${night ? '🌙' : '☀️'}</div><div class="rb-title">Day ${day} · Round ${round}</div>`;
   el.hidden = false;
   if (night) tone(110, 0.9, 'sine', 0.1, -30); else [392, 523].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.06), i * 120));
-  await new Promise((res) => { const tm = setTimeout(res, skipAnim ? 0 : 1700); dismissPopup = () => { clearTimeout(tm); res(); }; });
+  await new Promise((res) => { const tm = setTimeout(res, skipAnim ? 0 : night ? 2600 : 1700); dismissPopup = () => { clearTimeout(tm); res(); }; });   // night lingers
   dismissPopup = null;
   el.hidden = true;
 }
