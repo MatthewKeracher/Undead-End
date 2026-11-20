@@ -612,21 +612,20 @@ test('driving is free movement: fuel per tile, −1 condition per trip, round no
   assert.equal(S.round, 1);
 });
 
-test('pills and booze: free, +6 AP up to max AP (max AP unchanged), −1 condition; gone at 0', () => {
+test('booze: +6 AP for −1 max AP; pills: +12 AP for −2 max AP — free, −1 condition, gone at 0', () => {
   const { S, p } = game();
-  p.items.push({ id: 'Pills', cond: 2 }, { id: 'Booze', cond: 1 });
-  p.ap = 1; p.maxAP = 10;
-  assert.ok(!act(S, { type: 'boost', item: 0 }).error);
-  assert.deepEqual([p.ap, p.maxAP, p.items[0].cond, p.acted], [7, 10, 1, false]);   // free: not your action
-  act(S, { type: 'boost', item: 0 });   // capped at max AP
-  assert.equal(p.ap, 10);
+  p.items.push({ id: 'Pills', cond: 1 }, { id: 'Booze', cond: 2 });
+  p.ap = 1; p.maxAP = 12;
+  assert.ok(!act(S, { type: 'boost', item: 0 }).error);   // Pills: max 12 → 10, AP 1 + 12, capped at 10
+  assert.deepEqual([p.ap, p.maxAP, p.acted], [10, 10, false]);   // free: not your action
   assert.equal(p.items[0].id, 'Booze');  // last dose: the Pills are gone
-  assert.match(act(S, { type: 'boost', item: 0 }).error, /already full/);        // no wasting a swig
+  assert.match(act(S, { type: 'boost', item: 0 }).error, /already full/);   // no wasting a swig
   p.ap = 2;
-  act(S, { type: 'boost', item: 0 });
-  assert.equal(p.ap, 8);
-  assert.equal(p.items.length, 0);
-  p.items.push({ id: 'Note', cond: 2 });
+  act(S, { type: 'boost', item: 0 });   // Booze: max 10 → 9, AP 2 + 6
+  assert.deepEqual([p.ap, p.maxAP, p.items[0].cond], [8, 9, 1]);
+  p.ap = 0; p.maxAP = 1;
+  assert.match(act(S, { type: 'boost', item: 0 }).error, /worn down/);   // it would leave no max AP at all
+  p.items = [{ id: 'Note', cond: 2 }];
   assert.ok(act(S, { type: 'boost', item: 0 }).error);   // a Note is hope, but no AP
 });
 

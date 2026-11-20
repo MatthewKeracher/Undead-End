@@ -1271,7 +1271,7 @@ function renderPack() {
       : it
       ? `<div class="slot-item ${packSel === i ? 'sel' : ''}" data-slot="${i}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</div>
           ${ITEMS[it.id].tool ? `<button class="use" data-use="${i}" title="Use tool (T)">Use <kbd>T</kbd></button>` : ''}
-          ${ITEMS[it.id].boost ? `<button class="use" data-pill="${i}" title="+${ITEMS[it.id].boost} AP, up to your max (−1 condition)">${ITEMS[it.id].verb}</button>` : ''}
+          ${ITEMS[it.id].boost ? `<button class="use" data-pill="${i}" title="+${ITEMS[it.id].boost} AP, −${ITEMS[it.id].toll} max AP (−1 condition)">${ITEMS[it.id].verb}</button>` : ''}
           <button class="drop ${dropArmed === i ? 'armed' : ''}" data-drop="${i}" title="Leave it on this tile">${dropArmed === i ? 'Leave it?' : '✕'}</button></div>`
       : `<div class="slot-item empty"></div>`;
   }

@@ -68,11 +68,12 @@ const gun = (icon, verb = 'Fire', extra = {}) => ({ icon, weapon: true, uses: 'a
 const melee = (icon, verb = 'Swing') => ({ icon, weapon: true, uses: 'ap', verb, desc: `Fight: 1 condition per round; each ${verb.toLowerCase()} costs 1 AP and kills 1 zombie.` });
 
 // Hope items: the night (round 6) asks for hope, and you spend a pip (−1 condition) of one you carry — shown in
-// purple. Booze and Pills are also a boost any time (free): +boost AP, up to your max AP, for a pip. A Note shows
+// purple. Booze and Pills are also a boost any time (free): +boost AP for a pip — and they wear you down: −toll max
+// AP each time (the new max caps the boost). A Note shows
 // the way instead: as it's found, a place CONFIG.leadDistance hexes off is revealed with a purple border, where its
 // writer left a stash — with their next Note in it.
-const boostItem = (icon, verb, what) => ({ icon, hope: true, boost: 6, verb,
-  desc: `Hope when the night asks for it — or ${verb.toLowerCase()} ${what} any time (free) for +6 AP, up to your max. −1 condition either way.` });
+const boostItem = (icon, verb, what, boost, toll) => ({ icon, hope: true, boost, toll, verb,
+  desc: `Hope when the night asks for it — or ${verb.toLowerCase()} ${what} any time (free): +${boost} AP, but −${toll} max AP. −1 condition either way.` });
 
 // Item cards. Condition = uses left; at 0 the item breaks.
 const ITEMS = {
@@ -106,8 +107,8 @@ const ITEMS = {
   // Map: disabled for now — in no loot table (the cheat item(map) still reads one).
   Map:   { icon: '🗺️', map: true, desc: 'Used the moment you find it (never carried): reveals every unexplored hex next to an explored one.' },
   Binoculars: { icon: '🔭', binoculars: true, desc: 'Scouting also reveals the hexes beyond the ones next to you — but not past a Mountain. −1 condition per scout; gone at 0.' },
-  Pills: boostItem('💊', 'Take', 'a dose'),
-  Booze: boostItem('🍾', 'Drink', 'a swig'),
+  Pills: boostItem('💊', 'Take', 'a dose', 12, 2),
+  Booze: boostItem('🍾', 'Drink', 'a swig', 6, 1),
   Note: { icon: '📝', hope: true, leads: true, desc: 'Hope: someone went on ahead and left a stash — the place it names is marked in purple on the map. −1 condition each night you lean on it.' },
 };
 
@@ -152,7 +153,7 @@ const TUTORIAL = {
     hide: { icon: '🛡️', title: 'Hide', text: ['Free: let the 🟡 Safety here take the zombies, one point each. Fight some down first and you lose less of it.'] },
     flee: { icon: '🏃', title: 'Flee', text: ['1 AP: roll a d6 and beat the number of zombies to escape to a safe, scouted hex next to you — or away in a vehicle here.', 'Fail and you\'re caught: you must fight. Six zombies can\'t be outrun.'] },
     tool: { icon: '🧰', title: 'Use a tool', text: ['Free, any time: move some of the tool\'s condition onto another item, or a vehicle on your tile (up to 6). The tool is gone at 0.'] },
-    pills: { icon: '💊', title: 'Pills and booze', text: ['Free, any time: +6 AP, up to your max AP. −1 condition — the same pip you\'d spend on hope at night.'] },
+    pills: { icon: '💊', title: 'Pills and booze', text: ['Free, any time: Booze +6 AP for −1 max AP, Pills +12 AP for −2 max AP. −1 condition — a pip of hope.'] },
     drop: { icon: '✕', title: 'Leave an item', text: ['Leave it on this tile, condition and all. It takes a row of the table — roll that row to pick it up again.'] },
   },
   // the line above an item's desc on its card

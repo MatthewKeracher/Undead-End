@@ -927,16 +927,17 @@ const Engine = (() => {
         log(S, `${ITEMS[tool.id].icon} The ${tool.id} is used up and destroyed.`, 'bad');
       }
     },
-    // Pills and Booze: a dose / swig (−1 condition, the pip hope would cost) gives +boost AP, up to your max AP
-    // (max AP itself doesn't change). Gone at 0.
+    // Pills and Booze: a dose / swig (−1 condition, the pip hope would cost) costs −toll max AP, then gives +boost AP
+    // up to the new max (Booze +6 for −1, Pills +12 for −2). Not when it would leave you no max AP at all. Gone at 0.
     boost(S, p, { item: i }) {
-      const it = p.items[i];
-      if (!it || !ITEMS[it.id]?.boost) return 'Pick something to take.';
+      const it = p.items[i], def = ITEMS[it?.id];
+      if (!it || !def?.boost) return 'Pick something to take.';
       if (p.ap >= p.maxAP) return 'Your AP is already full.';
-      const ap = p.ap;
-      it.cond--; p.ap = Math.min(p.maxAP, p.ap + ITEMS[it.id].boost);
+      if (p.maxAP <= def.toll) return `Too worn down for that (max AP ${p.maxAP}).`;
+      const ap = p.ap, max = p.maxAP;
+      it.cond--; p.maxAP -= def.toll; p.ap = Math.min(p.maxAP, p.ap + def.boost);
       emit(S, { type: 'boost', player: p.id, item: it.id, ap, cond: it.cond });
-      log(S, `${p.name} ${ITEMS[it.id].verb === 'Drink' ? 'drinks' : 'takes'} the ${ITEMS[it.id].icon} ${it.id}: AP ${ap} → ${p.ap}.`, 'good');
+      log(S, `${p.name} ${def.verb === 'Drink' ? 'drinks' : 'takes'} the ${def.icon} ${it.id}: AP ${ap} → ${p.ap}, max AP ${max} → ${p.maxAP}.`, 'good');
       if (it.cond <= 0) {
         p.items.splice(i, 1);
         log(S, `${ITEMS[it.id].icon} The ${it.id} ${it.id === 'Pills' ? 'are' : 'is'} all gone.`, 'bad');
