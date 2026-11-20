@@ -592,6 +592,34 @@ test('every vehicle is a Truck or a Bike underneath: fuel ones drive on fuel, pe
   assert.deepEqual([p.q, p.r], [1, 0]);
 });
 
+test('the Horse drinks 1 water per tile, eats 1 food per trip, and never breaks down', () => {
+  assert.equal(ITEMS.Horse.uses, 'water');
+  const { S, p } = game();
+  tile(S, 1, 0, 'Forest'); tile(S, 2, 0, 'Lake');
+  E.tileOf(S, p).vehicles.push({ id: 'Horse' });
+  p.res.water = 5; p.res.food = 1; p.ap = 4; p.res.fuel = 0;
+  act(S, { type: 'drive', vehicle: 'Horse' });
+  decide(S, { q: 1, r: 0 }); decide(S, { q: 2, r: 0 }); decide(S, 'stop');
+  assert.deepEqual([p.q, p.r], [2, 0]);
+  assert.equal(p.res.water, 3);                          // 1 per tile
+  assert.equal(p.res.food, 0);                           // 1 for the trip
+  assert.equal(p.ap, 4);                                 // no AP
+  assert.deepEqual({ ...E.tileOf(S, p).vehicles[0] }, { id: 'Horse' });   // no condition to lose
+  assert.ok(act(S, { type: 'drive', vehicle: 'Horse' }).error);   // no food: it won't set off
+  p.res.food = 2; p.res.water = 0;
+  assert.ok(act(S, { type: 'drive', vehicle: 'Horse' }).error);   // no water either
+  p.items.push({ id: 'Tool', cond: 3 });
+  assert.ok(act(S, { type: 'tool', tool: 0, target: { from: 'tile', index: 0 }, amount: 1 }).error);   // a Tool can't help it
+});
+
+test('a Horse found at the Stables waits there, with no condition', () => {
+  const { S, p } = game();
+  S.tiles['0,0'] = { def: def('Stables'), safety: 0, zombies: 0, vehicles: [], looted: [], stashes: [] };
+  S.forced = [6, 4];                    // Stables 6 = Horse
+  act(S, { type: 'scavenge' });
+  assert.deepEqual({ ...E.tileOf(S, p).vehicles[0] }, { id: 'Horse' });
+});
+
 test('a vehicle at 0 condition stays parked, broken, until a Tool fixes it', () => {
   const { S, p } = game();
   tile(S, 1, 0, 'Forest');

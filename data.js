@@ -56,9 +56,11 @@ const CONFIG = {
 };
 
 // Vehicles come in two kinds, each in many looks (same rules, new name and icon): fuel ones (1 🟠 per tile)
-// and pedal ones (1 AP per tile).
+// and pedal ones (1 AP per tile). Animals are a third kind: no condition (they never break down, and a Tool
+// can't help them) — they drink 1 🔵 water per tile and eat 1 🔴 food per trip instead.
 const fuelVehicle = (icon) => ({ icon, vehicle: true, uses: 'fuel', verb: 'Drive', desc: 'Parked on a tile. Drive through scouted tiles: 1 🟠 fuel per tile, −1 condition per trip.' });
 const pedalVehicle = (icon) => ({ icon, vehicle: true, uses: 'ap', verb: 'Ride', desc: 'Parked on a tile. Ride through scouted tiles: 1 AP per tile, −1 condition per trip.' });
+const animal = (icon) => ({ icon, vehicle: true, animal: true, uses: 'water', eats: 'food', verb: 'Ride', desc: 'Waits on a tile. Ride through scouted tiles: 1 🔵 water per tile and 1 🔴 food per trip. Never breaks down.' });
 
 // Weapons come in kinds too, each in many looks: guns fire ammo, melee weapons cost AP.
 const gun = (icon, verb = 'Fire', extra = {}) => ({ icon, weapon: true, uses: 'ammo', verb, desc: 'Fight: no AP; 1 condition per round; each 🟢 ammo fired kills 1 zombie.', ...extra });
@@ -88,6 +90,7 @@ const ITEMS = {
   Campervan: fuelVehicle('🚐'),
   'Fire Engine': fuelVehicle('🚒'),
   Bike: pedalVehicle('🚲'),
+  Horse: animal('🐎'),
   // Multiplayer (planned — see MULTIPLAYER.md): talk to players on other tiles. No effect in single player; not in any loot table yet.
   Radio:   { icon: '📻', radio: true, desc: 'Multiplayer: lets you talk to players on other tiles who also carry a radio. −1 condition per round used.' },
   Tool: { icon: '🧰', tool: true, desc: 'Use any time (free): transfer some of its condition to another item. Destroyed at 0.' },

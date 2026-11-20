@@ -103,7 +103,7 @@ async function show(ev) {
     case 'pills': return sfx.win(false);
     case 'driveStep': sfx.drive(ev.fuel); return render();
     case 'move': renderMap(); return wait(450);   // arrive (the camera glides over) before the round can move on
-    case 'outOfFuel': return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'fuel' ? 'fuel' : 'AP'} — stopping here.`);
+    case 'outOfFuel': return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'ap' ? 'AP' : ev.fuel} — stopping here.`);
     case 'die': return tone(200, 1.4, 'sawtooth', 0.12, -170);
     case 'round': return roundBannerShow(ev);
   }
@@ -444,7 +444,7 @@ function act(name) {
   if (p.pending) return;
   if (name === 'move') { mode = mode === name ? null : name; return render(); }
   if (name === 'pause') return togglePause();
-  if (name === 'driveFuel' || name === 'driveAP') name = keyedVehicle(p, name);
+  if (isDriveKey(name)) name = keyedVehicle(p, name);
   if (!name) return;
   if (ITEMS[name]?.vehicle) return send({ type: 'drive', vehicle: name });
   send({ type: name });
@@ -556,7 +556,9 @@ const sfx = {
   armor: () => { noise(0.12, 0.35, 900); tone(180, 0.2, 'square', 0.1, -60); setTimeout(() => tone(1200, 0.25, 'triangle', 0.04, -300), 60); },
   drive: (kind) => kind === 'fuel'
     ? (tone(70, 0.4, 'sawtooth', 0.09, 40), noise(0.35, 0.12, 400))
-    : (noise(0.08, 0.1, 2500), setTimeout(() => tone(1400, 0.08, 'sine', 0.05), 80)),
+    : kind === 'water'   // hooves: clip-clop
+      ? [0, 140, 300, 440].forEach((d, i) => setTimeout(() => { noise(0.04, 0.12, 1800); tone(i % 2 ? 520 : 680, 0.04, 'square', 0.04); }, d))
+      : (noise(0.08, 0.1, 2500), setTimeout(() => tone(1400, 0.08, 'sine', 0.05), 80)),
   axe: () => { tone(320, 0.12, 'sawtooth', 0.05, -260); setTimeout(() => tone(70, 0.18, 'square', 0.18, -30), 90); },
   bow: () => { tone(220, 0.25, 'triangle', 0.12, -120); noise(0.12, 0.12, 4000); },   // twang and whoosh
   saw: () => clip('chainsaw'),
@@ -628,8 +630,8 @@ async function scavengeShow({ name, rows: table, tries, r, hit, amt, amts, dice,
     let big = false, shown = '';
     for (const [i, x] of parts.entries()) {
       const a = amts[i];
-      if (ITEMS[x.item]?.map) {   // no condition to roll: it's read straight away
-        shown += `<div class="big good jackpot">${itemIcon(x.item)} ${esc(x.item)}</div><small class="muted">It shows the land all around…</small>`;
+      if (ITEMS[x.item]?.map || ITEMS[x.item]?.animal) {   // no condition to roll: a map is read straight away, an animal never wears out
+        shown += `<div class="big good jackpot">${itemIcon(x.item)} ${esc(x.item)}</div><small class="muted">${ITEMS[x.item].map ? 'It shows the land all around…' : `It waits here — 1 ${ICON.water}/tile, 1 ${ICON.food}/trip`}</small>`;
         $('#pres').innerHTML = shown;
         big = true;
         continue;
@@ -990,7 +992,7 @@ dockWatch.observe($('#board'));
 // Broken-down ones (condition 0) are greyed out until repaired.
 function vehicleSvg(x, y, vs) {
   const gap = 24, top = y - ((vs.length - 1) * gap) / 2;
-  return vs.map((v, i) => `<text x="${x}" y="${top + i * gap + 6}" class="veh ${v.cond > 0 ? '' : 'broken'}">${ITEMS[v.id].icon}</text>`).join('');
+  return vs.map((v, i) => `<text x="${x}" y="${top + i * gap + 6}" class="veh ${v.cond > 0 || ITEMS[v.id].animal ? '' : 'broken'}">${ITEMS[v.id].icon}</text>`).join('');
 }
 
 function pickBadge(x, y, n, big = false) {
@@ -1127,7 +1129,7 @@ function renderPanel() {
   if ($('#board').classList.toggle('threat', mode === 'threat') === false) requestAnimationFrame(fitRightCol);
   const btn = (id, label, sub, dis) => {
     const keys = mode === 'threat' ? THREAT_KEYS : HOTKEYS;
-    const hk = Object.keys(keys).find((k) => keys[k] === id || (ITEMS[id]?.vehicle && keys[k] === (ITEMS[id].uses === 'fuel' ? 'driveFuel' : 'driveAP')));
+    const hk = Object.keys(keys).find((k) => keys[k] === id || (ITEMS[id]?.vehicle && keys[k] === DRIVE_KEY[ITEMS[id].uses]));
     if (dis && selected === id) selected = null;
     // the emoji and the words are separate, so phones and upright tablets can show the emoji alone (title has the rest)
     const [, icon, rest] = label.match(/^(<img[^>]*>|\S+) (.*)$/), words = [rest];   // the emoji (or item picture), then the words
@@ -1148,10 +1150,10 @@ function renderPanel() {
     return;
   }
   if (mode === 'drive') {
-    const { v, steps, flee } = driving(), fuel = vehicleFuel(v) === 'fuel';
+    const { v, steps, flee } = driving(), uses = vehicleFuel(v);
     $('#actions').innerHTML = `
       ${t.zombies ? `<div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} here — stopping on this tile triggers them!</div>` : ''}
-      <div class="note good">${itemIcon(v.id)} ${flee ? 'Escaping' : 'Driving'} the ${v.id} — ${fuel ? `${ICON.fuel} ${p.res.fuel} fuel` : `🎲 ${p.ap} AP`} left · ${steps} tile${steps === 1 ? '' : 's'} so far.
+      <div class="note good">${itemIcon(v.id)} ${flee ? 'Escaping' : ITEMS[v.id].verb === 'Ride' ? 'Riding' : 'Driving'} the ${v.id} — ${uses === 'ap' ? `🎲 ${p.ap} AP` : `${ICON[uses]} ${p.res[uses]} ${uses}`} left · ${steps} tile${steps === 1 ? '' : 's'} so far.
         Next hex: A Q E D X Z or tap one.</div>
       <div class="ribbon">${btn('stopdrive', '⏹ Stop here', flee && !steps ? 'Pick a hex first' : 'Enter / Backspace', flee && !steps)}</div>`;
     renderLog();
@@ -1185,8 +1187,9 @@ function renderPanel() {
       ${Object.keys(ITEMS).filter((id) => ITEMS[id].vehicle && vehiclesHere(p).some((v) => v.id === id)).map((id) => {
         const v = vehicleOf(p, id);
         if (!v) return btn(id, `${itemIcon(id)} ${ITEMS[id].verb}`, 'Broken — needs a Tool', true);
-        const fuel = vehicleFuel(v) === 'fuel';
-        return btn(id, `${itemIcon(id)} ${ITEMS[id].verb}`, !driveAdj(p).length ? 'Nowhere to go' : vehicleLeft(p, v) < 1 ? (fuel ? 'No fuel' : 'No AP') : `1 ${fuel ? ICON.fuel : '🎲'}/tile · cond ${v.cond}`, !canDrive(p, id));
+        const uses = vehicleFuel(v), eats = ITEMS[id].eats;
+        return btn(id, `${itemIcon(id)} ${ITEMS[id].verb}`, !driveAdj(p).length ? 'Nowhere to go' : vehicleLeft(p, v) < 1 ? `No ${uses === 'ap' ? 'AP' : uses}` : !E.vehicleFed(p, v) ? `No ${eats}`
+          : `1 ${ICON[uses]}/tile · ${eats ? `1 ${ICON[eats]}/trip` : `cond ${v.cond}`}`, !canDrive(p, id));
       }).join('')}
       ${btn('fortify', '🔨 Fortify', !canFortifyHere(t) ? "Can't be fortified" : t.zombies ? 'Blocked by zombies' : t.safety >= E.maxSafetyOf(t) ? `Safety full (${E.maxSafetyOf(t)})` : `1 AP · +1d6 🟡 (max ${E.maxSafetyOf(t)})`, noAP || !canFortifyHere(t) || t.zombies > 0 || t.safety >= E.maxSafetyOf(t))}
     </div>`;
@@ -1223,9 +1226,11 @@ $('#actions').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   if (b.dataset.act) act(b.dataset.act);
 });
-const HOTKEYS = { r: 'sleep', s: 'scout', w: 'move', a: 'scavenge', f: 'fortify', e: 'driveFuel', b: 'driveAP', p: 'pause' };   // E / B: a fuel / pedal vehicle here
-// E / B stand for whichever fuel / pedal vehicle is parked here (its button is named after it, e.g. 'Tractor')
-const keyedVehicle = (p, key) => vehiclesHere(p).find((x) => (ITEMS[x.id].uses === 'fuel') === (key === 'driveFuel'))?.id;
+const HOTKEYS = { r: 'sleep', s: 'scout', w: 'move', a: 'scavenge', f: 'fortify', e: 'driveFuel', b: 'driveAP', h: 'driveWater', p: 'pause' };   // E / B / H: a fuel / pedal vehicle / animal here
+// E / B / H stand for whichever fuel vehicle / pedal vehicle / animal is here (its button is named after it, e.g. 'Tractor')
+const DRIVE_KEY = { fuel: 'driveFuel', ap: 'driveAP', water: 'driveWater' };
+const isDriveKey = (name) => Object.values(DRIVE_KEY).includes(name);
+const keyedVehicle = (p, key) => vehiclesHere(p).find((x) => DRIVE_KEY[ITEMS[x.id].uses] === key)?.id;
 const THREAT_KEYS = { q: 'shoot', w: 'melee', r: 'saw', e: 'flee' };
 // Backspace cancels / goes back (Esc still works too, but full-screen Chrome can take it for itself).
 const isBack = (e) => e.key === 'Backspace' || e.key === 'Escape';
@@ -1352,7 +1357,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   let id = (mode === 'threat' ? THREAT_KEYS : HOTKEYS)[k];
-  if (id === 'driveFuel' || id === 'driveAP') id = keyedVehicle(cur(), id);
+  if (isDriveKey(id)) id = keyedVehicle(cur(), id);
   if (id) {
     const b = $(`#actions [data-act="${id}"]`);
     if (b && !b.disabled) selectAction(id);

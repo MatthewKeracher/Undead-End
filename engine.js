@@ -123,10 +123,15 @@ const Engine = (() => {
   const canFlee = (S, p, t) => !p.caught && p.ap >= 1 && fleeAdj(S, p).length > 0 && t.zombies < CONFIG.maxZombies;
 
   // Vehicles sit on tiles (not in the backpack). Truck: 1 fuel per tile. Bike: 1 AP per tile.
-  const vehicleFuel = (v) => ITEMS[v.id].uses;                 // 'fuel' | 'ap'
-  const vehicleLeft = (p, v) => (vehicleFuel(v) === 'fuel' ? p.res.fuel : p.ap);
-  const vehicleOf = (S, p, id) => (tileOf(S, p).vehicles || []).filter((v) => v.id === id && v.cond > 0).sort((a, b) => a.cond - b.cond)[0];
-  const canDrive = (S, p, id) => { const v = vehicleOf(S, p, id); return !!v && vehicleLeft(p, v) > 0 && driveAdj(S, p).length > 0; };
+  // Horse (an animal): 1 water per tile and 1 food per trip, and no condition — it never breaks down.
+  const vehicleFuel = (v) => ITEMS[v.id].uses;                 // 'fuel' | 'ap' | 'water'
+  const vehicleLeft = (p, v) => (vehicleFuel(v) === 'ap' ? p.ap : p.res[vehicleFuel(v)]);
+  const vehicleFed = (p, v) => !ITEMS[v.id].eats || p.res[ITEMS[v.id].eats] >= 1;   // an animal won't set off hungry
+  const runs = (v) => ITEMS[v.id].animal || v.cond > 0;
+  const vehicleOf = (S, p, id) => (tileOf(S, p).vehicles || []).filter((v) => v.id === id && runs(v)).sort((a, b) => (a.cond ?? 0) - (b.cond ?? 0))[0];
+  const canRide = (S, p, v) => vehicleLeft(p, v) > 0 && vehicleFed(p, v) && driveAdj(S, p).length > 0;
+  const canDrive = (S, p, id) => { const v = vehicleOf(S, p, id); return !!v && canRide(S, p, v); };
+  const parked = (id, cond) => (ITEMS[id].animal ? { id } : { id, cond });
 
   function cellText(e) {
     if (e.zombies) return e.zombies > 1 ? `Zombies ×${e.zombies}` : 'Zombies';
@@ -568,13 +573,13 @@ const Engine = (() => {
     const opts = [{ id: 'foot', label: '🏃 On foot', sub: '1 hex', ok: fleeAdj(S, p).length > 0 }];
     for (const id of Object.keys(ITEMS).filter((k) => ITEMS[k].vehicle)) {
       const v = vehicleOf(S, p, id);
-      if (v) opts.push({ id, label: `${ITEMS[id].icon} ${id}`, sub: `1 ${vehicleFuel(v) === 'fuel' ? ICON.fuel : '🎲'} per tile`, ok: vehicleLeft(p, v) > 0 && driveAdj(S, p).length > 0 });
+      if (v) opts.push({ id, label: `${ITEMS[id].icon} ${id}`, sub: `1 ${ICON[vehicleFuel(v)]} per tile`, ok: canRide(S, p, v) });
     }
     p.pending = opts.length > 1 ? { kind: 'escape', options: opts } : { kind: 'fleeTo' };
   }
 
   // ---------------------------------------------------------------- vehicles
-  // −1 condition per trip; at 0 it stays parked, broken down, until a Tool repairs it.
+  // −1 condition per trip; at 0 it stays parked, broken down, until a Tool repairs it. An animal eats instead.
   // Only scouted tiles; you can pass through zombie tiles but stopping on one triggers them.
   function startDrive(S, p, id, fleeing = false) {
     const t = tileOf(S, p), v = vehicleOf(S, p, id);
@@ -587,7 +592,7 @@ const Engine = (() => {
     const t = enterHex(S, p, q, r);
     if (!t) return;   // blocked by a Mountain: pick another way
     if (!passable(t)) return "Can't drive there.";
-    if (vehicleFuel(d.v) === 'fuel') p.res.fuel--; else p.ap--;
+    if (vehicleFuel(d.v) === 'ap') p.ap--; else p.res[vehicleFuel(d.v)]--;
     p.q = q; p.r = r;
     d.steps++;
     emit(S, { type: 'driveStep', player: p.id, vehicle: d.v.id, fuel: vehicleFuel(d.v), q, r });
@@ -597,11 +602,11 @@ const Engine = (() => {
     const { v, steps } = p.pending, def = ITEMS[v.id], t = tileOf(S, p);
     p.pending = null;
     if (steps) {
-      v.cond--;
-      log(S, `${p.name} ${def.verb.toLowerCase()}s the ${def.icon} ${v.id} ${plural(steps, 'tile')} to the ${t.def.name}.`, t.zombies ? 'bad' : '');
+      if (def.eats) p.res[def.eats] = Math.max(0, p.res[def.eats] - 1); else v.cond--;
+      log(S, `${p.name} ${def.verb.toLowerCase()}s the ${def.icon} ${v.id} ${plural(steps, 'tile')} to the ${t.def.name}${def.eats ? ` — it eats 1 ${ICON[def.eats]} ${def.eats}` : ''}.`, t.zombies ? 'bad' : '');
     }
     t.vehicles.push(v);   // parked here — even broken down, so a Tool can fix it
-    if (v.cond <= 0) log(S, `${def.icon} The ${v.id} breaks down at the ${t.def.name} — it needs a Tool before it'll go again.`, 'bad');
+    if (!runs(v)) log(S, `${def.icon} The ${v.id} breaks down at the ${t.def.name} — it needs a Tool before it'll go again.`, 'bad');
     if (t.zombies && steps) { log(S, `🧟 ${plural(t.zombies, 'zombie')} at the ${t.def.name}!`, 'bad'); p.queue.unshift({ type: 'threat' }); }
   }
 
@@ -726,7 +731,7 @@ const Engine = (() => {
       } else {
         if (!e.endless) (t.looted ||= []).push(r);   // found: crossed off for good (unless it's Endless)
         const found = parts.map((x, i) => {
-          if (x.item) return ITEMS[x.item].map ? `${ITEMS[x.item].icon} ${x.item}` : `${ITEMS[x.item].icon} ${x.item}, condition ${amts[i]}`;
+          if (x.item) return ITEMS[x.item].map || ITEMS[x.item].animal ? `${ITEMS[x.item].icon} ${x.item}` : `${ITEMS[x.item].icon} ${x.item}, condition ${amts[i]}`;
           p.res[x.res] += amts[i] * x.n;
           return `${cellText(x)} → ${dice[i].join(' + ')}${x.n > 1 ? ` ×${x.n}` : ''} = ${amts[i] * x.n} ${ICON[x.res]} ${x.res}`;
         });
@@ -734,8 +739,8 @@ const Engine = (() => {
         parts.forEach((x, i) => {
           if (!x.item) return;
           if (ITEMS[x.item].vehicle) {
-            t.vehicles.push({ id: x.item, cond: amts[i] });
-            log(S, `${ITEMS[x.item].icon} The ${x.item} is parked at the ${t.def.name}.`, 'good');
+            t.vehicles.push(parked(x.item, amts[i]));
+            log(S, `${ITEMS[x.item].icon} The ${x.item} ${ITEMS[x.item].animal ? 'waits' : 'is parked'} at the ${t.def.name}.`, 'good');
           } else gainItem(S, p, x.item, amts[i]);
         });
       }
@@ -788,6 +793,7 @@ const Engine = (() => {
     tool(S, p, { tool: i, target, amount }) {
       const tool = p.items[i], list = target?.from === 'tile' ? tileOf(S, p).vehicles : p.items, it = list?.[target?.index];
       if (!tool || !ITEMS[tool.id]?.tool || !it || it === tool) return 'Pick a tool and an item to repair.';
+      if (ITEMS[it.id].animal) return `A Tool can't help the ${it.id}.`;
       if (!(amount >= 1 && amount <= Math.min(tool.cond, CONFIG.maxCondition - it.cond))) return 'Not that much.';
       tool.cond -= amount; it.cond += amount;
       emit(S, { type: 'repair', player: p.id, tool: tool.id, target: it.id, amount });
@@ -965,7 +971,7 @@ const Engine = (() => {
           const item = Object.keys(ITEMS).find((k) => k.toLowerCase().replace(/\s/g, '') === String(n[0] ?? '').toLowerCase().replace(/\s/g, ''));
           if (!item) { say = `Unknown item. Items: ${Object.keys(ITEMS).join(', ')}`; break; }
           const cond = Math.max(1, Math.min(CONFIG.maxCondition, n[1] ?? CONFIG.maxCondition));
-          if (ITEMS[item].vehicle) { t.vehicles.push({ id: item, cond }); say = `${item} (${cond}) parked here`; } else { gainItem(S, p, item, cond); say = `${item} (${cond}) added`; }
+          if (ITEMS[item].vehicle) { t.vehicles.push(parked(item, cond)); say = `${item}${ITEMS[item].animal ? '' : ` (${cond})`} parked here`; } else { gainItem(S, p, item, cond); say = `${item} (${cond}) added`; }
           break;
         }
         case 'ap': p.ap = Math.max(0, Math.min(p.maxAP, n[0] ?? 0)); say = `AP: ${p.ap}`; break;
@@ -992,7 +998,7 @@ const Engine = (() => {
   return {
     ICON, RES_LABEL, key, neighbors, isNight, isAttack, attackDue, cellText, upkeepText, roundBanner,
     tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText,
-    fleeAdj, canShoot, canMelee, canSaw, canFight, canFlee, vehicleFuel, vehicleLeft, vehicleOf, canDrive,
+    fleeAdj, canShoot, canMelee, canSaw, canFight, canFlee, vehicleFuel, vehicleLeft, vehicleFed, vehicleOf, canDrive,
     createGame, start, act, timeUp, cheat,
   };
 })();

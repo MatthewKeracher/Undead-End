@@ -17,7 +17,7 @@ Or open `index.html` in a browser — no build step or install needed.
 | W | Move |
 | A | Scavenge |
 | F | Fortify |
-| E / B | Drive truck / Ride bike (when one is on your tile) |
+| E / B / H | Drive truck / Ride bike / Ride horse (when one is on your tile) |
 | Enter | Confirm selected action |
 | Backspace | Deselect / cancel / stop driving (Esc works too) |
 | A Q E D X Z | Pick a neighbouring hex (move / flee / drive) |

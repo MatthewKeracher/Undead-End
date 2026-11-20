@@ -120,6 +120,7 @@ Repeat until the tile is clear, you escape, or you die.
 - **Vehicles: Truck and Bike.** Work like the gun / axe but for movement. They sit **on a tile, not in the backpack** (found by scavenging → parked on that tile; condition rolled 1d6).
   - **Truck:** 1 **fuel** per tile (no AP). A truck without fuel must be left behind, but can be returned to.
   - **Bike:** 1 **AP** per tile.
+  - **Horse** (an animal): 1 **water** per tile and 1 **food** per trip, instead of fuel and condition. It has **no condition** — it never breaks down, and a Tool can't help it. With no food it won't set off.
   - **−1 condition per trip.** At **0 it breaks down but stays parked** where it stopped — it can't be driven until a **Tool** repairs it. Driving is **free movement**: it does **not** use up your turn, so you can drive somewhere and then take your action there. No storage.
   - Route: pick a hex, move, then pick again. Only **scouted** tiles. You can drive **through** zombie tiles, but stopping on one (or running out of fuel/AP there) triggers Fight or Flee.
   - **Fleeing:** still needs the flee roll, but on success you can escape by vehicle (more than one tile).
@@ -128,7 +129,7 @@ Repeat until the tile is clear, you escape, or you die.
     | Vehicle | Kind | Found at |
     |---|---|---|
     | 🛻 Truck | fuel | Petrol Station, Fuel Depot, Car Park (**Truck + Fuel**: you also get 1d6 fuel), Garage |
-    | 🚜 Tractor | fuel | Farmhouse (**Tractor + Fuel**), Stables |
+    | 🚜 Tractor | fuel | Farmhouse (**Tractor + Fuel**) |
     | 🚑 Ambulance | fuel | Hospital |
     | 🚓 Police Car | fuel | Sheriff's Office, Police Station |
     | 🚙 Jeep | fuel | Army Checkpoint, Car Park |
@@ -137,7 +138,8 @@ Repeat until the tile is clear, you escape, or you die.
     | 🚐 Campervan | fuel | Campsite |
     | 🚒 Fire Engine | fuel | Fire Station |
     | 🚲 Bike | pedal (AP) | Campsite, Post Office |
-  - Keys: **E** drives the fuel vehicle parked here, **B** rides the pedal one.
+    | 🐎 Horse | animal (water + food) | Stables |
+  - Keys: **E** drives the fuel vehicle parked here, **B** rides the pedal one, **H** the animal.
 - **Radio** *(multiplayer, planned)*: talk to players **not on your tile** (same-tile voice is the default). Details in `MULTIPLAYER.md`.
 - **Tools** (e.g. the **Tool**): have a condition like any item. Can be used **at any time, for free**, to transfer any amount of their condition to another item (max 6 condition). At 0 condition the tool is destroyed. Tool found at the Hardware Store, Garage, Quarry, Fuel Depot, Graveyard and Post Office *(placeholder)*.
 - **Pills**: taken **at any time, for free** (not your action; not mid-fight): each dose costs **1 condition** and tops your **AP up to your max AP** (max AP itself doesn't change — only food and water do that). Can't be taken when AP is already at max. Found with **1d6 condition**, like any item. Gone at 0 condition. Found at the Pharmacy (two rows), Hospital (two rows) and Post Office *(placeholder)*.
