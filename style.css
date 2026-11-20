@@ -447,7 +447,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 #leadmarks { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
 /* the battlefield: the tile come forward — hex-shaped, grown from the tile to fill the open space above the bars
    (which stay clear). No words: just the horde, the die and your Safety. Sized off its width (cqw). */
-#battle { position: absolute; z-index: 4; pointer-events: none; container-type: size;
+#battle { position: absolute; z-index: 4; container-type: size;
   clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: var(--line); }   /* (its edge: your colour, set in bfOpen) */
 /* while it's open the board goes out of focus but for the bars (and a toast, if one comes up); the header and log stay sharp */
 #map, #clock, #notes > *, #hint, #stats, #leadmarks { transition: filter .3s; }
@@ -466,10 +466,10 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
 .bf-horde .z.fall { transform: rotate(90deg) translateX(30%); opacity: 0; }
 .bf-horde .z.gone, .bf-safe i.gone { animation: zgone .25s ease-out forwards; }
 /* the die, while one's rolling — its space kept, so nothing jumps */
-.bf-mid { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: 19cqw; height: 19cqw; display: grid; place-items: center; }   /* the die: dead centre */
-.bf-mid .slot { width: 100%; height: 100%; }
-.bf-mid .die { width: 100%; height: 100%; padding: 14%; border-radius: 16%; }
-.bf-mid .die i { margin: 8%; }
+.bf-mid { position: absolute; left: 50%; top: 50%; translate: -50% -50%; display: flex; gap: 4cqw; }   /* the die (or dice): dead centre */
+.bf-mid .slot, .bf-top .slot { width: 19cqw; height: 19cqw; flex: none; }
+#battle .slot .die { width: 100%; height: 100%; padding: 14%; border-radius: 16%; }
+#battle .slot .die i { margin: 8%; }
 .bf-die:empty { display: none; }
 /* your Safety: fixed where the pips sit on your hex on the map — in a row 82% of the way down, the same size and spacing
    in proportion (a 13px pip, 17px apart, on a 208px-wide hex; smaller and closer when there are more, as there) */
@@ -478,6 +478,31 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
 .bf-safe.n7 { gap: 1.44cqw; } .bf-safe.n7 i { width: 5.77cqw; height: 5.77cqw; }
 /* you, down in the bottom point under your Safety */
 .bf-you { position: absolute; left: 50%; top: 91.5%; translate: -50% -50%; font-size: 8cqw; line-height: 1; transition: top .45s ease-out; }
+/* the tile come forward for other things than a fight (bfStage): Sleep, Fortify, Scavenge */
+.bf-safe i.off { background: #0006; border-color: #f2c94c66; box-shadow: none; }   /* room to fortify */
+.bf-safe i.fill { animation: fillpop .35s cubic-bezier(.2, 1.8, .5, 1); }
+.bf-safe i.count { animation: pipcount .3s ease-out; }
+@keyframes pipcount { 50% { scale: 1.45; box-shadow: 0 0 3cqw #f2c94c; } }
+.bf-icon { font-size: 15cqw; line-height: 1; }
+#battle[data-stage="sleep"] .bf-icon { animation: drift 2.4s ease-in-out infinite; }
+@keyframes drift { 50% { translate: 0 -2cqw; opacity: .7; } }
+#battle[data-stage="fortify"] .bf-icon.hit { animation: hammer .3s ease-out; }
+@keyframes hammer { 40% { rotate: -35deg; } 70% { rotate: 12deg; } }
+/* scavenging: the die (or the amount / condition dice) in the top point, the loot table across the middle, as on the map */
+.bf-top { position: absolute; left: 50%; top: 21%; translate: -50% -50%; display: flex; align-items: center; gap: 3cqw; }
+.bf-top .slot { width: 16cqw; height: 16cqw; }
+.bf-top .mult { font-size: 7cqw; }
+.bf-table { position: absolute; left: 50%; top: 55%; translate: -50% -50%; width: 70cqw; min-width: 0; font-size: 4.6cqw; transition: opacity .3s; }
+.bf-table li { padding: .6cqw 2.5cqw; border-radius: 1.2cqw; }
+.bf-table li b { width: 5cqw; }
+.bf-table.done { opacity: .06; }
+.bf-res { position: absolute; left: 50%; top: 55%; translate: -50% -50%; width: 76cqw; text-align: center; font-size: 8cqw; font-weight: 900; line-height: 1.25;
+  text-shadow: 0 .5cqw 0 #000, 0 0 3cqw #000; }
+.bf-res:empty { display: none; }
+.bf-res > * { animation: popin .35s cubic-bezier(.2, 1.8, .5, 1); }
+.bf-res.good { color: #5ee87a; } .bf-res.bad { color: #ff5a4a; } .bf-res.jackpot { color: var(--accent); }
+.bf-res small { display: block; font-size: 4.2cqw; font-weight: 600; color: var(--text); }
+.bf-res .cond { gap: .8cqw; margin-top: 1cqw; } .bf-res .cond i { width: 3.2cqw; height: 3.2cqw; }
 /* how a flee went: one big word under the die, so the roll still shows (the zombies can rush you behind it) */
 .bf-word { position: absolute; left: 50%; top: 70%; translate: -50% -50%; z-index: 2; white-space: nowrap; font-size: 12cqw; font-weight: 900;
   letter-spacing: .02em; text-shadow: 0 .6cqw 0 #000, 0 0 3cqw #000; animation: wordin .35s cubic-bezier(.2, 1.6, .4, 1) both; pointer-events: none; }

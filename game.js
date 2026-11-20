@@ -571,123 +571,117 @@ async function rollDie(slot, final, ms, onFace) {
   slot.innerHTML = dieHtml(final, 'land'); onFace?.(final); sfx.land();
 }
 
-async function scavengeShow({ name, rows: table, tries, r, hit, amt, amts, dice, c }) {
-  const e = hit.e;
-  const pop = $('#popup');
+// Scavenging: your tile comes forward, as in a fight, with its loot table across the middle (as on the map) and the
+// die up in the top point. The roll picks a row (a looted row shakes and it rolls again); then the amount or condition
+// dice, and what you found takes the table's place. Zombies: the table goes and it's a battlefield.
+async function scavengeShow({ rows: table, tries, r, hit, amts, dice, c }) {
+  const e = hit.e, p = cur(), k = key(p.q, p.r);
   skipAnim = false;
-  pop.className = '';
-  pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>Scavenging</small><h2>${esc(name)}</h2></div>
-    <div class="prow">
-      <div class="slot" id="pd1"></div>
-      <ol class="ptable">${table.map((row, i) => `<li data-i="${i + 1}" class="${rowClass(row)}"><b>${i + 1}</b>${esc(rowText(row))}</li>`).join('')}</ol>
-    </div>
-    <div class="prow2" id="pd2"></div>
-    <div class="presult" id="pres"></div>
-    <small class="pskip">click or press any key</small></div>`;
-  pop.hidden = false;
-
-  const rows = [...pop.querySelectorAll('.ptable li')];
+  bfOpen(k);
+  bfStage('scav', `<div class="bf-top"></div>
+    <ol class="ptable bf-table">${table.map((row, i) => `<li data-i="${i + 1}" class="${rowClass(row)}"><b>${i + 1}</b>${esc(rowText(row))}</li>`).join('')}</ol>
+    <div class="bf-res"></div>${bfSafeHtml(tileOf(p).safety)}${bfYouHtml()}`);
+  const top = $('#battle .bf-top'), res = $('#battle .bf-res'), rows = [...$('#battle .bf-table').children];
   const mark = (v) => rows.forEach((li) => li.classList.toggle('hl', +li.dataset.i === v));
+  const found = (html, cls = 'good') => { $('#battle .bf-table').classList.add('done'); res.className = `bf-res ${cls}`; res.innerHTML = html; };
+  top.innerHTML = '<div class="slot"></div>';
   await wait(150);
-  // a crossed-off row: shake it and roll again, until the die lands on something
   for (const [i, v] of tries.entries()) {
-    await rollDie($('#pd1'), v, i ? 700 : 1100, mark);
+    await rollDie(top.firstChild, v, i ? 700 : 1100, mark);
     if (i === tries.length - 1) break;
-    rows[v - 1].classList.add('nope');
-    $('#pres').innerHTML = `<small class="muted">${v} is already looted — rolling again (${i + 1}/${CONFIG.maxRerolls})…</small>`;
+    rows[v - 1].classList.add('nope');   // already looted: roll again
     tone(300, 0.15, 'triangle', 0.06, -120);
     await wait(500);
     rows[v - 1].classList.remove('nope');
   }
-  $('#pres').innerHTML = '';
   rows.forEach((li) => li.classList.remove('hl'));
   rows[r - 1].classList.add('picked');
-  await wait(350);
+  await wait(450);
 
   if (hit.kind === 'looted') {   // out of rerolls
-    rows[r - 1].classList.remove('picked');
-    rows[r - 1].classList.add('nope');
-    $('#pres').innerHTML = `<div class="big bad">You found nothing</div><small class="muted">Every roll landed on a looted row.</small>`;
+    rows[r - 1].classList.replace('picked', 'nope');
+    found('Nothing', 'bad');
     tone(300, 0.25, 'triangle', 0.07, -120); setTimeout(() => tone(200, 0.35, 'triangle', 0.07, -80), 160);
   } else if (hit.kind === 'stash') {
-    const s = hit.stash, lone = E.loneItem(s);
-    $('#pres').innerHTML = lone ? `<div class="big good jackpot">${itemIcon(lone.id)} ${esc(lone.id)}</div><div>${condPips(lone.cond, lone.id)}</div>`
-      : `<div class="big good jackpot">🎒 ${esc(s.owner)}'s stash</div><div class="stashgot">${E.stashText(s) || 'empty'}</div>`;
-    pop.classList.add('jackpot');
+    const st = hit.stash, lone = E.loneItem(st);
+    found(lone ? `<div>${itemIcon(lone.id)} ${esc(lone.id)}</div>${condPips(lone.cond, lone.id)}`
+      : `<div>🎒 ${esc(shortName(st.owner))}'s stash</div><small>${E.stashText(st) || 'empty'}</small>`, 'jackpot');
     sfx.win(true);
-  } else if (e.zombies) {   // the row says Zombies: off to the battlefield, which rolls how many
-    pop.classList.add('zombie');
-    $('#pres').innerHTML = `<div class="big bad">🧟 Zombies!</div>`;
+  } else if (e.zombies) {   // the row says Zombies: the table goes, and it's a battlefield — which rolls how many
     sfx.zombie();
-    await popupHold(900);
-    return bfArrive(key(cur().q, cur().r), c);
+    await wait(600);
+    return bfArrive(k, c);
   } else {
-    // one die per part of the row (a mix like Food + Water or Truck + Fuel has two)
+    // one roll per part of the row (a mix like Food + Water or Truck + Fuel has two), up in the top point
     const parts = e.parts ?? [e];
     let big = false, shown = '';
     for (const [i, x] of parts.entries()) {
       const a = amts[i];
-      if (ITEMS[x.item]?.map || ITEMS[x.item]?.animal) {   // no condition to roll: a map is read straight away, an animal never wears out
-        shown += `<div class="big good jackpot">${itemIcon(x.item)} ${esc(x.item)}</div><small class="muted">${ITEMS[x.item].map ? 'It shows the land all around…' : `It waits here — 1 ${ICON.water}/tile, 1 ${ICON.food}/trip`}</small>`;
-        $('#pres').innerHTML = shown;
+      if (ITEMS[x.item]?.map || ITEMS[x.item]?.animal) {   // no condition to roll: a map, an animal
+        shown += `<div>${itemIcon(x.item)} ${esc(x.item)}</div>`;
+        found(shown, 'jackpot');
         big = true;
         continue;
       }
-      $('#pd2').innerHTML = `<span class="muted">${x.item ? `${esc(x.item)} condition?` : parts.length > 1 ? `How much ${x.res}?` : 'How much?'}</span>${dice[i].map((_, j) => `<div class="slot" id="pd2d${j}"></div>`).join('')}${x.n > 1 ? `<span class="mult">× ${x.n}</span>` : ''}`;
-      await Promise.all(dice[i].map((v, j) => rollDie($(`#pd2d${j}`), v, 800 + j * 150)));
+      top.innerHTML = dice[i].map(() => '<div class="slot"></div>').join('') + (x.n > 1 ? `<span class="mult">×${x.n}</span>` : '');
+      await Promise.all(dice[i].map((v, j) => rollDie(top.children[j], v, 800 + j * 150)));
       await wait(250);
       if (x.item) {
-        shown += `<div class="big good jackpot">${itemIcon(x.item)} ${esc(x.item)}</div><div>${condPips(a, x.item)}</div>`;
-        $('#pres').innerHTML = shown;
+        shown += `<div>${itemIcon(x.item)} ${esc(x.item)}</div>${condPips(a, x.item)}`;
+        found(shown, 'jackpot');
         big = true;
       } else {
         const total = a * x.n;
         big ||= total >= 8;
-        $('#pres').innerHTML = `${shown}<div class="big good ${total >= 8 ? 'jackpot' : ''}">+<span id="pcount">0</span> ${ICON[x.res]} ${RES_LABEL[x.res]}</div>`;
-        for (let k = 1; k <= total; k++) { $('#pcount').textContent = k; sfx.count(); await wait(Math.min(70, 500 / total)); }
-        shown = $('#pres').innerHTML.replace(' id="pcount"', '');
+        found(`${shown}<div>+<span class="count">0</span> ${ICON[x.res]}</div>`, big ? 'jackpot' : 'good');
+        const n = res.querySelector('.count');
+        for (let m = 1; m <= total; m++) { n.textContent = m; sfx.count(); await wait(Math.min(70, 500 / total)); }
+        shown = res.innerHTML.replace(' class="count"', '');
       }
     }
-    if (big) pop.classList.add('jackpot');
     sfx.win(big);
   }
-
-  await popupHold();
+  await hexHold(3000);
+  bfClose();
 }
 
-// Shared ending: wait for click / key / timeout, then close.
-async function popupHold(ms = 3000) {
+// The tile-come-forward hex for something other than a fight: its own contents (the horde's place, the die's…).
+function bfStage(kind, html) {
+  const el = $('#battle');
+  el.dataset.stage = kind;
+  el.innerHTML = html;
+  bfPlace();
+}
+const bfSafeHtml = (n, max = n) => `<div class="bf-safe ${max > 8 ? 'n9' : max > 6 ? 'n7' : ''}">${[...Array(max)].map((_, i) => `<i class="${i < n ? '' : 'off'}"></i>`).join('')}</div>`;
+const bfYouHtml = (bare = false) => `<div class="bf-you ${bare ? 'bare' : ''}">🧔‍♂️</div>`;
+// hold the hex up a while (a click or key moves on)
+async function hexHold(ms) {
   skipAnim = false;
   await new Promise((res) => { const tm = setTimeout(res, ms); dismissPopup = () => { clearTimeout(tm); res(); }; });
   dismissPopup = null;
-  $('#popup').hidden = true;
 }
 
-async function fortifyShow({ name, r, before, after, max }) {
-  const pop = $('#popup');
+// Fortifying: the tile comes forward — 🔨 up top, the die in the middle, and its Safety (hollow where there's room)
+// filling a pip at a time.
+async function fortifyShow({ k, r, before, after, max }) {
   skipAnim = false;
-  pop.className = '';
-  pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>🔨 Fortifying</small><h2>${esc(name)}</h2></div>
-    <div class="prow2"><span class="muted">How much?</span><div class="slot" id="pd2d"></div></div>
-    <div class="cpips">${[...Array(max)].map((_, i) => `<i class="${i < before ? 'on' : ''}"></i>`).join('')}</div>
-    <div class="presult" id="pres"></div>
-    <small class="pskip">click or press any key</small></div>`;
-  pop.hidden = false;
+  k ??= key(cur().q, cur().r);
+  bfOpen(k);
+  bfStage('fortify', `<div class="bf-in"><div class="bf-icon">🔨</div></div><div class="bf-mid"><div class="bf-die slot"></div></div>
+    ${bfSafeHtml(before, max)}${bfYouHtml()}`);
   await wait(150);
-  await rollDie($('#pd2d'), r, 900);
+  await rollDie($('#battle .bf-die'), r, 900);
   await wait(300);
-  const pips = [...pop.querySelectorAll('.cpips i')];
+  const pips = [...$('#battle .bf-safe').children], hammer = $('#battle .bf-icon');
   for (let i = before; i < after; i++) {
-    pips[i].className = 'on fill';
+    pips[i].className = 'fill';
+    hammer.classList.remove('hit'); void hammer.offsetWidth; hammer.classList.add('hit');
     tone(300 + i * 70, 0.12, 'triangle', 0.1); noise(0.05, 0.15, 2000);   // hammer + rising note
     await wait(380);
   }
-  const wasted = before + r - after;
-  $('#pres').innerHTML = `<div class="big good">🟡 +${after - before} Safety</div>${wasted > 0 ? `<small class="muted">${wasted} wasted — max ${max}</small>` : ''}`;
   sfx.win(after === max);
-  await popupHold(1800);
+  await hexHold(1800);
+  bfClose();
 }
 
 // Fill a tile's Safety pips straight away. The map is only redrawn once the whole batch has played, and fortifying
@@ -726,28 +720,25 @@ async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
 }
 
 // Sleep: the 1d6 roll (plus the tile's 🟡 Safety) in a popup, then the AP ring around the clock fills, a segment at a time.
+// Sleeping: the tile comes forward — 💤 up top, the die in the middle, then the tile's 🟡 Safety counted in a pip at a
+// time (die + Safety = the AP). Then it goes, and the AP charges on the clock.
 async function sleepShow({ dice, bonus = 0, from, to, max }) {
-  const r = dice.reduce((a, b) => a + b, 0) + bonus;
-  const pop = $('#popup');
+  const r = dice.reduce((a, b) => a + b, 0) + bonus, p = cur();
   skipAnim = false;
-  pop.className = 'sleep';
-  pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>😴 Sleeping</small><h2>Rest &amp; recover</h2></div>
-    <div class="prow sleepsum">${dice.map((_, i) => `<div class="slot" id="pdsl${i}"></div>`).join('')}${bonus
-      ? `<span class="plus">+</span><div class="cpips sleepsafe">${'<i></i>'.repeat(bonus)}</div>` : ''}</div>
-    <div class="presult" id="pres"></div>
-    <small class="pskip">click or press any key</small></div>`;
-  pop.hidden = false;
+  bfOpen(key(p.q, p.r));
+  bfStage('sleep', `<div class="bf-in"><div class="bf-icon">💤</div></div><div class="bf-mid">${dice.map(() => '<div class="bf-die slot"></div>').join('')}</div>
+    ${bfSafeHtml(bonus)}${bfYouHtml()}`);
   await wait(150);
-  await Promise.all(dice.map((v, i) => rollDie($(`#pdsl${i}`), v, 900 + i * 150)));
-  // then the tile's 🟡 Safety, a pip at a time: die + Safety = the AP
-  for (const pip of pop.querySelectorAll('.sleepsafe i')) {
-    pip.className = 'on fill'; tone(520, 0.08, 'triangle', 0.06);
+  const slots = [...$('#battle .bf-mid').children];
+  await Promise.all(dice.map((v, i) => rollDie(slots[i], v, 900 + i * 150)));
+  for (const pip of $('#battle .bf-safe').children) {
+    pip.className = 'count'; tone(520, 0.08, 'triangle', 0.06);
     await wait(170);
   }
-  $('#pres').innerHTML = `<div class="big good">= +${r} AP</div>${bonus ? '' : '<small class="muted">No 🟡 Safety here to add</small>'}`;
-  await popupHold(1100);
-  pop.hidden = true;
+  bfWord(`+${r} AP`, 'good');
+  await hexHold(1100);
+  bfClose();
+  await wait(250);
   renderApRing(from, '', max);
   await wait(200);
   for (let a = from + 1; a <= to; a++) {
@@ -828,6 +819,7 @@ const bfZed = (i, cls = 'z') => `<i class="${cls}">${ZEDS[ZED_ORDER[i % ZED_ORDE
 // in rows of three, smaller once there are more than two rows so a big horde still fits the hex
 const bfHordeSize = (n) => { const rows = Math.ceil(n / 3); $('#battle .bf-horde')?.style.setProperty('--zs', `${Math.min(11, 26 / rows)}cqw`); };
 function bfDraw(safety, zombies) {
+  $('#battle').dataset.stage = 'fight';
   $('#battle').innerHTML = `<div class="bf-in"><div class="bf-horde">${Array.from({ length: zombies }, (_, i) => bfZed(i)).join('')}</div></div>
     <div class="bf-mid"><div class="bf-die slot"></div></div>
     <div class="bf-safe ${safety > 8 ? 'n9' : safety > 6 ? 'n7' : ''}">${'<i></i>'.repeat(safety)}</div>
@@ -1592,6 +1584,7 @@ document.addEventListener('keydown', (e) => {
 $('#newgame').onclick = () => { if (!busy) newGame(['Survivor']); };
 $('#pauseveil').addEventListener('click', togglePause);
 $('#popup').addEventListener('click', () => { if (!modalKey) popupInput(); });
+$('#battle').addEventListener('click', () => { if (busy && !modalKey) popupInput(); });   // (a click on the hex moves things on too)
 // A popup card taller or wider than the board (a phone on its side) is scaled down to fit rather than cut off.
 function fitCard() {
   const pop = $('#popup'), card = pop.querySelector('.pcard');
