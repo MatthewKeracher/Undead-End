@@ -23,12 +23,12 @@ Living rules document for the digital version. Updated as rules are clarified.
 
 ## Action Points (AP)
 - Players spend AP to take actions.
-- **Sleep** is free: the player gains **2d6 AP** on a tile with **🟡 Safety** (at least 1), **1d6** on one without, up to their current **max AP** (see Failing a check). (`CONFIG.sleepDice`)
+- **Sleep** is free: the player gains **1d6 AP + the 🟡 Safety on their tile** (just 1d6 with none), up to their current **max AP** (see Failing a check).
 
 ## Actions
 | Action | Cost | Effect |
 |---|---|---|
-| Sleep | free | Gain 2d6 AP with 🟡 Safety on the tile, 1d6 without |
+| Sleep | free | Gain 1d6 AP + the tile's 🟡 Safety |
 | Scout | 1 AP | Reveal **every** unexplored hex adjacent to your location (up to 6). Not allowed if all are already explored. |
 | Move | free / 1 AP | Move to an adjacent hex — explored or not: an **unexplored hex is revealed as you step in** (driving and fleeing too). If it turns out to be impassable (a Mountain), you're blocked and nothing is spent; when fleeing, pick another way (none left = caught). **The first move each round is free** (no AP spent, doesn't use your action) **but you must have at least 1 AP** — so at 0 AP the only option is to sleep; a second move costs 1 AP and **is** your action. |
 | Scavenge | 1 AP | Roll 1d6 on the tile's 6-entry table (see Tiles). |

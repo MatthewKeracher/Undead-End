@@ -837,9 +837,9 @@ async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
 }
 
 // Sleep: roll both dice, then the AP dial fills segment by segment.
-// Sleep: the roll (2d6 with Safety, 1d6 without) in a popup, then the AP ring around the clock fills, a segment at a time.
-async function sleepShow({ dice, from, to, max }) {
-  const r = dice.reduce((a, b) => a + b, 0);
+// Sleep: the 1d6 roll (plus the tile's 🟡 Safety) in a popup, then the AP ring around the clock fills, a segment at a time.
+async function sleepShow({ dice, bonus = 0, from, to, max }) {
+  const r = dice.reduce((a, b) => a + b, 0) + bonus;
   const pop = $('#popup');
   skipAnim = false;
   pop.className = 'sleep';
@@ -851,7 +851,7 @@ async function sleepShow({ dice, from, to, max }) {
   pop.hidden = false;
   await wait(150);
   await Promise.all(dice.map((v, i) => rollDie($(`#pdsl${i}`), v, 900 + i * 150)));
-  $('#pres').innerHTML = `<div class="big good">+${r} AP</div><small class="muted">${dice.length > 1 ? dice.join(' + ') : `1d6 — no 🟡 Safety here`}</small>`;
+  $('#pres').innerHTML = `<div class="big good">+${r} AP</div><small class="muted">${bonus ? `${dice[0]} + ${bonus} 🟡 Safety` : '1d6 — no 🟡 Safety here'}</small>`;
   await popupHold(900);
   pop.hidden = true;
   renderApRing(from, '', max);
@@ -1334,7 +1334,7 @@ function renderPanel() {
     ${noAP ? `<div class="note bad">Out of AP — you must sleep.</div>` : ''}
     <div class="ribbon main">
       ${btn('pause', '⏸ Pause', 'Stop the clock', false)}
-      ${btn('sleep', '😴 Sleep', E.sleepDice(t) > 1 ? `Gain ${E.sleepDice(t)}d6 AP` : `Gain 1d6 AP · no 🟡`, false)}
+      ${btn('sleep', '😴 Sleep', t.safety ? `Gain 1d6 + ${t.safety} AP (🟡)` : 'Gain 1d6 AP · no 🟡', false)}
       ${btn('scout', '🔭 Scout', scoutTargets(p).length ? `1 AP · reveal ${E.binocularsOf(p) ? 'up to ' : ''}${scoutTargets(p).length} hex${scoutTargets(p).length === 1 ? '' : 'es'}${E.binocularsOf(p) ? ' (binoculars)' : ''}` : 'All explored', noAP || !scoutTargets(p).length)}
       ${btn('move', '🚶 Move', p.freeMoved ? '1 AP · uses your action' : 'Free move · needs 1 AP', noAP || !moveAdj(p).length)}
       ${btn('scavenge', '🔍 Scavenge', !canScavengeHere(t) ? (t.def.table.length ? 'Picked clean' : 'Nothing to find') : t.zombies ? 'Blocked by zombies' : lootLeft(t) ? `1 AP · ${lootLeft(t)} of 5 left` : '1 AP · only zombies left', noAP || !canScavengeHere(t) || t.zombies > 0)}

@@ -9,8 +9,7 @@ const CONFIG = {
   trackGain: { food: 1, water: 2, hope: 2 },   // max AP gained per check paid
   trackLoss: { food: 1, water: 2, hope: 2 },   // max AP lost per check missed (max AP 0 = death)
   startMaxAP: 12,         // max AP at the start (food & water missed lower it; paid raises it back, up to 12)
-  startAP: 8,             // AP at the start (sleep tops it up to max AP)
-  sleepDice: { safe: 2, unsafe: 1 },   // sleeping gains this many d6 of AP: 2d6 on a tile with 🟡 Safety, 1d6 without
+  startAP: 8,             // AP at the start (sleep — 1d6 + the tile's 🟡 Safety — tops it up to max AP)
   startRes: { food: 4, water: 6, fuel: 0, ammo: 0 },   // what every survivor starts with
   startItems: [{ id: 'Booze', cond: 3 }],              // …and carries (no weapon: find one)
   startSafety: 0,         // Safety on the starting tile
@@ -140,7 +139,7 @@ const TUTORIAL = {
     ],
   },
   actions: {
-    sleep: { icon: '😴', title: 'Sleep', text: ['Rest for the round: gain 2d6 AP where there\'s 🟡 Safety, 1d6 where there isn\'t — up to your max AP. Free, but it\'s your action.', 'At 0 AP, sleeping is all you can do.'] },
+    sleep: { icon: '😴', title: 'Sleep', text: ['Rest for the round: gain 1d6 AP plus the 🟡 Safety here — up to your max AP. Free, but it\'s your action.', 'At 0 AP, sleeping is all you can do.'] },
     scout: { icon: '🔭', title: 'Scout', text: ['1 AP: reveals every unexplored hex next to you, so you can see where to go. You stay where you are.'] },
     move: { icon: '🚶', title: 'Move', text: ['Step into a hex next to you — pick it on the map (or press A Q E D X Z). An unexplored hex is revealed as you arrive.', 'Your first move each round is free and still leaves you your action — but you need at least 1 AP. A second move costs 1 AP and is your action.'] },
     scavenge: { icon: '🔍', title: 'Scavenge', text: ['1 AP: roll a d6 on this place\'s table. A 1 is always zombies, a 3 is a random find. What you find is crossed off.', 'Zombies drift back once nobody\'s here and the place has no Safety. You can\'t scavenge with zombies on the tile.'] },

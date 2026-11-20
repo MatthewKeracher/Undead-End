@@ -121,22 +121,23 @@ test('a mixed row gives both parts: Tractor + Fuel, Food + Water', () => {
   assert.equal(E.tableView(t)[3].kind, 'looted');
 });
 
-test('sleep: 2d6 AP on a tile with Safety, 1d6 without — up to max AP — and it ends the round', () => {
+test('sleep: 1d6 AP plus the Safety on the tile — up to max AP — and it ends the round', () => {
   const { S, p } = game();
-  E.tileOf(S, p).safety = 1;
-  p.ap = 2; S.forced = [3, 5];
+  E.tileOf(S, p).safety = 3;
+  p.ap = 2; S.forced = [4];
   const { events } = act(S, { type: 'sleep' });
-  assert.equal(p.ap, 10);
-  assert.deepEqual([...events.find((e) => e.type === 'sleep').dice], [3, 5]);
+  assert.equal(p.ap, 9);                 // 2 + 4 + 🟡 3
+  const ev = events.find((e) => e.type === 'sleep');
+  assert.deepEqual([...ev.dice], [4]);
+  assert.equal(ev.bonus, 3);
   assert.equal(S.round, 2);              // single player: round ends once you've acted
   assert.equal(p.acted, false);          // …and you can act again in the new round
-  p.ap = 11; S.forced = [6, 6];
+  p.ap = 11; S.forced = [6];
   act(S, { type: 'sleep' });
   assert.equal(p.ap, 12);                // capped at max AP
-  E.tileOf(S, p).safety = 0;             // out in the open: 1d6
-  p.ap = 2; S.forced = [4, 6];
-  const { events: open } = act(S, { type: 'sleep' });
-  assert.deepEqual([...open.find((e) => e.type === 'sleep').dice], [4]);
+  E.tileOf(S, p).safety = 0;             // out in the open: just the 1d6
+  p.ap = 2; S.forced = [4];
+  act(S, { type: 'sleep' });
   assert.equal(p.ap, 6);
 });
 
@@ -713,19 +714,19 @@ test('night attack: Safety holds, or zombies break through', () => {
   tile(S, 1, 0, 'Forest');              // somewhere to run
   S.round = 4;
   E.tileOf(S, p).safety = 6;
-  S.forced = [1, 1, 3];                 // sleep 1+1, then 3 zombies at night (round 5)
+  S.forced = [1, 3];                    // sleep 1, then 3 zombies at night (round 5)
   act(S, { type: 'sleep' });
   assert.equal(S.round, 5);
   assert.equal(E.tileOf(S, p).safety, 3);
   assert.equal(p.pending, null);
   S.badNight = false;                   // (a good night)
-  S.forced = [1, 1];                    // round 6 is night, but there's no attack
+  S.forced = [1];                       // round 6 is night, but there's no attack
   act(S, { type: 'sleep' });
   assert.equal(S.round, 6);
   assert.equal(E.tileOf(S, p).safety, 3);
   E.tileOf(S, p).safety = 2;
   S.round = 4;
-  S.forced = [1, 1, 6];                 // next round 5: 6 zombies vs Safety 2
+  S.forced = [1, 6];                    // next round 5: 6 zombies vs Safety 2
   act(S, { type: 'sleep' });
   assert.equal(E.tileOf(S, p).zombies, 4);
   assert.equal(p.pending.kind, 'threat');
@@ -738,9 +739,9 @@ test('a bad night: round 6 attacks too (after round 5), so two attacks back to b
   S.badNight = true;
   assert.equal(E.attackDue(S, 6), true);
   S.round = 4;
-  S.forced = [1, 1, 2];                 // round 5: 2 zombies, absorbed
+  S.forced = [1, 2];                    // round 5: 2 zombies, absorbed
   act(S, { type: 'sleep' });
-  S.forced = [1, 1, 3];                 // round 6 on a bad night: 3 more
+  S.forced = [1, 3];                    // round 6 on a bad night: 3 more
   act(S, { type: 'sleep' });
   assert.equal(E.tileOf(S, p).safety, 1);
   assert.equal(S.log.filter((l) => l.msg.includes('in the night')).length, 2);

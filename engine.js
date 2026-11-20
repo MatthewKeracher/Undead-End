@@ -765,14 +765,13 @@ const Engine = (() => {
 
   // ---------------------------------------------------------------- actions
   // Round actions: one per round. Sleep is free; the rest cost 1 AP.
-  // Sleep: CONFIG.sleepDice d6 of AP, up to your max AP — 2d6 on a tile with 🟡 Safety, 1d6 out in the open.
-  const sleepDice = (t) => CONFIG.sleepDice[t.safety > 0 ? 'safe' : 'unsafe'];
+  // Sleep: 1d6 AP plus the 🟡 Safety on your tile (a safe place to rest), up to your max AP.
   function sleep(S, p) {
-    const n = sleepDice(tileOf(S, p)), dice = Array.from({ length: n }, (_, i) => roll(S, i > 0)), r = dice.reduce((a, b) => a + b, 0);
+    const dice = [roll(S)], bonus = tileOf(S, p).safety, r = dice[0] + bonus;
     const from = p.ap;
     p.ap = Math.min(p.maxAP, p.ap + r);
-    emit(S, { type: 'sleep', player: p.id, dice, from, to: p.ap, max: p.maxAP });
-    logRoll(S, `${p.name} sleeps${n < CONFIG.sleepDice.safe ? ' without Safety' : ''} — rolls ${dice.join(' + ')} — and gains ${p.ap - from} 🎲 AP${from + r > p.maxAP ? ` (max ${p.maxAP})` : ''}.`);
+    emit(S, { type: 'sleep', player: p.id, dice, bonus, from, to: p.ap, max: p.maxAP });
+    logRoll(S, `${p.name} sleeps — rolls ${dice[0]}${bonus ? ` + ${bonus} 🟡 Safety` : ''} — and gains ${p.ap - from} 🎲 AP${from + r > p.maxAP ? ` (max ${p.maxAP})` : ''}.`);
     p.acted = true;
   }
 
@@ -1108,7 +1107,7 @@ const Engine = (() => {
 
   return {
     ICON, RES_LABEL, key, neighbors, isNight, isAttack, attackDue, cellText, upkeepText, roundBanner,
-    tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText, loneItem, hopeItems, leadOpen, sleepDice,
+    tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText, loneItem, hopeItems, leadOpen,
     fleeAdj, canShoot, canMelee, canSaw, canFight, canFlee, canWield, vehicleFuel, vehicleLeft, vehicleFed, vehicleOf, canDrive,
     createGame, start, act, timeUp, cheat,
   };

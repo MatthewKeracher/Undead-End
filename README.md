@@ -14,7 +14,7 @@ The game opens on a small menu: **Play**, or **Tutorial**, which explains each a
 
 | Key | Action |
 |---|---|
-| R | Sleep (gain 2d6 AP with 🟡 Safety, 1d6 without) |
+| R | Sleep (gain 1d6 AP + the tile's 🟡 Safety) |
 | S | Scout (reveals every hex around you) |
 | W | Move |
 | A | Scavenge |
