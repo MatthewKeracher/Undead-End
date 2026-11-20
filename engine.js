@@ -1110,7 +1110,7 @@ const Engine = (() => {
           { const err = ROUND_ACTIONS.fortify(S, p); if (err) { S.forced = []; say = err; } }
           break;
         case 'flee': S.forced.push(n[0] ?? 6); say = `Next flee roll forced: ${n[0]}`; break;
-        case 'night': S.forced = [n[0] ?? 6]; say = `Night attack: ${n[0]} zombies`; nightAttack(S); break;
+        case 'night': S.forced = [n[0] ?? 6]; say = `Night attack: ${n[0] ?? 6} zombies`; nightAttack(S); break;
         case 'zombies':
           t.zombies = Math.max(0, Math.min(CONFIG.maxZombies, n[0] ?? 0)); say = `Zombies here: ${t.zombies}`;
           if (t.zombies) p.queue.push({ type: 'threat' });
