@@ -268,6 +268,8 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
   animation: rbsweep 1.7s cubic-bezier(.2, .8, .3, 1) forwards; }
 #roundbanner.day { --rb: #3a3220ee; --rbl: #d9a44188; }
 #roundbanner.night { --rb: #1c2238ee; --rbl: #6f82d988; }
+#roundbanner.town { --rb: #2b2e33ee; --rbl: #c8ccd288; }   /* a settlement found: paved grey, like its tiles */
+#roundbanner.town .rb-title { color: #f2f2f2; }
 .rb-title { font-size: clamp(28px, 6vw, 52px); font-weight: 900; letter-spacing: .04em; text-shadow: 0 4px 16px #000c; }
 #roundbanner.day .rb-title { color: var(--accent); }
 #roundbanner.night .rb-title { color: #b9c6ff; }

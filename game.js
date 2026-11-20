@@ -179,6 +179,7 @@ async function show(ev) {
     case 'outOfFuel': return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'ap' ? 'AP' : ev.fuel} — stopping here.`);
     case 'die': return tone(200, 1.4, 'sawtooth', 0.12, -170);
     case 'round': return roundBannerShow(ev);
+    case 'town': return townBannerShow(ev);
   }
 }
 
@@ -192,6 +193,18 @@ async function roundBannerShow({ day, round }) {
   el.hidden = false;
   if (night) tone(110, 0.9, 'sine', 0.1, -30); else [392, 523].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.06), i * 120));
   await new Promise((res) => { const tm = setTimeout(res, skipAnim ? 0 : 1700); dismissPopup = () => { clearTimeout(tm); res(); }; });
+  dismissPopup = null;
+  el.hidden = true;
+}
+
+// First steps into a village, town or city: a band across the board names it.
+async function townBannerShow({ name, kind }) {
+  const el = $('#roundbanner');
+  el.className = 'town';
+  el.innerHTML = `<div class="rb-sub">You have discovered the ${kind} of</div><div class="rb-title">${esc(name)}</div>`;
+  el.hidden = false;
+  [392, 494, 587, 784].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'triangle', 0.06), i * 110));
+  await new Promise((res) => { const tm = setTimeout(res, skipAnim ? 0 : 1900); dismissPopup = () => { clearTimeout(tm); res(); }; });
   dismissPopup = null;
   el.hidden = true;
 }

@@ -356,8 +356,19 @@ const Engine = (() => {
     return { events: S.events };
   }
   // Each survivor remembers the tiles they've stood on (p.visited) — the UI shows their Safety there.
+  // …and the settlements they've set foot in (p.towns): the first time, a 'town' event (the UI's banner).
   function markVisited(S) {
-    for (const p of S.players) if (!p.dead && !(p.visited ||= []).includes(key(p.q, p.r))) p.visited.push(key(p.q, p.r));
+    for (const p of S.players) {
+      if (p.dead) continue;
+      const k = key(p.q, p.r), id = S.tiles[k]?.town;
+      if (!(p.visited ||= []).includes(k)) p.visited.push(k);
+      if (id !== undefined && !(p.towns ||= []).includes(id)) {
+        p.towns.push(id);
+        const town = S.towns[id];
+        log(S, `🏘️ ${p.name} has discovered the ${town.kind} of ${town.name}.`, 'phase');
+        emit(S, { type: 'town', player: p.id, name: town.name, kind: town.kind });
+      }
+    }
   }
 
   // Run each player's queued steps until they need a decision; end the round when everyone's done.

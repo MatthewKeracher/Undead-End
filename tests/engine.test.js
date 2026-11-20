@@ -916,6 +916,18 @@ test('every place is found with half its max Safety, rounded down — the starti
   }
 });
 
+test('setting foot in a settlement for the first time announces it — once, whichever tile of it', () => {
+  const { S, p } = game();
+  S.towns = [{ name: 'Blackfield', kind: 'town' }];
+  tile(S, 1, 0, 'Church', { town: 0, looted: [], stashes: [] });
+  tile(S, 2, 0, 'Pub', { town: 0, looted: [], stashes: [] });
+  const { events } = act(S, { type: 'move', q: 1, r: 0 });
+  assert.deepEqual({ ...events.find((e) => e.type === 'town') }, { type: 'town', player: 0, name: 'Blackfield', kind: 'town' });
+  assert.ok(S.log.some((l) => l.msg.includes('discovered the town of Blackfield')));
+  const next = act(S, { type: 'move', q: 2, r: 0 });   // another tile of the same town: no banner
+  assert.ok(!next.events.some((e) => e.type === 'town'));
+});
+
 test('Safety tops out at 5; a tile still holds up to 6 zombies', () => {
   const { S, p } = game();
   const t = E.tileOf(S, p);
