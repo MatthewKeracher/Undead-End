@@ -444,6 +444,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 .pack-choose { list-style: none; padding: 0; margin: 0 0 6px; display: grid; gap: 6px; text-align: left; }
 .pack-choose button { width: 100%; text-align: left; display: flex; align-items: center; gap: 8px; }
 .pack-choose em { margin-left: auto; color: var(--accent); font-style: normal; font-weight: 700; font-size: 11px; }
+.pack-choose .pc-head { margin-top: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
 
 @keyframes fade { from { opacity: 0; } }
 @keyframes popin { from { transform: scale(.6); opacity: 0; } }

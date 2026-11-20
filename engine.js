@@ -701,8 +701,10 @@ const Engine = (() => {
   }
   // "at the Farmhouse (row 4)" for a lone item, "in their stash at the Farmhouse (row 4)" once there's more
   const whereLeft = (p, t, s) => `${loneItem(s) ? '' : `in ${s.owner === p.name ? 'their' : `${s.owner}'s`} stash `}at the ${t.def.name} (row ${s.row})`;
-  // Rolling a stash: all its resources, and its items as far as your backpack allows (you choose if they don't all fit).
+  // Rolling a stash: all its resources, and its items if they fit in your backpack. If they don't, you choose what to
+  // carry from your items and the stash's together (a 'stash' decision): whatever you don't carry stays in the stash.
   // A lone item is just found, like any other (backpack full: leave one here to take it).
+  // Found, a stash a Note led to stops being marked (s.lead) — whatever's left in it.
   function claimStash(S, p, t, s, at) {
     const lone = loneItem(s);
     if (lone) {
@@ -714,17 +716,21 @@ const Engine = (() => {
     const got = stashText({ res: s.res, items: [] });
     for (const [k, n] of Object.entries(s.res)) p.res[k] += n;
     s.res = {};
+    s.lead = false;
     logRoll(S, `${at}: 🎒 ${s.owner}'s stash${got ? ` — ${got}` : ''}!`, 'good');
-    const room = CONFIG.maxItems - p.items.length;
-    if (s.items.length <= room) takeFromStash(S, p, t, s, s.items.map((_, i) => i));
-    else p.pending = { kind: 'stash', k: key(p.q, p.r), row: s.row, room };
+    if (p.items.length + s.items.length <= CONFIG.maxItems) swapWithStash(S, p, t, s, [...p.items, ...s.items].map((_, i) => i));
+    else p.pending = { kind: 'stash', k: key(p.q, p.r), row: s.row };
   }
-  function takeFromStash(S, p, t, s, picks) {
-    const taken = s.items.filter((_, i) => picks.includes(i));
-    s.items = s.items.filter((_, i) => !picks.includes(i));
-    p.items.push(...taken);
+  // picks: indices into your items followed by the stash's — what you carry (up to CONFIG.maxItems). The rest stay.
+  function swapWithStash(S, p, t, s, picks) {
+    const all = [...p.items, ...s.items], mine = new Set(p.items);
+    const carry = all.filter((_, i) => picks.includes(i)), stay = all.filter((_, i) => !picks.includes(i));
+    const taken = carry.filter((it) => !mine.has(it)), left = stay.filter((it) => mine.has(it));
+    p.items = carry; s.items = stay;
     for (const it of taken) readNote(S, p, it);
-    if (taken.length) log(S, `${p.name} takes ${taken.map((it) => `${ITEMS[it.id].icon} ${it.id}`).join(', ')} from ${s.owner}'s stash.`, 'good');
+    const names = (list) => list.map((it) => `${ITEMS[it.id].icon} ${it.id}`).join(', ');
+    if (taken.length) log(S, `${p.name} takes ${names(taken)} from ${s.owner}'s stash.`, 'good');
+    if (left.length) log(S, `${p.name} leaves ${names(left)} in ${s.owner}'s stash.`);
     if (s.items.length) log(S, `${plural(s.items.length, 'item')} stay in ${s.owner}'s stash.`);
     if (!hasStuff(s)) t.stashes.splice(t.stashes.indexOf(s), 1);   // emptied: the row underneath shows again
   }
@@ -980,13 +986,15 @@ const Engine = (() => {
       return driveStep(S, p, choice?.q, choice?.r);
     },
     // indices of the stash's items to take (up to the room in your backpack); the rest stay
+    // indices into your items then the stash's: what to carry (up to CONFIG.maxItems); the rest stay in the stash
     stash(S, p, picks) {
       const d = p.pending, t = S.tiles[d.k], s = stashAt(t, d.row);
       if (!s) { p.pending = null; return void log(S, 'The stash is gone.', 'bad'); }   // someone else emptied it first
-      if (!Array.isArray(picks) || new Set(picks).size !== picks.length || picks.length > d.room
-        || picks.some((i) => !(i >= 0 && i < s.items.length))) return `Pick up to ${d.room} items.`;
+      const n = p.items.length + s.items.length;
+      if (!Array.isArray(picks) || new Set(picks).size !== picks.length || picks.length > CONFIG.maxItems
+        || picks.some((i) => !(Number.isInteger(i) && i >= 0 && i < n))) return `Pick up to ${CONFIG.maxItems} items to carry.`;
       p.pending = null;
-      takeFromStash(S, p, t, s, picks);
+      swapWithStash(S, p, t, s, picks);
     },
     // index of the item to leave on this tile (the new item is last: choosing it leaves it where it was found)
     backpack(S, p, i) {

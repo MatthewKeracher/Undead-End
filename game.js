@@ -435,31 +435,37 @@ async function leadShow(ev) {
   renderMap();   // back to you
 }
 
-// A stash with more items than your backpack can hold: choose which to take — the rest stay in the stash.
+// A stash whose items don't all fit: choose what to carry from your backpack and the stash together (yours start
+// ticked) — up to 6. Whatever you don't carry stays in the stash.
 async function stashPrompt(d) {
-  const s = G.tiles[d.k].stashes.find((x) => x.row === d.row);
-  const pop = $('#popup'), picked = new Set();
+  const p = cur(), s = G.tiles[d.k].stashes.find((x) => x.row === d.row), mine = p.items.length;
+  const all = [...p.items, ...s.items], max = CONFIG.maxItems;
+  const pop = $('#popup'), picked = new Set(p.items.map((_, i) => i));
   pop.className = '';
   pop.hidden = false;
   return new Promise((res) => {
     const done = () => { modalKey = null; pop.hidden = true; res([...picked]); };
     const toggle = (i) => {
-      if (picked.has(i)) picked.delete(i); else if (picked.size < d.room) picked.add(i);
+      if (picked.has(i)) picked.delete(i); else if (picked.size < max) picked.add(i);
       draw();
     };
+    const row = (it, i) => `<li><button data-i="${i}" class="${picked.has(i) ? 'on' : ''}" ${!picked.has(i) && picked.size >= max ? 'disabled' : ''}>${i < 9 ? `<kbd>${i + 1}</kbd>` : ''} ${itemIcon(it.id)} ${it.id} ${condPips(it.cond, it.id)}${picked.has(i) ? ' <em>CARRY</em>' : ''}</button></li>`;
     const draw = () => {
       pop.innerHTML = `<div class="pcard">
-        <div class="ptitle"><small>🎒 ${esc(s.owner)}'s stash</small><h2>${d.room ? `Take up to ${d.room} item${d.room === 1 ? '' : 's'}` : 'Your backpack is full'}</h2></div>
-        <ol class="pack-choose">${s.items.map((it, i) => `<li><button data-i="${i}" class="${picked.has(i) ? 'on' : ''}" ${!picked.has(i) && picked.size >= d.room ? 'disabled' : ''}><kbd>${i + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond, it.id)}${picked.has(i) ? ' <em>TAKE</em>' : ''}</button></li>`).join('')}</ol>
-        <button class="primary" id="take">${picked.size ? `Take ${picked.size}` : 'Leave them'} <kbd>Enter</kbd></button>
-        <small class="pskip">press 1–${s.items.length} to choose · the rest stay in the stash</small></div>`;
+        <div class="ptitle"><small>🎒 ${esc(s.owner)}'s stash</small><h2>What do you carry? <span class="muted">${picked.size}/${max}</span></h2></div>
+        <ol class="pack-choose">
+          ${mine ? `<li class="pc-head">Your backpack</li>${all.slice(0, mine).map((it, i) => row(it, i)).join('')}` : ''}
+          <li class="pc-head">${esc(s.owner)}'s stash</li>${all.slice(mine).map((it, i) => row(it, mine + i)).join('')}
+        </ol>
+        <button class="primary" id="take">Carry ${picked.size} <kbd>Enter</kbd></button>
+        <small class="pskip">tap to swap · the rest stay in the stash</small></div>`;
       pop.querySelectorAll('[data-i]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); toggle(+b.dataset.i); }));
       $('#take').onclick = (e) => { e.stopPropagation(); done(); };
     };
     modalKey = (e) => {
       if (e.key === 'Enter') { e.preventDefault(); done(); return; }
       const n = +e.key;
-      if (n >= 1 && n <= s.items.length) toggle(n - 1);
+      if (n >= 1 && n <= Math.min(9, all.length)) toggle(n - 1);
     };
     draw();
   });

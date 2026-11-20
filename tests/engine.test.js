@@ -999,7 +999,7 @@ test('rolling a stash takes everything; once empty, the row underneath shows aga
   assert.equal(E.tableView(t)[4].kind, 'looted');
 });
 
-test('stash with more items than your backpack holds: choose what to take', () => {
+test('stash with more items than your backpack holds: choose what to carry from both — the rest stay', () => {
   const { S, p } = game();
   const t = E.tileOf(S, p);
   for (let i = 0; i < 5; i++) p.items.push({ id: 'Tool', cond: 1 });
@@ -1007,11 +1007,27 @@ test('stash with more items than your backpack holds: choose what to take', () =
   S.forced = [3];
   act(S, { type: 'scavenge' });
   assert.equal(p.pending.kind, 'stash');
-  assert.match(decide(S, [0, 1]).error, /up to 1/);
-  decide(S, [1]);
+  assert.match(decide(S, [0, 1, 2, 3, 4, 5, 6]).error, /up to 6/);
+  decide(S, [0, 1, 2, 3, 4, 6]);        // the five Tools and the Pistol (index 5 + 1)
   assert.equal(p.items.at(-1).id, 'Pistol');
   assert.equal(t.stashes[0].items.length, 1);   // the Axe stays
   assert.equal(t.stashes[0].items[0].id, 'Axe');
+});
+
+test('backpack full: swap with a stash — what you leave stays in it, condition and all', () => {
+  const { S, p } = game();
+  const t = E.tileOf(S, p);
+  for (let i = 0; i < 6; i++) p.items.push({ id: 'Tool', cond: i + 1 });
+  t.stashes = [{ owner: 'Mara', row: 2, lead: true, res: { food: 3 }, items: [{ id: 'Note', cond: 2, by: 'Mara' }, { id: 'Axe', cond: 4 }, { id: 'Pills', cond: 3 }] }];
+  const tiles = Object.keys(S.tiles).length;
+  S.forced = [2];
+  act(S, { type: 'scavenge' });
+  assert.equal(p.pending.kind, 'stash');
+  assert.equal(E.leadOpen(t), false);   // found: no longer marked, whatever's left in it
+  decide(S, [2, 3, 4, 5, 6, 7]);        // leave the first two Tools; take the Note and the Axe
+  assert.equal(p.items.map((x) => x.id).join(), 'Tool,Tool,Tool,Tool,Note,Axe');
+  assert.equal(JSON.stringify(t.stashes[0].items), JSON.stringify([{ id: 'Tool', cond: 1 }, { id: 'Tool', cond: 2 }, { id: 'Pills', cond: 3 }]));
+  assert.equal(Object.keys(S.tiles).length, tiles + 1);   // the Note taken leads on
 });
 
 test('death leaves everything in a stash on the tile', () => {
