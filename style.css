@@ -254,6 +254,7 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 #roundbanner { position: absolute; left: 0; right: 0; top: 50%; z-index: 6; transform: translateY(-50%); pointer-events: none; text-align: center; padding: 18px 16px;
   background: linear-gradient(90deg, transparent, var(--rb) 15%, var(--rb) 85%, transparent); border-block: 2px solid var(--rbl);
   animation: rbsweep 1.7s cubic-bezier(.2, .8, .3, 1) forwards; }
+#roundbanner.day, #roundbanner.night { padding-block: clamp(30px, 5vw, 46px); }   /* room under the sun or moon, title centred */
 #roundbanner.day { --rb: #3a3220ee; --rbl: #d9a44188; }
 #roundbanner.night { --rb: #1c2238ee; --rbl: #6f82d988; }
 #roundbanner.town { --rb: #2b2e33ee; --rbl: #c8ccd288; }   /* a settlement found: paved grey, like its tiles */
@@ -263,9 +264,8 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 .rb-title { font-size: clamp(28px, 6vw, 52px); font-weight: 900; letter-spacing: .04em; text-shadow: 0 4px 16px #000c; }
 #roundbanner.day .rb-title { color: var(--accent); }
 #roundbanner.night .rb-title { color: #b9c6ff; }
-.rb-sub .omen { color: var(--bad); }
-/* the sun or moon, big, in the sky above the middle of the band — rising into place */
-.rb-sky { position: absolute; left: 50%; bottom: calc(100% + 10px); translate: -50% 0; font-size: clamp(48px, 9vw, 84px); line-height: 1;
+/* the sun or moon, big, sitting on the middle of the band's top line — rising into place */
+.rb-sky { position: absolute; left: 50%; top: 0; translate: -50% -50%;   /* centred on the band's top line */ font-size: clamp(48px, 9vw, 84px); line-height: 1;
   animation: rbsky 1.7s cubic-bezier(.2, .8, .3, 1) both; }
 #roundbanner.day .rb-sky { filter: drop-shadow(0 0 22px #ffcf5acc); }
 #roundbanner.night .rb-sky { filter: drop-shadow(0 0 22px #b9c6ffaa); }
