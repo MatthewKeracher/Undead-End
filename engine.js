@@ -73,10 +73,10 @@ const Engine = (() => {
   // A weapon's `uses` says what each attack spends: 'ammo' (gun: 1 ammo per shot) or 'ap' (melee: 1 AP per swing).
   // With several of the same kind, the one with the lowest condition is used first.
   const weaponOf = (p, uses) => p.items
-    .filter((it) => ITEMS[it.id]?.weapon && it.cond > 0 && (!uses || ITEMS[it.id].uses === uses))
+    .filter((it) => ITEMS[it.id]?.weapon && (it.cond > 0 || it.drawn) && (!uses || ITEMS[it.id].uses === uses))   // (drawn: in use this encounter)
     .sort((a, b) => a.cond - b.cond)[0];
   // a weapon you can fight with right now: in one piece, with the ammo, fuel or AP it takes
-  const canWield = (p, it) => !!ITEMS[it?.id]?.weapon && it.cond > 0 && (ITEMS[it.id].uses === 'ap' ? p.ap : p.res[ITEMS[it.id].uses]) >= 1;
+  const canWield = (p, it) => !!ITEMS[it?.id]?.weapon && (it.cond > 0 || it.drawn) && (ITEMS[it.id].uses === 'ap' ? p.ap : p.res[ITEMS[it.id].uses]) >= 1;
   const armorOf = (p) => p.items.filter((it) => ITEMS[it.id]?.armor && it.cond > 0).sort((a, b) => a.cond - b.cond)[0];
   // Tiles with zombies can only be entered by a player carrying a weapon.
   const canEnter = (p, t) => passable(t) && (!t.zombies || !!weaponOf(p));
@@ -510,6 +510,7 @@ const Engine = (() => {
     log(S, `🟡 ${p.name} hides at the ${t.def.name}: 🟡 Safety stops ${plural(c.absorbed, 'zombie')} (🟡 ${c.before.safety} → ${c.after.safety})${c.left ? ` — ${c.left} still here!` : '.'}`, c.left ? 'bad' : 'good');
     for (const o of S.players) if (o !== p && !o.dead && o.pending?.kind === 'threat' && key(o.q, o.r) === key(p.q, p.r)) { o.pending = null; o.queue.unshift({ type: 'threat' }); }   // everyone here: the horde has changed
     if (t.zombies) p.queue.unshift({ type: 'threat' });
+    else endEncounter(S, p);   // the Safety took the last of them
   }
 
   // Each occupied tile is attacked by 1d6 zombies; everyone there faces Fight, Flee or Hide.
@@ -619,7 +620,7 @@ const Engine = (() => {
     },
     threat(S, p) {
       const t = tileOf(S, p);
-      if (!t.zombies) { p.caught = false; return; }
+      if (!t.zombies) return endEncounter(S, p);
       if (!canFight(p) && canHide(p, t)) return hide(S, p, true);   // nothing to fight with: the Safety takes them, as it always did
       if (!canFight(p) && !canFlee(S, p, t)) {
         return die(S, p, p.ap < 1 ? `${p.name} has no strength left (0 🎲 AP) and nothing to fight with.`
@@ -630,33 +631,28 @@ const Engine = (() => {
     },
   };
 
-  // One round of fighting: no AP to start, weapon loses 1 condition. Each attack costs 1 of what the weapon
-  // uses (gun: ammo, melee: AP, chainsaw: fuel) and kills 1 zombie — or up to its `kills` (Chainsaw: 3).
+  // An encounter: zombies on your tile until they're cleared or you get away. Each click on a weapon is one attack:
+  // it costs 1 of what the weapon uses (gun: ammo, melee: AP, chainsaw: fuel) and kills 1 zombie — or up to its
+  // `kills` (Shotgun 3, Chainsaw 6). The first attack with a weapon in an encounter costs it 1 condition (it's
+  // drawn); after that it's free. One worn to 0 still works till the encounter's over, then breaks.
   const fuelLeft = (p, uses) => (uses === 'ap' ? p.ap : p.res[uses]);
-  function startFight(S, p, w) {
-    const t = tileOf(S, p);
-    w.cond--;
-    p.pending = { kind: 'fight', weapon: p.items.indexOf(w), start: t.zombies, shots: 0, kills: 0 };
-    emit(S, { type: 'fight', player: p.id, weapon: w.id });
-  }
-  function attack(S, p) {
-    const d = p.pending, w = p.items[d.weapon], t = tileOf(S, p), uses = ITEMS[w.id].uses;
-    if (fuelLeft(p, uses) < 1 || !t.zombies) return 'Nothing to attack with.';
+  function attack(S, p, w) {
+    const t = tileOf(S, p), uses = ITEMS[w.id].uses;
+    if (!w.drawn) { w.cond--; w.drawn = true; }
     if (uses === 'ap') p.ap--; else p.res[uses]--;
     const n = Math.min(ITEMS[w.id].kills ?? 1, t.zombies);
-    t.zombies -= n; d.shots++; d.kills += n;
+    t.zombies -= n;
     emit(S, { type: 'hit', player: p.id, weapon: w.id, melee: uses === 'ap', uses, kills: n, zombies: t.zombies });
-    if (!t.zombies || fuelLeft(p, uses) < 1) endFight(S, p);
-  }
-  function endFight(S, p) {
-    const d = p.pending, w = p.items[d.weapon], t = tileOf(S, p), uses = ITEMS[w.id].uses;
-    p.pending = null;
-    log(S, `${p.name} fights with the ${w.id}: ${plural(d.shots, { ap: 'swing', ammo: 'shot', fuel: 'rev' }[uses])}, ${plural(d.kills, 'zombie')} down${t.zombies ? `, ${t.zombies} left` : ' — tile cleared!'}.`, t.zombies ? 'bad' : 'good');
-    if (w.cond <= 0) {
-      p.items.splice(d.weapon, 1);
-      log(S, `${ITEMS[w.id].icon} ${p.name}'s ${w.id} breaks!`, 'bad');
-    }
+    log(S, `${p.name} ${ITEMS[w.id].verb.toLowerCase()}s the ${w.id}: ${plural(n, 'zombie')} down${t.zombies ? `, ${t.zombies} left` : ' — tile cleared!'}`, t.zombies ? '' : 'good');
     p.queue.unshift({ type: 'threat' });
+  }
+  // The encounter's over (cleared, or got away): weapons put away — any worn to 0 break now.
+  function endEncounter(S, p) {
+    p.caught = false;
+    for (const w of p.items.filter((it) => it.drawn)) {
+      delete w.drawn;
+      if (w.cond <= 0) { p.items.splice(p.items.indexOf(w), 1); log(S, `${ITEMS[w.id].icon} ${p.name}'s ${w.id} breaks!`, 'bad'); }
+    }
   }
 
   function flee(S, p, reroll = false) {
@@ -979,20 +975,15 @@ const Engine = (() => {
       p.pending = null;
       spendHope(S, p, it);
     },
-    // 'flee', 'hide', or { weapon: backpack index } to fight with that weapon ('shoot' / 'melee' / 'saw' pick your
+    // 'flee', 'hide', or { weapon: backpack index } — one attack with that weapon ('shoot' / 'melee' / 'saw': your
     // most worn gun / melee weapon / chainsaw)
     threat(S, p, choice) {
       const t = tileOf(S, p);
       if (choice === 'flee' && canFlee(S, p, t)) { p.pending = null; p.ap--; return flee(S, p); }
       if (choice === 'hide' && canHide(p, t)) { p.pending = null; return hide(S, p); }
       const w = choice?.weapon !== undefined ? p.items[choice.weapon] : weaponOf(p, { shoot: 'ammo', melee: 'ap', saw: 'fuel' }[choice]);
-      if (w && canWield(p, w)) { p.pending = null; return startFight(S, p, w); }
+      if (w && canWield(p, w)) { p.pending = null; return attack(S, p, w); }
       return "You can't do that now.";
-    },
-    fight(S, p, choice) {
-      if (choice === 'attack') return attack(S, p);
-      if (choice === 'stop') return endFight(S, p);
-      return 'Attack or stop.';
     },
     armor(S, p, yes) {
       const armor = p.items[p.pending.item];
@@ -1008,7 +999,7 @@ const Engine = (() => {
       const o = p.pending.options.find((x) => x.id === choice && x.ok);
       if (!o) return 'Pick a way out.';
       if (choice === 'foot') p.pending = { kind: 'fleeTo' };
-      else startDrive(S, p, choice, true);
+      else { startDrive(S, p, choice, true); endEncounter(S, p); }
     },
     fleeTo(S, p, { q, r } = {}) {
       if (!isAdjacent(p, q, r)) return 'Pick a safe hex next to you.';
@@ -1021,7 +1012,8 @@ const Engine = (() => {
       log(S, `${p.name} flees to the ${t.def.name}.`, 'bad');
       p.q = q; p.r = r;
       emit(S, { type: 'move', player: p.id, q, r });
-      p.pending = null; p.caught = false;
+      p.pending = null;
+      endEncounter(S, p);
     },
     drive(S, p, choice) {
       if (choice === 'stop') {

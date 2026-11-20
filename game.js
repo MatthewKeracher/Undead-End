@@ -42,7 +42,10 @@ const canDrive = (p, id) => E.canDrive(G, p, id);
 const vehiclesHere = (p) => tileOf(p).vehicles;
 const driving = () => (cur().pending?.kind === 'drive' ? cur().pending : null);   // the trip in progress
 // Decisions answered from the action tray / map / backpack (hope) rather than a popup
-const PENDING_MODE = { threat: 'threat', fleeTo: 'flee', drive: 'drive', hope: 'hope' };
+const PENDING_MODE = { threat: 'threat', armor: 'armor', escape: 'escape', fleeTo: 'flee', drive: 'drive', hope: 'hope' };
+// an encounter's own moments, all played out on the battlefield over your hex and chosen in the bars
+const FIGHT_MODES = ['threat', 'armor', 'escape'];
+const fightMode = () => FIGHT_MODES.includes(mode);
 
 // ---------------------------------------------------------------- setup
 function newGame(names = ['Survivor']) {
@@ -165,20 +168,21 @@ async function show(ev) {
     case 'scavenge': return scavengeShow(ev);
     case 'scout': return revealShow(ev);
     case 'reveal': return revealShow(ev, 900);   // stepped into the unknown
-    case 'night': await nightShow(ev); delete held[ev.k]; return renderMap();
+    case 'night': await bfArrive(ev.k, ev.c, '🌙 Night attack'); delete held[ev.k]; return renderMap();
     case 'checks': return renderStats(ev.stats[cur().id]);   // the check's effect (after any night attack)
     case 'maxApLoss': return maxApLossShow(ev);
-    case 'flee': return fleeShow(ev);
-    case 'armor': return sfx.armor();
+    case 'flee': return bfFlee(ev);
+    case 'armor': sfx.armor(); return bfSay(`${ITEMS[ev.item].icon} It takes the hit — reroll!`, 'good', 700);
+    case 'hit': return bfHit(ev);
     case 'repair': return sfx.repair();
     case 'boost': return sfx.win(false);
-    case 'hide': await hideShow(ev); return renderMap();
+    case 'hide': await bfHide(ev); return renderMap();
     case 'hope': toast(`${ITEMS[ev.item].icon} You find hope in the ${ev.item}.`); return sfx.hope();
     case 'lead': return leadShow(ev);
     case 'driveStep': sfx.drive(ev.fuel); return render();
     case 'move': renderMap(); return wait(450);   // arrive (the camera glides over) before the round can move on
     case 'outOfFuel': return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'ap' ? 'AP' : ev.fuel} — stopping here.`);
-    case 'die': return tone(200, 1.4, 'sawtooth', 0.12, -170);
+    case 'die': bfClose(); return tone(200, 1.4, 'sawtooth', 0.12, -170);
     case 'round': return roundBannerShow(ev);
     case 'town': return townBannerShow(ev);
     case 'noteDone': return toast(`📝 You've reached the ${ev.name}${ev.by ? ` — ${ev.by}'s stash is here somewhere` : ''}.`);
@@ -210,13 +214,10 @@ async function townBannerShow({ name, kind }) {
   el.hidden = true;
 }
 
-// Decisions that need a popup. (Fight or Flee, where to flee and driving use the action tray and the map.)
+// Decisions that need a popup. (An encounter, where to flee and driving use the bars, the battlefield and the map.)
 async function ask() {
   const p = cur(), d = p.pending;
   if (!d) return;
-  if (d.kind === 'fight') return fightPopup(p);
-  if (d.kind === 'armor') return send({ type: 'decide', choice: await armorPrompt(p.items[d.item]) });
-  if (d.kind === 'escape') return send({ type: 'decide', choice: await chooseEscape(d.options) });
   if (d.kind === 'backpack') return send({ type: 'decide', choice: await backpackPrompt(p, d.item) });
   if (d.kind === 'stash') return send({ type: 'decide', choice: await stashPrompt(d) });
 }
@@ -296,127 +297,6 @@ function showGameOver() {
     <button class="primary" id="again">New game <kbd>Enter</kbd></button></div>`;
   pop.hidden = false;
   $('#again').onclick = (e) => { e.stopPropagation(); newGame(['Survivor']); };
-}
-
-// ---------------------------------------------------------------- fight / flee popups
-async function chooseEscape(opts) {
-  const pop = $('#popup');
-  pop.className = '';
-  pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>Escaped!</small><h2>How do you get away?</h2></div>
-    <ol class="pack-choose">${opts.map((o, n) => `<li><button data-n="${n}" ${o.ok ? '' : 'disabled'}><kbd>${n + 1}</kbd> ${o.label} <em>${o.sub}</em></button></li>`).join('')}</ol>
-    <small class="pskip">press 1–${opts.length} or click</small></div>`;
-  pop.hidden = false;
-  const pick = await new Promise((res) => {
-    pop.querySelectorAll('[data-n]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); if (opts[+b.dataset.n].ok) res(opts[+b.dataset.n].id); }));
-    modalKey = (e) => { const o = opts[+e.key - 1]; if (o && o.ok) res(o.id); };
-  });
-  modalKey = null;
-  pop.hidden = true;
-  return pick;
-}
-
-async function armorPrompt(armor) {
-  const pop = $('#popup');
-  pop.className = 'zombie';
-  pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>Caught!</small><h2>${itemIcon(armor.id)} ${esc(armor.id)} can take the hit</h2></div>
-    <p>${condPips(armor.cond)} → ${condPips(armor.cond - 1)}</p>
-    <div class="frow">
-      <button class="primary" id="ayes">Take the hit &amp; reroll <small>(−1 condition, 1 AP)</small> <kbd>Enter</kbd></button>
-      <button id="ano">No <kbd>Backspace</kbd></button>
-    </div></div>`;
-  pop.hidden = false;
-  const yes = await new Promise((res) => {
-    $('#ayes').onclick = (e) => { e.stopPropagation(); res(true); };
-    $('#ano').onclick = (e) => { e.stopPropagation(); res(false); };
-    modalKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); res(true); } else if (isBack(e)) res(false); };
-  });
-  modalKey = null;
-  pop.hidden = true;
-  return yes;
-}
-
-async function fleeShow(ev) {
-  const pop = $('#popup');
-  skipAnim = false;
-  pop.className = '';
-  pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>🏃 Flee</small><h2>Roll more than ${ev.zombies}</h2></div>
-    <div class="cpips">${[...Array(6)].map((_, i) => `<i class="${i < ev.zombies ? 'zed' : ''}"></i>`).join('')}</div>
-    <div class="prow2"><div class="slot" id="pd2d"></div></div>
-    <div class="presult" id="pres"></div>
-    <small class="pskip">click or press any key</small></div>`;
-  pop.hidden = false;
-  await wait(150);
-  await rollDie($('#pd2d'), ev.r, 1000);
-  await wait(200);
-  $('#pres').innerHTML = ev.ok ? `<div class="big good">Escaped!</div><small class="muted">Pick a safe hex: A Q E D X Z</small>` : `<div class="big bad">Caught!</div>`;
-  if (ev.ok) sfx.win(false); else { pop.classList.add('zombie'); sfx.zombie(); }
-  await popupHold(ev.ok ? 1400 : 2200);
-}
-
-// One round of fighting (the engine has already taken 1 weapon condition). Each attack (Enter) costs 1 ammo (gun),
-// 1 AP (melee) or 1 fuel (chainsaw) and kills 1 zombie (the chainsaw: up to 6 — the whole tile). The popup stays open for the whole fight round.
-async function fightPopup(p) {
-  const d = p.pending, t = tileOf(p), w = p.items[d.weapon], def = ITEMS[w.id], melee = def.uses === 'ap';
-  const left = () => (melee ? p.ap : p.res[def.uses]);
-  const unit = { ap: 'AP', ammo: 'ammo', fuel: 'fuel' }[def.uses], verb = def.verb.toLowerCase();
-  const fighting = () => p.pending === d;
-  const pop = $('#popup');
-  pop.className = 'fight';
-  let after = [];   // events from the attack (or stop) that ended the fight round
-  const draw = () => {
-    pop.innerHTML = `<div class="pcard">
-      <div class="ptitle"><small>⚔️ Fight · ${esc(t.def.name)}</small><h2>${t.zombies ? `${t.zombies} zombie${t.zombies > 1 ? 's' : ''}` : 'Clear!'}</h2></div>
-      <div class="cpips">${[...Array(6)].map((_, i) => `<i class="${i < t.zombies ? 'zed' : i < d.start ? 'dead' : ''}"></i>`).join('')}</div>
-      <div class="fammo">${melee ? `${ICON.ap} <b class="${p.ap <= 1 ? 'warnap' : ''}">${p.ap}</b> AP` : `${ICON[def.uses]} <b>${left()}</b> ${unit}`} · ${itemIcon(w.id)} ${w.id} condition ${condPips(w.cond)}</div>
-      ${melee && p.ap === 1 && t.zombies ? `<div class="note bad">Last AP — swinging now leaves you nothing to flee with.</div>` : ''}
-      <div class="frow">
-        <button class="primary" id="fire" ${fighting() && left() && t.zombies ? '' : 'disabled'}>${itemIcon(w.id)} ${def.verb} <small>(1 ${unit}${def.kills > 1 ? ` · up to ${def.kills} 🧟` : ''})</small> <kbd>Enter</kbd></button>
-        <button id="stop">Stop <kbd>Backspace</kbd></button>
-      </div>
-      <small class="pskip"><kbd>Shift</kbd>+<kbd>Enter</kbd> ${verb} until clear (or out of ${unit})</small></div>`;
-    $('#fire').onclick = (e) => { e.stopPropagation(); fire(); };
-    $('#stop').onclick = (e) => { e.stopPropagation(); stop(); };
-  };
-  let done;
-  const over = new Promise((res) => { done = res; });
-  const finish = () => { modalKey = null; done(); };
-  const fire = () => {
-    if (!fighting()) return;
-    const res = E.act(G, p.id, { type: 'decide', choice: 'attack' });
-    if (res.error) return;
-    (sfx[def.sound] ?? { ap: sfx.axe, ammo: sfx.gun, fuel: sfx.saw }[def.uses])();
-    draw();
-    pop.querySelector('.pcard').classList.add('flash');
-    const kills = res.events.find((ev) => ev.type === 'hit')?.kills ?? 1;
-    for (let i = t.zombies; i < t.zombies + kills; i++) pop.querySelectorAll('.cpips i')[i]?.classList.add('hit');
-    renderStats();
-    if (!fighting()) { after = res.events; setTimeout(finish, 700); }
-  };
-  const stop = () => {
-    if (fighting()) after = E.act(G, p.id, { type: 'decide', choice: 'stop' }).events;
-    finish();
-  };
-  // Shift+Enter: keep attacking until the tile is clear or you run out of ammo / AP.
-  let auto = false;
-  const fireAll = () => {
-    if (auto) return;
-    auto = true;
-    const step = () => { if (!fighting() || !modalKey) return; fire(); setTimeout(step, 220); };
-    step();
-  };
-  modalKey = (e) => {
-    if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); fireAll(); }
-    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!auto) fire(); }
-    else if (isBack(e)) stop();
-  };
-  draw();
-  pop.hidden = false;
-  await over;
-  pop.hidden = true;
-  await play(after.filter((ev) => ev.type !== 'hit'));
 }
 
 // An item's picture for HTML: its own image if it has one (img: in data.js), otherwise its emoji.
@@ -560,7 +440,13 @@ async function takePills(i) {
 async function act(name) {
   if (busy || modalKey || G.over) return;
   const p = cur();
-  if (mode === 'threat') { if ((name === 'flee' || name === 'hide') && await explain(name)) send({ type: 'decide', choice: name }); return; }   // weapons: in the backpack
+  if (fightMode()) {   // weapons and armor: in the backpack
+    if (isDriveKey(name)) name = keyedVehicle(p, name);
+    if ((name === 'flee' || name === 'hide') && await explain(name)) send({ type: 'decide', choice: name });
+    else if (name === 'givein') send({ type: 'decide', choice: false });
+    else if (name === 'foot' || ITEMS[name]?.vehicle) send({ type: 'decide', choice: name });
+    return;
+  }
   if (name === 'stopdrive') return send({ type: 'decide', choice: 'stop' });   // the touch way to end a trip
   if (p.pending) return;
   if (name === 'move') { if (mode !== name && !(await explain('move'))) return; mode = mode === name ? null : name; return render(); }
@@ -730,12 +616,12 @@ async function scavengeShow({ name, rows: table, tries, r, hit, amt, amts, dice,
       : `<div class="big good jackpot">🎒 ${esc(s.owner)}'s stash</div><div class="stashgot">${E.stashText(s) || 'empty'}</div>`;
     pop.classList.add('jackpot');
     sfx.win(true);
-  } else if (e.zombies) {
-    pop.classList.add('zombie'); sfx.zombie();
-    $('#pd2').innerHTML = `<span class="muted">How many?</span><div class="slot" id="pd2d"></div>`;
-    await rollDie($('#pd2d'), amt, 800);
-    await wait(250);
-    await contestAnim(c);
+  } else if (e.zombies) {   // the row says Zombies: off to the battlefield, which rolls how many
+    pop.classList.add('zombie');
+    $('#pres').innerHTML = `<div class="big bad">🧟 Zombies!</div>`;
+    sfx.zombie();
+    await popupHold(900);
+    return bfArrive(key(cur().q, cur().r), c, '🧟 Zombies!');
   } else {
     // one die per part of the row (a mix like Food + Water or Truck + Fuel has two)
     const parts = e.parts ?? [e];
@@ -776,72 +662,6 @@ async function popupHold(ms = 3000) {
   await new Promise((res) => { const tm = setTimeout(res, ms); dismissPopup = () => { clearTimeout(tm); res(); }; });
   dismissPopup = null;
   $('#popup').hidden = true;
-}
-
-// Animate zombies contesting Safety in the popup: yellow pips burst, then black ones fill in.
-async function contestAnim(c) {
-  const el = $('#pres');
-  const max = c.slots ?? CONFIG.maxZombies;   // circles for Safety and zombies alike
-  el.innerHTML = `<div class="cpips">${[...Array(max)].map((_, i) =>
-    `<i class="${i < c.before.safety ? 'on' : i < c.before.safety + c.before.zombies ? 'zed' : ''}"></i>`).join('')}</div><div id="ctext"></div>`;
-  const pips = [...el.querySelectorAll('.cpips i')];
-  await wait(300);
-  for (let i = 0; i < c.absorbed; i++) {
-    const pip = pips[c.before.safety - 1 - i];
-    pip.className = 'burst'; tone(220 - i * 15, 0.12, 'triangle', 0.1, -80);
-    await wait(260);
-  }
-  const added = c.after.zombies - c.before.zombies;
-  for (let j = 0; j < added; j++) {
-    pips[c.after.safety + c.before.zombies + j].className = 'zed pop';
-    tone(80 + Math.random() * 30, 0.25, 'sawtooth', 0.09, -20);
-    await wait(280);
-  }
-  const lost = c.n - added;
-  $('#ctext').innerHTML = `<div class="big bad">🧟 ${c.left} ${c.after.safety ? 'at the door' : 'broke through'}!</div>`
-    + (c.after.safety ? `<small class="muted">🟡 ${c.after.safety} Safety between you.</small>` : lost > 0 ? `<small class="muted">The tile is overrun (max ${CONFIG.maxZombies}).</small>` : '');
-  $('#popup').classList.add('zombie'); sfx.zombie();
-}
-
-// Hiding: the 🟡 Safety and the 🧟 zombies push into each other — the front zombie and the last yellow pip meet in
-// the middle and both go, then the row closes up, centred, and the next pair meet, until one side runs out.
-async function hideShow({ name, c, auto }) {
-  const pop = $('#popup');
-  skipAnim = false;
-  pop.className = '';
-  pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>🟡 Hiding</small><h2>${auto ? 'Nothing to fight with' : esc(name)}</h2></div>
-    ${auto ? `<p class="muted">The 🟡 Safety takes them.</p>` : ''}
-    <div class="presult" id="pres"><div class="cpips ${c.before.safety + c.before.zombies > 8 ? 'many' : ''}">${'<i class="on"></i>'.repeat(c.before.safety)}${'<i class="zed"></i>'.repeat(c.before.zombies)}</div><div id="ctext"></div></div>
-    <small class="pskip">click or press any key</small></div>`;
-  pop.hidden = false;
-  const row = pop.querySelector('.cpips'), pips = [...row.children];
-  const yellow = pips.slice(0, c.before.safety), zeds = pips.slice(c.before.safety);
-  const slide = (els, ease) => els.forEach((e) => (e.style.transition = `transform .26s ${ease}`));
-  await wait(350);
-  for (let i = 0; i < c.absorbed; i++) {
-    const y = yellow.pop(), z = zeds.shift(), half = (z.offsetLeft - y.offsetLeft) / 2;
-    slide([y, z], 'ease-in');
-    y.style.transform = `translateX(${half}px)`; z.style.transform = `translateX(${-half}px)`;   // they meet in the middle…
-    tone(70 + i * 6, 0.12, 'square', 0.05, -10);
-    await wait(260);
-    y.classList.add('gone'); z.classList.add('gone');   // …and both go
-    tone(220 - i * 15, 0.12, 'triangle', 0.1, -80);
-    await wait(220);
-    // the row closes up, centred: slide everyone left from where they were to where they now are
-    const rest = [...yellow, ...zeds], was = rest.map((e) => e.getBoundingClientRect().left);
-    y.remove(); z.remove();
-    rest.forEach((e, j) => { e.style.transition = 'none'; e.style.transform = `translateX(${was[j] - e.getBoundingClientRect().left}px)`; });
-    void row.offsetWidth;
-    slide(rest, 'ease-out');
-    rest.forEach((e) => (e.style.transform = ''));
-    await wait(260);
-  }
-  $('#ctext').innerHTML = c.left
-    ? `<div class="big bad">🧟 ${c.left} still here!</div><small class="muted">🟡 ${c.before.safety} → 0</small>`
-    : `<div class="big good">🟡 Safety held!</div><small class="muted">🟡 ${c.before.safety} → ${c.after.safety}</small>`;
-  if (c.left) { pop.classList.add('zombie'); sfx.zombie(); } else sfx.win(false);
-  await popupHold(1800);
 }
 
 async function fortifyShow({ name, r, before, after, max }) {
@@ -941,21 +761,118 @@ async function sleepShow({ dice, bonus = 0, from, to, max }) {
   await wait(500);
 }
 
-async function nightShow({ name, c }) {
-  const pop = $('#popup');
+// ---------------------------------------------------------------- the battlefield
+// An encounter plays out over your hex: the horde (🧟) above your 🟡 Safety, the dice, and what Flee and Hide would do.
+// It opens as zombies arrive (or you walk in on them) and stays as long as they're there and you're dealing with
+// them — it can't be put away. Every choice is made in the bars: weapons in the backpack (each click, one attack),
+// Flee / Hide in the action bar (and armor, or a ride, when those come up).
+const bf = { k: null };
+function bfOpen(k) {
+  const el = $('#battle');
+  if (bf.k !== k || el.hidden) { bf.k = k; el.hidden = false; }
+  bfPlace();
+}
+function bfClose() { bf.k = null; $('#battle').hidden = true; }
+// over the hex, the hex's size and shape (follows the camera: applyView calls this)
+function bfPlace() {
+  const el = $('#battle'), svg = $('#map'), m = svg.getScreenCTM();
+  if (!bf.k || el.hidden || !m) return;
+  const [x, y] = pix(...bf.k.split(',').map(Number)), b = $('#board').getBoundingClientRect();
+  const p = new DOMPoint(x, y).matrixTransform(m), w = Math.sqrt(3) * HEX * m.a, h = 2 * HEX * m.a;
+  Object.assign(el.style, { left: `${p.x - b.left - w / 2}px`, top: `${p.y - b.top - h / 2}px`, width: `${w}px`, height: `${h}px` });
+}
+const bfZed = '<i class="z">🧟</i>';
+function bfDraw(safety, zombies, info = '') {
+  $('#battle').innerHTML = `<div class="bf-in"><div class="bf-msg"></div><div class="bf-horde">${bfZed.repeat(zombies)}</div>
+    <div class="bf-die slot"></div><div class="bf-safe">${'<i></i>'.repeat(safety)}</div><div class="bf-info">${info}</div></div>`;
+}
+async function bfSay(text, cls = '', ms = 0) {
+  const m = $('#battle .bf-msg');
+  if (m) { m.className = `bf-msg ${cls}`; m.innerHTML = text; }
+  if (ms) await wait(ms);
+}
+// what the choices would do, under the field (phones have no tooltips)
+function bfInfo(p, t) {
+  if (mode === 'armor') return `${ITEMS[p.items[p.pending.item].id].icon} Armor can take the hit`;
+  if (mode === 'escape') return 'Got away — on foot, or ride?';
+  if (mode === 'flee') return 'Run! Pick a hex';
+  if (p.caught) return 'Caught — fight!';
+  const odds = [canFlee(p, t) ? `🏃 roll > ${t.zombies}` : '', E.canHide(p, t) ? `🟡 stops ${Math.min(t.safety, t.zombies)}` : ''].filter(Boolean);
+  return odds.join(' · ');
+}
+// drawn from the game as it stands — between animations
+function renderBattle() {
+  const p = cur(), t = tileOf(p), k = key(p.q, p.r);
+  if (G.over || !t.zombies || !(fightMode() || mode === 'flee')) { if (!busy) bfClose(); return; }
+  bfOpen(k);
+  bfDraw(t.safety, t.zombies, bfInfo(p, t));
+  bfSay(`🧟 ${t.zombies} on the ${esc(t.def.name)}`, 'bad');
+}
+// zombies arrive: the die says how many, and in they come, one by one
+async function bfArrive(k, c, title) {
   skipAnim = false;
-  pop.className = 'night';
-  pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>🌙 Night attack</small><h2>${esc(name)}</h2></div>
-    <div class="prow2"><span class="muted">How many zombies?</span><div class="slot" id="pd2d"></div></div>
-    <div class="presult" id="pres"></div>
-    <small class="pskip">click or press any key</small></div>`;
-  pop.hidden = false;
-  await wait(200);
-  await rollDie($('#pd2d'), c.n, 1000);
+  bfOpen(k);
+  bfDraw(c.before.safety, c.before.zombies);
+  await bfSay(title, 'bad', 200);
+  await rollDie($('#battle .bf-die'), c.n, 900);
   await wait(250);
-  await contestAnim(c);
-  await popupHold();
+  $('#battle .bf-die').innerHTML = '';
+  const horde = $('#battle .bf-horde');
+  for (let j = 0; j < c.after.zombies - c.before.zombies; j++) {
+    horde.insertAdjacentHTML('beforeend', bfZed.replace('class="z"', 'class="z pop"'));
+    tone(80 + Math.random() * 30, 0.25, 'sawtooth', 0.09, -20);
+    await wait(220);
+  }
+  sfx.zombie();
+  await bfSay(`🧟 ${c.after.zombies} ${c.after.safety ? 'at the door!' : 'broke through!'}`, 'bad', 500);
+}
+// one attack: 💥 on each zombie it kills, and down they go
+async function bfHit(ev) {
+  skipAnim = false;
+  const p = cur(), t = tileOf(p), def = ITEMS[ev.weapon];
+  bfOpen(key(p.q, p.r));
+  if (!$('#battle .bf-horde')) bfDraw(t.safety, ev.zombies + ev.kills);
+  (sfx[def.sound] ?? { ap: sfx.axe, ammo: sfx.gun, fuel: sfx.saw }[ev.uses])();
+  const zeds = [...$('#battle .bf-horde').children].slice(-ev.kills);
+  for (const z of zeds) z.classList.add('shot');
+  await wait(260);
+  for (const z of zeds) z.classList.add('fall');
+  await wait(380);
+  zeds.forEach((z) => z.remove());
+  renderStats();
+  await bfSay(ev.zombies ? `💥 ${ev.kills} down — ${ev.zombies} left` : '💥 Cleared!', ev.zombies ? '' : 'good', ev.zombies ? 0 : 700);
+}
+// the flee roll: beat the number of zombies
+async function bfFlee(ev) {
+  skipAnim = false;
+  const p = cur(), t = tileOf(p);
+  bfOpen(key(p.q, p.r));
+  if (!$('#battle .bf-die')) bfDraw(t.safety, ev.zombies);
+  await bfSay(`🏃 Roll more than ${ev.zombies}`, '', 100);
+  await rollDie($('#battle .bf-die'), ev.r, 900);
+  if (ev.ok) sfx.win(false); else sfx.zombie();
+  await bfSay(ev.ok ? '🏃 Escaped!' : '🧟 Caught!', ev.ok ? 'good' : 'bad', 900);
+  $('#battle .bf-die').innerHTML = '';
+}
+// hiding: each zombie drops onto a 🟡 Safety pip and both go, until one side runs out
+async function bfHide({ k, c, auto }) {
+  skipAnim = false;
+  bfOpen(k);
+  bfDraw(c.before.safety, c.before.zombies);
+  await bfSay(auto ? 'Nothing to fight with — 🟡 hide!' : '🟡 Hiding', '', 300);
+  const zeds = [...$('#battle .bf-horde').children], pips = [...$('#battle .bf-safe').children];
+  for (let i = 0; i < c.absorbed; i++) {
+    const z = zeds[zeds.length - 1 - i], y = pips[pips.length - 1 - i], a = z.getBoundingClientRect(), b = y.getBoundingClientRect();
+    z.style.transition = 'transform .26s ease-in';
+    z.style.transform = `translate(${b.left + b.width / 2 - a.left - a.width / 2}px, ${b.top + b.height / 2 - a.top - a.height / 2}px) scale(.6)`;
+    tone(70 + i * 6, 0.12, 'square', 0.05, -10);
+    await wait(260);
+    z.classList.add('gone'); y.classList.add('gone');
+    tone(220 - i * 15, 0.12, 'triangle', 0.1, -80);
+    await wait(200);
+  }
+  if (c.left) sfx.zombie(); else sfx.win(false);
+  await bfSay(c.left ? `🧟 ${c.left} still here!` : '🟡 Safety held!', c.left ? 'bad' : 'good', 900);
 }
 
 function popupInput() {
@@ -970,6 +887,7 @@ function render() {
   renderPlayers();
   renderMap();
   renderPanel();
+  renderBattle();
 }
 
 // Round clock: 6 wedges, nights (1 & 6) at the top like midnight, a hand that sweeps forward. Your AP rings it:
@@ -1082,6 +1000,7 @@ function applyView() {
   const vx = cam.x - dx - drag.x / z - w / 2, vy = cam.y - dy - drag.y / z - h / 2;
   svg.setAttribute('viewBox', `${vx} ${vy} ${w} ${h}`);
   leadMarks(vx, vy, z, b, f);
+  bfPlace();
 }
 // A place a Note leads to, out of view: a purple marker with its icon on a ring around your hex (clear of the
 // trays and dials), pointing the way — a compass.
@@ -1239,7 +1158,7 @@ function renderMap() {
   if (!camInit) { cam.x = cx; cam.y = cy; camInit = true; applyView(); }
   cameraTo(cx, cy);
 
-  $('#hint').textContent = mode === 'flee' || mode === 'threat' || mode === 'drive' ? ''
+  $('#hint').textContent = mode === 'flee' || fightMode() || mode === 'drive' ? ''
     : mode === 'move' ? 'Press A Q E D X Z or click a highlighted tile to move there. (Backspace to cancel)' : '';
 }
 
@@ -1273,22 +1192,24 @@ let dropArmed = -1, packSel = -1;
 const FIGHT_EXPLAIN = { ammo: 'shoot', ap: 'melee', fuel: 'saw' };   // the tutorial card for each kind of weapon
 function packPick(p, it, i) {
   if (mode === 'hope') return ITEMS[it.id].hope && { cls: 'hope', btn: `<button class="use hope" data-pick="${i}" title="Lean on it tonight (−1 condition)">Hope</button>` };
-  if (mode === 'threat') return E.canWield(p, it) && { cls: 'fight', btn: `<button class="use fight" data-pick="${i}" title="Fight with it">${ITEMS[it.id].verb}</button>` };
+  if (mode === 'threat') return E.canWield(p, it) && { cls: 'fight', btn: `<button class="use fight" data-pick="${i}" title="One attack with it">${ITEMS[it.id].verb}</button>` };
+  if (mode === 'armor') return i === p.pending.item && { cls: 'fight', btn: `<button class="use fight" data-pick="${i}" title="Take the hit and reroll (−1 condition, 1 AP)">Take it</button>` };
   return null;
 }
-const picking = () => mode === 'hope' || mode === 'threat';
+const picking = () => mode === 'hope' || fightMode();
 async function pickFromPack(i) {
   const p = cur(), it = p.items[i];
   if (busy || modalKey || !it || !packPick(p, it, i)) return;
   packSel = -1;
   if (mode === 'hope') return send({ type: 'decide', choice: i });
+  if (mode === 'armor') return send({ type: 'decide', choice: true });   // the armor takes the hit: reroll
   if (await explain(FIGHT_EXPLAIN[ITEMS[it.id].uses])) send({ type: 'decide', choice: { weapon: i } });
 }
 function renderPack() {
   const p = cur(), choosing = picking();
   if (!p.items[packSel] || (choosing && !packPick(p, p.items[packSel], packSel))) packSel = -1;
   $('#pack').classList.toggle('hoping', mode === 'hope');
-  $('#pack').classList.toggle('fighting', mode === 'threat');
+  $('#pack').classList.toggle('fighting', fightMode());
   // the header folds the backpack away on small screens (see style.css)
   let h = `<button type="button" class="packhead" data-packtoggle><span class="packname"><span class="word">Backpack</span><span class="bag">🎒</span> ${p.items.length}/${CONFIG.maxItems}</span>`
     // folded, it shows each item in brief: icon, name and condition (just icon and condition once there are more than 3)
@@ -1355,14 +1276,17 @@ function renderPanel() {
 function renderActions() {
   const p = cur(), t = tileOf(p);
   const noAP = p.ap < 1;
-  $('#board').classList.toggle('threat', mode === 'threat');   // a fight: the board darkens red round the edges
-  // the action bar never goes away: while something else is being decided (hope, where to run, a fight) it's greyed
-  // out — in a fight, Flee and Hide stand in for Move and Fortify, on their keys
-  const fight = mode === 'threat', waiting = mode === 'hope' || mode === 'flee' || fight;
+  const fight = fightMode(), d = p.pending;
+  $('#board').classList.toggle('threat', fight);   // an encounter: the board darkens red round the edges
+  // the action bar never goes away: while something else is being decided (hope, where to run, an encounter) it's
+  // greyed out — in an encounter, Flee (or Give in, or On foot) and Hide stand in for Move and Fortify, on their keys,
+  // and once you've got away a vehicle here lights up to ride off in
+  const waiting = mode === 'hope' || mode === 'flee' || fight;
+  const allowed = new Set([...Object.values(fightKeys()), ...(mode === 'escape' ? d.options.filter((o) => o.ok).map((o) => o.id) : [])]);
   const btn = (id, label, sub, dis) => {
-    dis ||= waiting && !THREAT_KEYS_ID.has(id);
-    const hk = Object.keys(THREAT_KEYS).find((k) => THREAT_KEYS[k] === id)
-      ?? Object.keys(HOTKEYS).find((k) => HOTKEYS[k] === id || (ITEMS[id]?.vehicle && HOTKEYS[k] === DRIVE_KEY[ITEMS[id].uses]));
+    if (waiting) dis = !allowed.has(id) || (dis && !(mode === 'escape' && ITEMS[id]?.vehicle));
+    const hk = (fight && Object.keys(fightKeys()).find((k) => fightKeys()[k] === id))
+      || Object.keys(HOTKEYS).find((k) => HOTKEYS[k] === id || (ITEMS[id]?.vehicle && HOTKEYS[k] === DRIVE_KEY[ITEMS[id].uses]));
     if (dis && selected === id) selected = null;
     // the emoji and the words are separate, so phones and upright tablets can show the emoji alone (title has the rest)
     const [, icon, rest] = label.match(/^(<img[^>]*>|\S+) (.*)$/), words = [rest];   // the emoji (or item picture), then the words
@@ -1388,7 +1312,7 @@ function renderActions() {
     warn = `<div class="note ${isNight(G.round) ? 'bad' : ''}">🌙 Next round starts with a night attack — 1d6 🧟 vs your 🟡 ${t.safety}${nextUp ? `, then a ${nextUp} check` : ''}.${apWarn}</div>`;
   }
   if (mode === 'hope') warn = `<div class="note hope">🌙 What hope is there? Pick it from your backpack.</div>`;   // (renderPack)
-  if (fight) warn = `<div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} on the ${esc(t.def.name)}! ${p.caught ? 'Caught — fight with a weapon from your backpack!' : canFight(p) ? `Pick a weapon from your backpack, flee${t.safety ? ' or hide' : ''}.` : 'Nothing to fight with — if you fail to flee, you die.'}</div>`;
+  if (fight) warn = '';   // the battlefield over your hex says it all
   if (mode === 'flee') warn = `<div class="note good">🏃 You got away! Press A Q E D X Z or click a highlighted hex to run to.</div>`;
 
   $('#actions').innerHTML = `
@@ -1398,7 +1322,9 @@ function renderActions() {
       ['pause', btn('pause', '⏸ Pause', 'Stop the clock', false)],
       ['sleep', btn('sleep', '😴 Sleep', t.safety ? `Gain 1d6 + ${t.safety} AP (🟡)` : 'Gain 1d6 AP · no 🟡', false)],
       ['scout', btn('scout', '🗺️ Scout', scoutTargets(p).length ? `1 AP · reveal ${E.binocularsOf(p) ? 'up to ' : ''}${scoutTargets(p).length} hex${scoutTargets(p).length === 1 ? '' : 'es'}${E.binocularsOf(p) ? ' (binoculars)' : ''}` : 'All explored', noAP || !scoutTargets(p).length)],
-      ['move', fight   // in a fight, Flee stands in for Move (and Hide for Fortify), on the same key
+      ['move', mode === 'armor' ? btn('givein', '✋ Give in', 'No reroll: you\'re caught — fight', false)
+        : mode === 'escape' ? btn('foot', '🏃 On foot', '1 hex', !d.options.find((o) => o.id === 'foot')?.ok)
+        : fight   // in an encounter, Flee stands in for Move (and Hide for Fortify), on the same key
         ? btn('flee', '🏃 Flee', p.caught ? 'Caught — must fight' : !fleeAdj(p).length ? 'Nowhere to run' : t.zombies >= 6 ? 'Too many to outrun' : p.ap < 1 ? 'No AP' : `1 AP · roll > ${t.zombies}`, !canFlee(p, t))
         : btn('move', '🚶 Move', p.freeMoved ? '1 AP · uses your action' : 'Free move · needs 1 AP', noAP || !moveAdj(p).length)],
       ['scavenge', btn('scavenge', '🔍 Scavenge', !canScavengeHere(t) ? (t.def.table.length ? 'Picked clean' : 'Nothing to find') : t.zombies ? 'Blocked by zombies' : lootLeft(t) ? `1 AP · ${lootLeft(t)} of 5 left` : '1 AP · only zombies left', noAP || !canScavengeHere(t) || t.zombies > 0)],
@@ -1410,7 +1336,7 @@ function renderActions() {
           : `1 ${ICON[uses]}/tile · ${eats ? `1 ${ICON[eats]}/trip` : `cond ${v.cond}`}`, !canDrive(p, id))];
       }),
       ['fortify', fight
-        ? btn('hide', '🟡 Hide', !t.safety ? 'No 🟡 Safety to hide behind' : p.caught ? 'Caught — must fight' : `Free · 🟡 ${t.safety} stops ${Math.min(t.safety, t.zombies)}`, !E.canHide(p, t))
+        ? btn('hide', '🟡 Hide', !t.safety ? 'No 🟡 Safety to hide behind' : p.caught ? 'Caught — must fight' : `Free · 🟡 ${t.safety} stops ${Math.min(t.safety, t.zombies)}`, mode !== 'threat' || !E.canHide(p, t))
         : btn('fortify', '🔨 Fortify', !canFortifyHere(t) ? "Can't be fortified" : t.zombies ? 'Blocked by zombies' : t.safety >= E.maxSafetyOf(t) ? `Safety full (${E.maxSafetyOf(t)})` : `1 AP · +1d6 🟡 (max ${E.maxSafetyOf(t)})`, noAP || !canFortifyHere(t) || t.zombies > 0 || t.safety >= E.maxSafetyOf(t))],
     ])}
     </div>`;
@@ -1457,8 +1383,8 @@ const keyX = (action) => KEY_X[Object.keys(HOTKEYS).find((k) => HOTKEYS[k] === a
 const byKeyboard = (pairs) => pairs.sort((a, b) => keyX(a[0]) - keyX(b[0])).map(([, html]) => html).join('');
 const isDriveKey = (name) => Object.values(DRIVE_KEY).includes(name);
 const keyedVehicle = (p, key) => vehiclesHere(p).find((x) => DRIVE_KEY[ITEMS[x.id].uses] === key)?.id;
-const THREAT_KEYS = { w: 'flee', f: 'hide' };   // in Move's and Fortify's places, on their keys; weapons: 1–6 picks the slot, Enter swings it
-const THREAT_KEYS_ID = new Set(Object.values(THREAT_KEYS));
+// in an encounter: Move's and Fortify's places and keys (weapons: 1–6 picks the slot, Enter swings it)
+const fightKeys = () => ({ w: mode === 'armor' ? 'givein' : mode === 'escape' ? 'foot' : 'flee', f: 'hide' });
 // Backspace cancels / goes back (Esc still works too, but full-screen Chrome can take it for itself).
 const isBack = (e) => e.key === 'Backspace' || e.key === 'Escape';
 // ---------------------------------------------------------------- cheats (testing)
@@ -1584,7 +1510,7 @@ document.addEventListener('keydown', (e) => {
     if (b && !b.disabled) { selected = null; b.click(); }
     return;
   }
-  let id = (mode === 'threat' ? THREAT_KEYS : HOTKEYS)[k];
+  let id = (fightMode() && fightKeys()[k]) || HOTKEYS[k];
   if (isDriveKey(id)) id = keyedVehicle(cur(), id);
   if (id) {
     const b = $(`#actions [data-act="${id}"]`);

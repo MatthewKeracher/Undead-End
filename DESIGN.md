@@ -83,14 +83,15 @@ Each day starts on round 1, the first morning; rounds 5 and 6 are its night.
 
 ## Fight, Flee or Hide
 Triggered when zombies arrive on your tile (a night attack or a scavenge roll), or when you move onto a tile with zombies.
-Repeat until the tile is clear, you escape, or you die.
-- **Fight:** pick the weapon **in your backpack** — the ones you can use right now (with the ammo, fuel or AP they take) light up; everything else greys out, and **Flee** (and **Hide**, with Safety up) are the buttons in the middle. **Using an item costs no AP**; the weapon loses **1 condition per fight round** (not per attack). Attack one at a time (**Enter** each): each attack kills 1 zombie. Stop any time (Esc).
+Repeat until the tile is clear, you escape, or you die. The whole **encounter plays out on one battlefield over your hex** — the horde (🧟) above your 🟡 Safety, the dice, and the odds — which stays until it's over; every choice is made in the bars.
+- **Fight:** **click a weapon in your backpack — each click is one attack**. The ones you can use right now (with the ammo, fuel or AP they take) light up; everything else greys out. **Flee** and **Hide** take Move's and Fortify's places in the action bar (keys W and F). **Using an item costs no AP**; each weapon loses **1 condition the first time it's used in an encounter** (it's drawn) — then it's free for the rest of the encounter. Switch weapons whenever you like; each costs its 1 once. A weapon worn to 0 still works until the encounter's over, then breaks.
   - **Gun (Pistol):** each shot costs **1 ammo** (no AP).
   - **Melee (Axe):** each swing costs **1 AP** — so swinging eats the AP you'd need to flee.
   - **Chainsaw:** each rev costs **1 fuel** and kills **up to 6 zombies** — a tile holds at most 6, so one rev always clears it.
 - **Flee:** 1 AP. Roll 1d6 — must roll **higher than the number of zombies** (so 6 zombies can't be outrun).
   On success, move to an adjacent **already-scouted** tile with no zombies.
-  **On failure:** only **armor** allows a reroll (−1 armor condition, 1 AP). Otherwise you're **caught**: you can't flee again this encounter and must fight —
+  If a vehicle's on the tile you can ride off in it instead (it lights up in the action bar, beside **On foot**).
+  **On failure:** only **armor** allows a reroll (−1 armor condition, 1 AP) — it lights up in the backpack; **Give in** (W) declines. Otherwise you're **caught**: you can't flee again this encounter and must fight —
   and **with no usable weapon, a failed flee is instant death**.
 - **Hide:** free, when the tile has **🟡 Safety** — offered **only when you could fight instead** (a usable weapon); with nothing to fight with, you hide **at once**, as Safety always worked. Not once you've been caught fleeing. The Safety takes the zombies **one for one** — each point stops one zombie and is used up. Hide straight away and it's the walls that pay; **fight some down first** and you lose less Safety. Any left over once the Safety is gone stay to be fought or fled.
 - If you flee, the zombies and the Safety both stay on the tile.

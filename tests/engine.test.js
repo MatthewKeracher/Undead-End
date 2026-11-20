@@ -190,9 +190,8 @@ test('time up waits for an open decision, then that player loses 1 AP', () => {
   E.timeUp(S);
   assert.equal(S.round, 1);             // round waits
   E.act(S, 1, { type: 'decide', choice: 'shoot' });
-  E.act(S, 1, { type: 'decide', choice: 'attack' });
   S.forced = [1, 1];
-  E.act(S, 1, { type: 'decide', choice: 'attack' });   // tile clear → B sleeps → round ends
+  E.act(S, 1, { type: 'decide', choice: 'shoot' });   // tile clear → B sleeps → round ends
   assert.equal(b.pending, null);
   assert.equal(S.round, 2);
   assert.ok(a.ap > 0);
@@ -250,10 +249,10 @@ test('zombies come past Safety: fight some down, then hide — Safety stops the 
   assert.equal(t.zombies, 5);
   assert.equal(p.pending.kind, 'threat');
   assert.equal(E.canHide(p, t), true);
+  decide(S, 'shoot');                   // one shot each click
+  assert.equal(p.items[0].cond, 3);     // −1 condition: the gun's drawn for this encounter
   decide(S, 'shoot');
-  assert.equal(p.pending.kind, 'fight');
-  assert.equal(p.items[0].cond, 3);     // −1 condition per fight round
-  decide(S, 'attack'); decide(S, 'attack'); decide(S, 'stop');   // two down, one bullet kept
+  assert.equal(p.items[0].cond, 3);     // …and only once
   assert.equal(t.zombies, 3);
   assert.equal(p.pending.kind, 'threat');     // still zombies: fight, flee or hide
   decide(S, 'hide');                    // Safety 2 stops 2 of the 3
@@ -448,8 +447,7 @@ test('weapon looks: melee ones cost AP, the Bow fires ammo like the Pistol', () 
   tile(S, 1, 0, 'Forest');
   S.forced = [1, 2];
   act(S, { type: 'scavenge' });
-  decide(S, 'melee');
-  decide(S, 'attack'); decide(S, 'attack');
+  decide(S, 'melee'); decide(S, 'melee');
   assert.equal(E.tileOf(S, p).zombies, 0);
 });
 
@@ -462,10 +460,46 @@ test('fight with the weapon you pick from the backpack — if you have what it t
   assert.ok(decide(S, { weapon: 0 }).error);   // the Pistol: no ammo
   assert.ok(decide(S, { weapon: 3 }).error);   // Booze is no weapon
   assert.equal(E.canWield(p, p.items[2]), true);
-  decide(S, { weapon: 2 });                    // the Sword, not the more worn Axe
-  assert.equal(p.pending.kind, 'fight');
-  assert.equal(p.items[p.pending.weapon].id, 'Sword');
-  assert.equal(p.items[2].cond, 4);            // −1 condition for the fight round
+  decide(S, { weapon: 2 });                    // the Sword, not the more worn Axe: one swing
+  assert.equal(E.tileOf(S, p).zombies, 1);
+  assert.equal(p.items[2].cond, 4);            // −1 condition: drawn for this encounter
+  assert.equal(p.items[1].cond, 1);            // the Axe untouched
+  assert.equal(p.pending.kind, 'threat');      // one left: swing again, switch, flee…
+});
+
+test('weapon condition is spent once per encounter, per weapon; one worn to 0 lasts the encounter, then breaks', () => {
+  const { S, p } = game();
+  tile(S, 1, 0, 'Forest');
+  p.items.push({ id: 'Axe', cond: 1 }, { id: 'Pistol', cond: 3 });
+  p.ap = 10; p.res.ammo = 5;
+  E.cheat(S, 0, 'zombies', [5]);
+  decide(S, { weapon: 0 });                    // the Axe: 1 → 0, but still swinging
+  assert.equal(p.items[0].cond, 0);
+  decide(S, { weapon: 0 });
+  assert.equal(E.tileOf(S, p).zombies, 3);
+  decide(S, { weapon: 1 });                    // switch to the Pistol: its first shot costs it 1
+  assert.equal(p.items[1].cond, 2);
+  const pistol = p.items[1];
+  decide(S, { weapon: 1 }); decide(S, { weapon: 1 });
+  assert.equal(pistol.cond, 2);
+  assert.equal(E.tileOf(S, p).zombies, 0);     // cleared: the encounter's over…
+  assert.equal(p.items.map((x) => x.id).join(), 'Pistol');   // …and the worn-out Axe breaks
+  assert.equal(p.items[0].drawn, undefined);
+  E.cheat(S, 0, 'zombies', [1]);               // a new encounter: drawing the Pistol costs again
+  decide(S, { weapon: 0 });
+  assert.equal(p.items[0].cond, 1);
+});
+
+test('an encounter ended by hiding puts the weapons away too — a worn-out one breaks', () => {
+  const { S, p } = game();
+  tile(S, 1, 0, 'Forest');
+  E.tileOf(S, p).safety = 2;
+  p.items.push({ id: 'Axe', cond: 1 });
+  E.cheat(S, 0, 'zombies', [3]);
+  decide(S, { weapon: 0 });                    // one swing: the Axe at 0
+  decide(S, 'hide');                           // the Safety takes the other two
+  assert.equal(E.tileOf(S, p).zombies, 0);
+  assert.equal(p.items.length, 0);
 });
 
 test('shotgun: each shot burns 1 ammo and kills up to 3 zombies', () => {
@@ -477,15 +511,14 @@ test('shotgun: each shot burns 1 ammo and kills up to 3 zombies', () => {
   S.forced = [1, 5];           // scavenge: 5 zombies
   act(S, { type: 'scavenge' });
   decide(S, { weapon: 0 });
-  decide(S, 'attack');
   assert.equal(E.tileOf(S, p).zombies, 2);
   assert.equal(p.res.ammo, 1);
-  decide(S, 'attack');         // 2 left: one shot takes both
+  decide(S, { weapon: 0 });    // 2 left: one shot takes both
   assert.equal(E.tileOf(S, p).zombies, 0);
   assert.equal(p.res.ammo, 0);
 });
 
-test('chainsaw: one rev burns 1 fuel and clears the tile (up to 6); −1 condition per fight round', () => {
+test('chainsaw: one rev burns 1 fuel and clears the tile (up to 6); −1 condition when drawn', () => {
   const { S, p } = game();
   p.items.push({ id: 'Chainsaw', cond: 3 });
   p.res.fuel = 5;
@@ -494,9 +527,8 @@ test('chainsaw: one rev burns 1 fuel and clears the tile (up to 6); −1 conditi
   act(S, { type: 'scavenge' });
   assert.equal(p.pending.kind, 'threat');
   assert.ok(E.canSaw(p));
-  decide(S, 'saw');
+  decide(S, 'saw');      // one rev: all six
   assert.equal(p.items[0].cond, 2);
-  decide(S, 'attack');   // one rev: all six
   assert.equal(E.tileOf(S, p).zombies, 0);
   assert.equal(p.res.fuel, 4);
   assert.equal(p.pending, null);
