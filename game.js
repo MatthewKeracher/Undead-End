@@ -180,6 +180,7 @@ async function show(ev) {
     case 'die': return tone(200, 1.4, 'sawtooth', 0.12, -170);
     case 'round': return roundBannerShow(ev);
     case 'town': return townBannerShow(ev);
+    case 'noteDone': return toast(`📝 You've reached the ${ev.name}${ev.by ? ` — ${ev.by}'s stash is here somewhere` : ''}.`);
   }
 }
 

@@ -357,11 +357,17 @@ const Engine = (() => {
   }
   // Each survivor remembers the tiles they've stood on (p.visited) — the UI shows their Safety there.
   // …and the settlements they've set foot in (p.towns): the first time, a 'town' event (the UI's banner).
+  // A Note whose place you've reached has done its job: it leaves the backpack.
   function markVisited(S) {
     for (const p of S.players) {
       if (p.dead) continue;
       const k = key(p.q, p.r), id = S.tiles[k]?.town;
       if (!(p.visited ||= []).includes(k)) p.visited.push(k);
+      for (const it of p.items.filter((x) => ITEMS[x.id].leads && x.to === k)) {
+        p.items.splice(p.items.indexOf(it), 1);
+        log(S, `📝 ${p.name} reaches the ${S.tiles[k].def.name} the Note named — and lets it go.`, 'good');
+        emit(S, { type: 'noteDone', player: p.id, name: S.tiles[k].def.name, by: it.by });
+      }
       if (id !== undefined && !(p.towns ||= []).includes(id)) {
         p.towns.push(id);
         const town = S.towns[id];

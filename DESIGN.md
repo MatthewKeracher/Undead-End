@@ -156,6 +156,7 @@ Repeat until the tile is clear, you escape, or you die.
 - A **Note** also shows the way: the moment it's found (or taken from a stash), a place **6 hexes away** (`CONFIG.leadDistance`; nearer or farther if there's no room) is revealed with a **purple border**, and the Note names it in a line (*"Gone to the Lake. Follow if you can. — Mara"*; tap it in the backpack to read it again). That place is always a **stronghold** — a **Castle, Army Checkpoint or Church** (`LEADS.places`), standing alone: never in a settlement's room or beside a Mountain.
 - There, **the writer's stash** (e.g. **Mara's stash**, purple on the table) covers one row (2, 4, 5 or 6). It always holds: **their next Note** (so the trail goes on, same writer), **food and water** (1d6 each), **a melee weapon, or a gun and ammo** (1d6), and **Pills or Binoculars** — items at 1d6 condition. Rolled for like any stash; once it's found, the border goes.
 - Off screen, each place you've been led to shows as a **purple marker** circling your hex, with its icon, pointing the way.
+- **Reaching the place** a Note names (on foot, driving through, any way) **takes the Note out of your backpack** — it's done its job (its pips of hope go with it).
 - A Note picked up again (from a stash) leads nowhere new. Words in `LEADS` (data.js).
 - Found at: Farmhouse, Campsite, Church, Post Office, Library, Train Station, Graveyard (Note); Orchard, Castle, Cottage, Petrol Station, Pub, Corner Shop, YOLO Foods, Hotel, Stadium (Booze); Pharmacy, Hospital, Shopping Mall (Pills).
 

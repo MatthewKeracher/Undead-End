@@ -882,6 +882,21 @@ test('finding a Note reveals a place 6 hexes away, where its writer left a stash
   assert.equal(E.tableView(there)[st.row - 1].kind, 'stash');
 });
 
+test('a Note leaves the backpack once you reach the place it names', () => {
+  const { S, p } = game();
+  S.forced = [4, 2];                    // Farmhouse 4 = Note
+  act(S, { type: 'scavenge' });
+  const note = p.items[0], [q, r] = note.to.split(',').map(Number);
+  p.items.push({ id: 'Note', cond: 1, to: '9,9', by: 'Sam' });   // another Note, elsewhere: it stays
+  tile(S, q - 1, r, 'Forest');
+  p.q = q - 1; p.r = r; p.acted = false; p.freeMoved = false;
+  const { events } = act(S, { type: 'move', q, r });
+  assert.ok(!p.items.some((x) => x === note));
+  assert.equal(p.items.filter((x) => x.id === 'Note').length, 1);
+  assert.equal(events.find((e) => e.type === 'noteDone').name, S.tiles[note.to].def.name);
+  assert.ok(E.leadOpen(S.tiles[note.to]));   // the stash is still there to find
+});
+
 test('Notes only ever lead to strongholds: a Castle, Army Checkpoint or Church', () => {
   for (let seed = 1; seed <= 60; seed++) {
     const S = E.createGame({ seed, checksOff: true });
@@ -902,14 +917,15 @@ test('taking the stash: everything, and its Note leads on — same writer — to
   S.forced = [st.row];
   act(S, { type: 'scavenge' });
   assert.equal(p.res.food, food);
-  assert.equal(p.items.length, 4);      // the first Note + the stash's three
+  assert.equal(p.items.length, 3);      // the stash's three — the first Note, its place reached, is gone
+  assert.ok(!p.items.includes(first));
   assert.equal(E.leadOpen(there), false);   // emptied: the border goes
-  const next = p.items[1];
+  const next = p.items[0];
   assert.equal(next.id, 'Note');
   assert.equal(next.by, first.by);
   assert.ok(E.leadOpen(S.tiles[next.to]));
   const tiles = Object.keys(S.tiles).length;
-  act(S, { type: 'drop', item: 1 });    // a Note picked up again leads nowhere new
+  act(S, { type: 'drop', item: 0 });    // a Note picked up again leads nowhere new
   S.forced = [p.items.length && E.tileOf(S, p).stashes.find((x) => x.owner === 'Survivor').row];
   act(S, { type: 'scavenge' });
   assert.equal(Object.keys(S.tiles).length, tiles);
