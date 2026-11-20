@@ -52,9 +52,78 @@ function newGame(names = ['Survivor']) {
   logSeen = 0; mode = null; modalKey = null; selected = null; justRevealed = []; camInit = false; logShown = Infinity; // forces log reset on next render
   prevStats = {};
   render();
-  // the starting round's check happens straight away (after a beat so you see your starting resources)
+  // the opening menu: play, or play the tutorial. Nothing happens (and the round timer waits) until it's answered;
+  // then the starting round's check happens straight away.
   const game = G;
-  setTimeout(() => { if (G === game) play([{ type: 'round', day: G.day, round: G.round }, ...E.start(G).events]); }, 600);
+  busy = true;
+  showMenu().then(async (tut) => {
+    if (G !== game) return;
+    busy = false;
+    tutorial = tut; tutSeen = new Set();
+    renderTimer();
+    if (tutorial) await tutorCard(TUTORIAL.welcome);
+    if (G === game) play([{ type: 'round', day: G.day, round: G.round }, ...E.start(G).events]);
+  });
+}
+
+// The opening menu (and after New game).
+function showMenu() {
+  const pop = $('#popup');
+  pop.className = 'menu';
+  pop.innerHTML = `<div class="pcard menucard">
+    <div class="ptitle"><small>A zombie survival game</small><h2>🧟 Undead End</h2></div>
+    <div class="menubtns">
+      <button class="primary" id="mplay">▶ Play <kbd>Enter</kbd></button>
+      <button id="mtut">📖 Tutorial <kbd>T</kbd></button>
+    </div>
+    <small class="pskip">The tutorial explains each action and item the first time you meet it.</small></div>`;
+  pop.hidden = false;
+  return new Promise((res) => {
+    const go = (tut) => { modalKey = null; pop.hidden = true; res(tut); };
+    $('#mplay').onclick = (e) => { e.stopPropagation(); go(false); };
+    $('#mtut').onclick = (e) => { e.stopPropagation(); go(true); };
+    modalKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); go(false); } else if (e.key.toLowerCase() === 't') go(true); };
+  });
+}
+
+// ---------------------------------------------------------------- tutorial
+// A tutorial game explains each action the first time you pick it (Do it / Not yet) and each item the first
+// time you find it. The words are in TUTORIAL (data.js). The round timer stays off throughout.
+let tutorial = false;
+let tutSeen = new Set();   // actions ('scout') and items ('item:Axe') already explained this game
+async function tutorCard({ icon, title, text }, { kicker = 'Tutorial', confirm = false } = {}) {
+  const pop = $('#popup');
+  pop.className = 'tut';
+  pop.innerHTML = `<div class="pcard tutcard">
+    <div class="ptitle"><small>${kicker}</small><h2><span class="tutic">${icon}</span> ${esc(title)}</h2></div>
+    ${text.map((t) => `<p>${esc(t)}</p>`).join('')}
+    <div class="frow">${confirm ? '<button class="primary" id="tyes">Do it <kbd>Enter</kbd></button><button id="tno">Not yet <kbd>Esc</kbd></button>' : '<button class="primary" id="tyes">Got it <kbd>Enter</kbd></button>'}</div></div>`;
+  pop.hidden = false;
+  const yes = await new Promise((res) => {
+    $('#tyes').onclick = (e) => { e.stopPropagation(); res(true); };
+    if (confirm) $('#tno').onclick = (e) => { e.stopPropagation(); res(false); };
+    modalKey = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); res(true); } else if (isBack(e)) res(!confirm); };
+  });
+  modalKey = null;
+  pop.hidden = true;
+  return yes;
+}
+// Before an action's first use: what it does. Resolves true to go ahead with it.
+async function explain(id) {
+  if (!tutorial || tutSeen.has(id) || !TUTORIAL.actions[id]) return true;
+  tutSeen.add(id);
+  return tutorCard(TUTORIAL.actions[id], { kicker: 'Tutorial · new action', confirm: true });
+}
+// After anything plays out: an item (or vehicle) you're seeing for the first time — carried, just found, or here.
+async function explainFinds() {
+  const p = cur();
+  const ids = [...p.items.map((it) => it.id), p.pending?.kind === 'backpack' ? p.pending.item.id : null, ...vehiclesHere(p).map((v) => v.id)];
+  for (const id of new Set(ids)) {
+    if (!id || tutSeen.has(`item:${id}`) || G.over) continue;
+    tutSeen.add(`item:${id}`);
+    const def = ITEMS[id], kind = def.animal ? 'animal' : def.vehicle ? 'vehicle' : def.weapon ? 'weapon' : def.armor ? 'armor' : 'other';
+    await tutorCard({ icon: itemIcon(id), title: id, text: [TUTORIAL.kinds[kind], def.desc, ...(def.animal ? [] : [TUTORIAL.condition])] }, { kicker: 'Tutorial · new find' });
+  }
 }
 
 // ---------------------------------------------------------------- talking to the engine
@@ -83,6 +152,7 @@ async function play(events) {
   mode = d ? PENDING_MODE[d.kind] ?? null : null;   // whatever was going on (e.g. a drive cut short by the timer) is over
   render();
   if (G.over) return showGameOver();
+  if (tutorial) await explainFinds();
   await ask();
 }
 
@@ -146,7 +216,7 @@ function tickTimer(dt) {
   if (timer.game !== G || timer.day !== G.day || timer.round !== G.round) {   // new game or new round: full time again
     Object.assign(timer, { game: G, day: G.day, round: G.round, left: fullTime(), fired: false });
   }
-  if (timerOn && !busy && !paused && !G.over && !timer.fired) {
+  if (timerOn && !tutorial && !busy && !paused && !G.over && !timer.fired) {
     const before = Math.ceil(timer.left / 1000);
     timer.left = Math.max(0, timer.left - dt);
     const s = Math.ceil(timer.left / 1000);
@@ -166,7 +236,7 @@ function tickTimer(dt) {
 }
 function renderTimer() {
   const el = $('#timer');
-  if (!timerOn || !G || G.over) { el.innerHTML = ''; el.className = ''; return; }
+  if (!timerOn || tutorial || !G || G.over) { el.innerHTML = ''; el.className = ''; return; }
   const s = Math.ceil(timer.left / 1000);
   el.className = `${s <= 10 ? 'low' : ''} ${busy || paused ? 'paused' : ''}`;
   el.innerHTML = `⏱️ <b>${s}s</b><span class="bar"><i style="width:${(100 * timer.left / fullTime()).toFixed(1)}%"></i></span>`;
@@ -398,11 +468,12 @@ async function useTool(i) {
     .filter(({ it }) => it !== tool && it.cond < CONFIG.maxCondition);
   const pop = $('#popup');
   const close = () => { modalKey = null; pop.hidden = true; };
-  pop.className = 'tool';
   if (!targets.length) {
     toast(`${ITEMS[tool.id].icon} Nothing to repair — every other item is at full condition (${CONFIG.maxCondition}).`);
     return;
   }
+  if (!(await explain('tool'))) return;
+  pop.className = 'tool';
   // step 1: pick the item to repair
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>${itemIcon(tool.id)} ${tool.id} ${condPips(tool.cond)}</small><h2>Repair which item?</h2></div>
@@ -429,25 +500,30 @@ async function useTool(i) {
   send({ type: 'tool', tool: i, target: { from: target.from, index: target.index }, amount });
 }
 
-function dropItem(i) {
+async function dropItem(i) {
   if (!cur().items[i] || busy || modalKey) return;
-  send({ type: 'drop', item: i });
+  if (await explain('drop')) send({ type: 'drop', item: i });
+}
+async function takePills(i) {
+  if (cur().pending || busy || modalKey) return;
+  if (await explain('pills')) send({ type: 'pills', item: i });
 }
 
 // ---------------------------------------------------------------- actions
 // Buttons and hotkeys come here. Scout and Move first ask for a hex (clickHex).
-function act(name) {
+// In a tutorial, each action's first use is explained first (and can be called off).
+async function act(name) {
   if (busy || modalKey || G.over) return;
   const p = cur();
-  if (mode === 'threat') { if (['shoot', 'melee', 'saw', 'flee'].includes(name)) send({ type: 'decide', choice: name }); return; }
+  if (mode === 'threat') { if (['shoot', 'melee', 'saw', 'flee'].includes(name) && await explain(name)) send({ type: 'decide', choice: name }); return; }
   if (name === 'stopdrive') return send({ type: 'decide', choice: 'stop' });   // the touch way to end a trip
   if (p.pending) return;
-  if (name === 'move') { mode = mode === name ? null : name; return render(); }
+  if (name === 'move') { if (mode !== name && !(await explain('move'))) return; mode = mode === name ? null : name; return render(); }
   if (name === 'pause') return togglePause();
   if (isDriveKey(name)) name = keyedVehicle(p, name);
   if (!name) return;
-  if (ITEMS[name]?.vehicle) return send({ type: 'drive', vehicle: name });
-  send({ type: name });
+  if (ITEMS[name]?.vehicle) { if (await explain('drive')) send({ type: 'drive', vehicle: name }); return; }
+  if (await explain(name)) send({ type: name });
 }
 
 // A hex picked on the map (or with A Q E D X Z) while moving, fleeing or driving.
@@ -1388,7 +1464,7 @@ new MutationObserver(() => { const c = $('#popup .pcard'); if (c) cardWatch.obse
 $('#pack').addEventListener('click', (e) => {
   if (e.target.closest('[data-packtoggle]')) { $('#pack').classList.toggle('open'); return; }
   const u = e.target.closest('[data-use]'); if (u) { useTool(+u.dataset.use); return; }
-  const pl = e.target.closest('[data-pill]'); if (pl) { if (!cur().pending) send({ type: 'pills', item: +pl.dataset.pill }); return; }
+  const pl = e.target.closest('[data-pill]'); if (pl) { takePills(+pl.dataset.pill); return; }
   const b = e.target.closest('[data-drop]');
   if (!b) {   // the slot itself: what is it? (phones show only the icon)
     const it = cur().items[e.target.closest('[data-slot]')?.dataset.slot];

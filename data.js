@@ -100,6 +100,46 @@ const ITEMS = {
   Pills: { icon: '💊', pills: true, desc: 'Take any time (free): AP back up to your max AP. −1 condition per dose; gone at 0.' },
 };
 
+// Tutorial games (chosen from the opening menu): a card before the first round, a card for each action the
+// first time you pick it (Do it / Not yet), and one for each item the first time you find it — that card
+// uses the item's desc above, with a line about its kind. Edit freely.
+const TUTORIAL = {
+  welcome: {
+    icon: '🧟', title: 'Welcome, survivor',
+    text: [
+      'Stay alive as long as you can. Each day is 6 rounds — the clock, top left. Rounds 5 and 6 are night, and at night the zombies come.',
+      'Each round you take one action. Most cost 1 🎲 AP; sleeping gets AP back.',
+      'Each round also asks for something, shown on the clock: 🔴 food and 🔵 water keep your max AP up (miss them and it drops — at 0 you die). 🟣 Booze gets you through the night: no booze when round 6 asks for it, and you die.',
+      '🟠 Fuel and 🟢 ammo run vehicles and guns. 🟡 Safety belongs to a place — it stops zombies at night.',
+      'Each action and item is explained the first time you meet it. The round timer is off while you learn.',
+    ],
+  },
+  actions: {
+    sleep: { icon: '😴', title: 'Sleep', text: ['Rest for the round: roll 2d6 and gain that much AP, up to your max AP. Free — but it is your action.', 'At 0 AP, sleeping is all you can do.'] },
+    scout: { icon: '🔭', title: 'Scout', text: ['1 AP: reveals every unexplored hex next to you, so you can see where to go. You stay where you are.'] },
+    move: { icon: '🚶', title: 'Move', text: ['Step into a hex next to you — pick it on the map (or press A Q E D X Z). An unexplored hex is revealed as you arrive.', 'Your first move each round is free and still leaves you your action — but you need at least 1 AP. A second move costs 1 AP and is your action.'] },
+    scavenge: { icon: '🔍', title: 'Scavenge', text: ['1 AP: roll a d6 on this place\'s table. A 1 is always zombies, a 3 is a random find. What you find is crossed off.', 'Zombies drift back once nobody\'s here and the place has no Safety. You can\'t scavenge with zombies on the tile.'] },
+    fortify: { icon: '🔨', title: 'Fortify', text: ['1 AP: add 1d6 🟡 Safety to this place, up to its max.', 'At night each point of Safety stops one attacking zombie (and is used up). Safety stays with the place, not with you.'] },
+    drive: { icon: '🛻', title: 'Drive or ride', text: ['Free movement: it doesn\'t use your action. Steer hex by hex through scouted hexes; each tile costs fuel, AP or water, depending on what you\'re in.', 'You can pass through zombies, but stopping on them means a fight.'] },
+    shoot: { icon: '🔫', title: 'Shoot', text: ['Each shot fires 1 🟢 ammo and kills 1 zombie. No AP.', 'The gun loses 1 condition for each round of fighting, not each shot.'] },
+    melee: { icon: '🪓', title: 'Melee', text: ['Each swing costs 1 🎲 AP and kills 1 zombie — AP you might need to flee.', 'The weapon loses 1 condition for each round of fighting, not each swing.'] },
+    saw: { icon: '🪚', title: 'Saw', text: ['Each rev burns 1 🟠 fuel and kills up to 3 zombies.'] },
+    flee: { icon: '🏃', title: 'Flee', text: ['1 AP: roll a d6 and beat the number of zombies to escape to a safe, scouted hex next to you — or away in a vehicle here.', 'Fail and you\'re caught: you must fight. Six zombies can\'t be outrun.'] },
+    tool: { icon: '🧰', title: 'Use a tool', text: ['Free, any time: move some of the tool\'s condition onto another item, or a vehicle on your tile (up to 6). The tool is gone at 0.'] },
+    pills: { icon: '💊', title: 'Take pills', text: ['Free, any time: one dose tops your AP up to your max AP. −1 condition per dose.'] },
+    drop: { icon: '✕', title: 'Leave an item', text: ['Leave it on this tile, condition and all. It takes a row of the table — roll that row to pick it up again.'] },
+  },
+  // the line above an item's desc on its card
+  kinds: {
+    weapon: 'A weapon — used when zombies are on your tile.',
+    armor: 'Armor — worn, not used.',
+    vehicle: 'A vehicle — too big for your backpack, it stays parked on its tile.',
+    animal: 'An animal — it waits on its tile.',
+    other: 'An item for your backpack.',
+  },
+  condition: 'Condition (the dots) is how many uses are left; at 0 it breaks.',
+};
+
 // Tiles are read from LOCATIONS (locations.js): each table entry is written as words
 // ('Double Food', 'Axe', …) and turned into { zombies } / { res, n } / { item } here.
 const MULTIPLIERS = { double: 2, triple: 3, quadruple: 4 };

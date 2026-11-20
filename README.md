@@ -8,6 +8,8 @@ A digital prototype of a hex-tile zombie survival board game. Scout the map, sca
 
 Or open `index.html` in a browser — no build step or install needed.
 
+The game opens on a small menu: **Play**, or **Tutorial**, which explains each action the first time you pick it (you can call it off) and each item the first time you find it. The round timer is off in the tutorial.
+
 ## Controls
 
 | Key | Action |
@@ -35,7 +37,7 @@ Or open `index.html` in a browser — no build step or install needed.
 - `MULTIPLAYER.md` — plan for online multiplayer, voice and the Radio
 - `QUESTIONS.md` — every open rules question, with space for answers
 - `locations.js` — every location, its d6 scavenge table, and where it's found: alone in the countryside or built in villages, towns and cities (edit freely)
-- `data.js` — rules numbers and items (edit freely)
+- `data.js` — rules numbers, items and the tutorial's words (edit freely)
 - `engine.js` — the rules: no screen code, seeded dice, actions in → events out (runs in the browser now, on the multiplayer server later)
 - `game.js` — the UI: draws the board and animates the engine's events
 - `tests/` — rules tests: `node --test`

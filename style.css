@@ -310,6 +310,20 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 #popup.dead .pcard p { margin: 6px 0; }
 #popup.dead .primary { margin-top: 12px; }
 #popup.dead kbd { color: #111; border-color: #0004; }
+/* the opening menu: Play or Tutorial */
+#popup.menu { cursor: default; background: #000c; }
+.menucard h2 { font-size: 30px; letter-spacing: .02em; }
+.menubtns { display: grid; gap: 10px; margin: 4px 0 2px; }
+.menubtns button { padding: 12px; font-size: 16px; }
+.menucard kbd, .tutcard .primary kbd { color: #111; border-color: #0004; }
+/* tutorial cards: what an action or item does, the first time */
+#popup.tut { cursor: default; }
+.tutcard { max-width: min(460px, 100%); border-color: #4aa8ff88; }
+.tutcard h2 { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.tutic { font-size: 30px; line-height: 1; }
+.tutic .iimg { width: 32px; height: 32px; }
+.tutcard p { text-align: left; margin: 0 0 10px; line-height: 1.5; }
+.tutcard .frow { margin-top: 14px; }
 #popup.night.zombie { background: #3a0010cc; }
 .ribbon.threat { border-color: var(--bad); box-shadow: 0 0 30px #c0392b66, 0 10px 30px #000a; }
 /* Fight or Flee: the choice moves to the middle of the board, bigger, with a red vignette behind it */
