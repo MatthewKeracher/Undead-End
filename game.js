@@ -1173,7 +1173,6 @@ $('#map').addEventListener('pointercancel', dragEnd);
 // Desktop: the backpack bar sits just above the action dock (--dockh: how much of the board's bottom the dock
 // takes), and the resources run down the right, stopping above both (--packh).
 function fitRightCol() {
-  if ($('#board').classList.contains('threat')) return;   // the dock is in the middle during a fight: stay put
   const board = $('#board'), b = board.getBoundingClientRect(), d = $('#dock').getBoundingClientRect();
   board.style.setProperty('--dockh', `${b.bottom - d.top}px`);
   board.style.setProperty('--packh', `${$('#pack').getBoundingClientRect().height}px`);
@@ -1346,19 +1345,17 @@ function renderStats(p = cur()) {
 // Rows 2–6 still worth rolling for (unlooted finds and stashes).
 const lootLeft = (t) => E.tableView(t).filter((row) => row.row > 1 && row.kind !== 'looted' && row.kind !== 'zombies').length;
 
-// The action tray, and the messages that go with it: those go up top, under the timer (#msgs) — except a fight's,
-// which stays with Flee and Hide in the middle of the board.
+// The action tray, and the messages that go with it: those go up top, under the timer (#msgs).
 function renderPanel() {
   renderActions();
-  const notes = mode === 'threat' ? [] : [...$('#actions').querySelectorAll(':scope > .note')];
+  const notes = [...$('#actions').querySelectorAll(':scope > .note')];
   $('#notes').replaceChildren(...notes);
   $('#notes').classList.toggle('main', !mode);   // the everyday ones (next round…): phones leave them to the clock
 }
 function renderActions() {
   const p = cur(), t = tileOf(p);
   const noAP = p.ap < 1;
-  // Fight or Flee moves to the middle of the board; back at the bottom, re-fit the right column around it
-  if ($('#board').classList.toggle('threat', mode === 'threat') === false) requestAnimationFrame(fitRightCol);
+  $('#board').classList.toggle('threat', mode === 'threat');   // a fight: the board darkens red round the edges
   // the action bar never goes away: while something else is being decided (hope, where to run) it's just greyed out
   const waiting = mode === 'hope' || mode === 'flee';
   const btn = (id, label, sub, dis) => {
@@ -1371,10 +1368,10 @@ function renderActions() {
     return `<button class="act ${mode === id ? 'on' : ''} ${selected === id ? 'sel' : ''}" data-act="${id}" title="${esc(`${words.join(' ')} — ${sub}`)}" ${dis ? 'disabled' : ''}><b><span class="ai">${icon}</span><span class="al"> ${words.join(' ')}</span>${hk ? `<kbd>${hk.toUpperCase()}</kbd>` : ''}</b><small>${sub}</small></button>`;
   };
 
-  if (mode === 'threat') {   // fight with a weapon picked in the backpack (renderPack) — or flee, here
+  if (mode === 'threat') {   // fight with a weapon picked in the backpack (renderPack) — or Flee / Hide, which take over the action bar
     $('#actions').innerHTML = `
       <div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} on the ${esc(t.def.name)}! ${p.caught ? 'Caught — fight with a weapon from your backpack!' : canFight(p) ? `Pick a weapon from your backpack, flee${t.safety ? ' or hide' : ''}.` : 'Nothing to fight with — if you fail to flee, you die.'}</div>
-      <div class="ribbon threat">
+      <div class="ribbon main threat">
         ${btn('flee', '🏃 Flee', p.caught ? 'Caught — must fight' : !fleeAdj(p).length ? 'Nowhere to run' : t.zombies >= 6 ? 'Too many to outrun' : p.ap < 1 ? 'No AP' : `1 AP · roll > ${t.zombies}`, !canFlee(p, t))}
         ${t.safety ? btn('hide', '🛡️ Hide', p.caught ? 'Caught — must fight' : `Free · 🟡 ${t.safety} stops ${Math.min(t.safety, t.zombies)}`, !E.canHide(p, t)) : ''}
       </div>`;

@@ -348,13 +348,10 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 #popup.night.zombie { background: #3a0010cc; }
 .ribbon.threat { border-color: var(--bad); box-shadow: 0 0 30px #c0392b66, 0 10px 30px #000a; }
 /* Fight or Flee: the choice moves to the middle of the board, bigger, with a red vignette behind it */
-#board.threat #dock { top: 50%; bottom: auto; left: var(--gap); right: var(--gap); transform: translateY(-50%); z-index: 4; }
 #board.threat::after { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(ellipse at center, #4a000033 0%, #3a000099 100%); animation: fade .3s; }
-#board.threat #actions .note { font-size: 15px; padding: 8px 14px; }
-.ribbon.threat { padding: 12px; gap: 10px; }
-.ribbon.threat .act { padding: 12px 18px; }
-.ribbon.threat .act b { font-size: 18px; }
-.ribbon.threat .act small { font-size: 12px; }
+#board.threat #notes .note { font-size: 15px; padding: 8px 14px; }
+/* in a fight, Flee and Hide take over the action bar — with their odds under them, everywhere */
+.ribbon.main.threat .act small { display: block; }
 
 /* backpack */
 /* right column runs down the board; --dockh (set in game.js) lifts its bottom clear of the action dock when they'd overlap */
@@ -598,8 +595,6 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   /* messages: over the top of the map's open space */
   #msgs { grid-area: map; top: 4px; left: 0; right: 0; }
   /* Fight or Flee still takes the middle of the board (out of the grid, so it centres on the whole board) */
-  #board.threat #dock { position: absolute; grid-area: auto; }
-  #board.threat #actions .ribbon { width: auto; grid-auto-columns: minmax(160px, auto); }   /* just Flee: sized to it, centred */
 }
 /* sideways: the resources and the backpack share the top row; the clock sits left of the map */
 @media (orientation: landscape) and (pointer: coarse), (orientation: landscape) and (max-width: 1100px), (orientation: landscape) and (max-height: 500px) {
