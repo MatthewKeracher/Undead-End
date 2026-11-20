@@ -182,7 +182,7 @@ async function show(ev) {
     case 'driveStep': sfx.drive(ev.fuel); return render();
     case 'move': renderMap(); return wait(450);   // arrive (the camera glides over) before the round can move on
     case 'outOfFuel': return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'ap' ? 'AP' : ev.fuel} — stopping here.`);
-    case 'die': bfClose(); return tone(200, 1.4, 'sawtooth', 0.12, -170);
+    case 'die': tone(200, 1.4, 'sawtooth', 0.12, -170); await bfRush(); return bfClose();
     case 'round': return roundBannerShow(ev);
     case 'town': return townBannerShow(ev);
     case 'noteDone': return toast(`📝 You've reached the ${ev.name}${ev.by ? ` — ${ev.by}'s stash is here somewhere` : ''}.`);
@@ -763,7 +763,7 @@ async function sleepShow({ dice, bonus = 0, from, to, max }) {
 
 // ---------------------------------------------------------------- the battlefield
 // An encounter plays out in a card over your hex (the bars stay clear): the horde (🧟) above your 🟡 Safety, and the
-// dice — no words, it's all shown.
+// dice — no words, it's all shown (but for how a flee went).
 // It opens as zombies arrive (or you walk in on them) and stays as long as they're there and you're dealing with
 // them — it can't be put away. Every choice is made in the bars: weapons in the backpack (each click, one attack),
 // Flee / Hide in the action bar (and armor, or a ride, when those come up).
@@ -838,7 +838,8 @@ function bfDraw(safety, zombies) {
 // drawn from the game as it stands — between animations
 function renderBattle() {
   const p = cur(), t = tileOf(p), k = key(p.q, p.r);
-  if (G.over || !t.zombies || !(fightMode() || mode === 'flee')) { if (!busy) bfClose(); return; }
+  // (open while you face them; once you've got away — picking which way to run, or what to ride — it's gone)
+  if (G.over || !t.zombies || !(mode === 'threat' || mode === 'armor')) { if (!busy) bfClose(); return; }
   bfOpen(k);
   bfDraw(t.safety, t.zombies);
 }
@@ -886,8 +887,31 @@ async function bfFlee(ev) {
   await wait(100);
   await rollDie($('#battle .bf-die'), ev.r, 900);
   if (ev.ok) sfx.win(false); else sfx.zombie();
+  bfWord(ev.ok ? 'Escaped!' : 'Caught!', ev.ok ? 'good' : 'bad');
+  await wait(1100);
+  if (ev.ok) bfClose();   // away: back to the map to pick where to run
+  // (caught: the word stays up — over the zombies rushing you if that's the end, or till the fight's redrawn)
+}
+// the one word the battlefield ever says: how a flee went, big over the middle
+function bfWord(text, cls) {
+  $('#battle .bf-word')?.remove();
+  $('#battle').insertAdjacentHTML('beforeend', `<div class="bf-word ${cls}">${text}</div>`);
+}
+// the end: the horde rushes you, and you go down
+async function bfRush() {
+  const you = $('#battle:not([hidden]) .bf-you');
+  if (!you) return;
+  skipAnim = false;
+  const b = you.getBoundingClientRect();
+  [...$('#battle .bf-horde').children].forEach((z, i) => {
+    const a = z.getBoundingClientRect();
+    z.style.transition = `transform .32s ease-in ${i * 0.05}s`;
+    z.style.transform = `translate(${b.left + b.width / 2 - a.left - a.width / 2}px, ${b.top + b.height / 2 - a.top - a.height / 2}px) scale(.8)`;
+  });
+  sfx.zombie();
+  await wait(380 + $('#battle .bf-horde').children.length * 50);
+  you.classList.add('down');
   await wait(900);
-  $('#battle .bf-die').innerHTML = '';
 }
 // hiding: each zombie drops onto a 🟡 Safety pip and both go, until one side runs out
 async function bfHide({ k, c }) {
