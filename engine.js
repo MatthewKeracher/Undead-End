@@ -502,9 +502,10 @@ const Engine = (() => {
   // Hide: free, with Safety up and zombies on the tile — not once you've been caught fleeing. It's a choice only when
   // you could fight instead; with no usable weapon you hide at once (STEPS.threat).
   const canHide = (p, t) => t.safety > 0 && t.zombies > 0 && !p.caught;
-  function hide(S, p) {
+  // auto: there was nothing else for it (no usable weapon) — the UI says why.
+  function hide(S, p, auto = false) {
     const t = tileOf(S, p), c = hideContest(t);
-    emit(S, { type: 'hide', player: p.id, k: key(p.q, p.r), name: t.def.name, c });
+    emit(S, { type: 'hide', player: p.id, k: key(p.q, p.r), name: t.def.name, c, auto });
     applyContest(t, c);
     log(S, `🛡️ ${p.name} hides at the ${t.def.name}: 🟡 Safety stops ${plural(c.absorbed, 'zombie')} (🟡 ${c.before.safety} → ${c.after.safety})${c.left ? ` — ${c.left} still here!` : '.'}`, c.left ? 'bad' : 'good');
     for (const o of S.players) if (o !== p && !o.dead && o.pending?.kind === 'threat' && key(o.q, o.r) === key(p.q, p.r)) { o.pending = null; o.queue.unshift({ type: 'threat' }); }   // everyone here: the horde has changed
@@ -619,7 +620,7 @@ const Engine = (() => {
     threat(S, p) {
       const t = tileOf(S, p);
       if (!t.zombies) { p.caught = false; return; }
-      if (!canFight(p) && canHide(p, t)) return hide(S, p);   // nothing to fight with: the Safety takes them, as it always did
+      if (!canFight(p) && canHide(p, t)) return hide(S, p, true);   // nothing to fight with: the Safety takes them, as it always did
       if (!canFight(p) && !canFlee(S, p, t)) {
         return die(S, p, p.ap < 1 ? `${p.name} has no strength left (0 🎲 AP) and nothing to fight with.`
           : !fleeAdj(S, p).length ? `${p.name} can't fight and has nowhere to run.`

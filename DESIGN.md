@@ -112,9 +112,8 @@ Repeat until the tile is clear, you escape, or you die.
   | 🔪 Kitchen Knife | melee | Cottage, Hotel |
   | 🍳 Frying Pan | melee | Diner, Café |
   | 🏏 Cricket Bat | melee | Pub, School, Stadium |
-  | 🏒 Hockey Stick | melee | School, Stadium |
+  | 🏒 Hockey Stick | melee | School |
   | ⛏️ Pickaxe | melee | Quarry, Graveyard |
-  | 🔧 Wrench | melee | Garage |
   - The fight buttons show the weapon you'll use (the lowest-condition one of that kind).
 - **Chainsaw** (fuel): see Fight. Found at the Hardware Store and Fire Station.
 - *To come back to:* 💣 **Bomb** and 🧨 **Firecracker** — weapons with their own mechanics (not designed yet; e.g. clearing a whole tile, or drawing zombies away).

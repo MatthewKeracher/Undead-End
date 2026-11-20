@@ -164,14 +164,14 @@ body:not(.log-open) #panel { display: none; }
 /* AP around the clock: lit up to your AP (coloured by how much of the 12 you have; purple at your max), dim up
    to your max AP, black above it. It pops when AP changes and the lit segments pulse when you're low. */
 #clock { --c: var(--bad); }
-#clock.full { --c: #a259ff; }
+#clock.full { --c: #4cd964; }   /* green, like high: purple is hope's colour */
 #clock.high { --c: #4cd964; }
 #clock.mid { --c: #f0922b; }
 #clock.low { --c: #ff3b30; }
 #apring .seg { fill: #ffffff26; stroke: var(--ink); stroke-width: 1.5; transition: fill .3s; }
 #apring .seg.on { fill: var(--c); }
 #apring .seg.locked { fill: #050505; stroke: #000; }
-#clock.full #apring .seg.on { filter: drop-shadow(0 0 3px #a259ff); }
+#clock.full #apring .seg.on { filter: drop-shadow(0 0 3px #4cd964); }
 #clock.low #apring .seg.on { animation: lowseg 1s ease-in-out infinite; }
 @keyframes lowseg { 50% { opacity: .45; } }
 #apring .seg.gaining { animation: seggain .35s cubic-bezier(.2, 1.8, .5, 1); transform-box: fill-box; transform-origin: center; }   /* sleep fills it a segment at a time */
@@ -179,11 +179,11 @@ body:not(.log-open) #panel { display: none; }
 @keyframes ringpop { 40% { transform: scale(1.05); } }
 @keyframes seggain { 0% { transform: scale(.4); filter: drop-shadow(0 0 10px #fff); } 60% { transform: scale(1.25); } }
 #popup.sleep { background: #050a1fcc; }
-/* a missed check: the ring takes the colour of what was missing (--lc), then the lost max AP swells and goes dark */
+/* a missed check: the max AP being lost takes the colour of what was missing (--lc), then swells and goes dark */
 #apring.food { --lc: #ff5a52; }
 #apring.water { --lc: #4aa8ff; }
 #apring.hope { --lc: #c084ff; }
-#apring.tint .seg.on, #apring .seg.doomed { fill: var(--lc); filter: drop-shadow(0 0 4px var(--lc)); }
+#apring .seg.doomed { fill: var(--lc); filter: drop-shadow(0 0 4px var(--lc)); }   /* only the segments being lost */
 #apring .seg.doomed { animation: doomed .5s ease-in-out infinite alternate; }
 @keyframes doomed { to { opacity: .55; } }
 #clock.shake { animation: clockshake .5s ease-in-out; }

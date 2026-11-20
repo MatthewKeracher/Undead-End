@@ -441,7 +441,7 @@ test('Fields edge villages and towns, Golf Courses edge towns and cities — and
 });
 
 test('weapon looks: melee ones cost AP, the Bow fires ammo like the Pistol', () => {
-  for (const id of ['Axe', 'Sword', 'Kitchen Knife', 'Frying Pan', 'Cricket Bat', 'Hockey Stick', 'Pickaxe', 'Wrench']) assert.equal(ITEMS[id].uses, 'ap', id);
+  for (const id of ['Axe', 'Sword', 'Kitchen Knife', 'Frying Pan', 'Cricket Bat', 'Hockey Stick', 'Pickaxe']) assert.equal(ITEMS[id].uses, 'ap', id);
   for (const id of ['Pistol', 'Bow']) assert.equal(ITEMS[id].uses, 'ammo', id);
   const { S, p } = game();
   p.items.push({ id: 'Frying Pan', cond: 2 });

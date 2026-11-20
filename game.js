@@ -588,7 +588,7 @@ async function revealShow(ev, pause = 2800) {
   justRevealed = ev.tiles.map((x) => x.k);
   renderMap();
   const towns = [...new Map(ev.tiles.filter((x) => x.town).map((x) => [x.town, x])).values()];   // the settlements they belong to
-  toast(`${ev.map ? '🗺️ The Map shows' : '🔭 Discovered'}: ${ev.tiles.map((x) => `${x.icon} ${x.name}`).join(', ')}${towns.length ? ` · 🏘️ ${towns.map((x) => `${x.town} (${x.kind})`).join(', ')}` : ''}`);
+  toast(`${ev.map ? '🗺️ The Map shows' : '🗺️ Discovered'}: ${ev.tiles.map((x) => `${x.icon} ${x.name}`).join(', ')}${towns.length ? ` · 🏘️ ${towns.map((x) => `${x.town} (${x.kind})`).join(', ')}` : ''}`);
   ev.tiles.forEach((_, i) => setTimeout(() => tone(520 + i * 60, 0.15, 'triangle', 0.07), i * 120));
   await new Promise((res) => { const tm = setTimeout(res, pause + ev.tiles.length * 120); dismissPopup = () => { clearTimeout(tm); res(); }; });
   dismissPopup = null;
@@ -806,12 +806,13 @@ async function contestAnim(c) {
 
 // Hiding: the 🟡 Safety and the 🧟 zombies push into each other — the front zombie and the last yellow pip meet in
 // the middle and both go, then the row closes up, centred, and the next pair meet, until one side runs out.
-async function hideShow({ name, c }) {
+async function hideShow({ name, c, auto }) {
   const pop = $('#popup');
   skipAnim = false;
   pop.className = '';
   pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>🛡️ Hiding</small><h2>${esc(name)}</h2></div>
+    <div class="ptitle"><small>🛡️ Hiding</small><h2>${auto ? 'Nothing to fight with' : esc(name)}</h2></div>
+    ${auto ? `<p class="muted">The 🟡 Safety takes them.</p>` : ''}
     <div class="presult" id="pres"><div class="cpips ${c.before.safety + c.before.zombies > 8 ? 'many' : ''}">${'<i class="on"></i>'.repeat(c.before.safety)}${'<i class="zed"></i>'.repeat(c.before.zombies)}</div><div id="ctext"></div></div>
     <small class="pskip">click or press any key</small></div>`;
   pop.hidden = false;
@@ -877,7 +878,7 @@ function showSafety(k, n) {
 }
 
 // A missed food / water / hope check: on the clock's AP ring, no popup — the clock shakes, a tag over it says
-// what was missing ("No Water"), the AP takes that colour and the max AP lost throbs, then swells and goes dark.
+// what was missing ("No Water"), and the max AP about to go throbs in that colour, then swells and goes dark.
 function shakeClock() {
   const clock = $('#clock');
   clock.classList.remove('shake'); void clock.getBoundingClientRect(); clock.classList.add('shake');
@@ -890,8 +891,8 @@ async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
   const place = () => { const r = $('#clock').getBoundingClientRect(); Object.assign(tag.style, { left: `${r.left + r.width / 2}px`, top: `${r.top + r.height / 2}px` }); };   // over the clock's middle
   document.body.append(tag);   // (not in #board: its container query would offset a positioned tag)
   place(); window.addEventListener('resize', place);   // follows the clock if the window changes (a phone turned)
-  ring.classList.add('tint', res);   // the reason: the AP takes the colour of what was missing…
-  renderApRing(oldAp, '', oldMax, -1, [newMax, oldMax, 'doomed']);   // …and the max AP about to go throbs
+  ring.classList.add(res);   // the segments about to go take the colour of what was missing, and throb
+  renderApRing(oldAp, '', oldMax, -1, [newMax, oldMax, 'doomed']);
   shakeClock();
   tone(300, 0.5, 'sawtooth', 0.08, -200);
   await wait(1000);
@@ -900,7 +901,7 @@ async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
   noise(0.25, 0.3, 700); tone(90, 0.6, 'square', 0.12, -40);
   await wait(1200);
   tag.remove(); window.removeEventListener('resize', place);
-  ring.classList.remove('tint', res);
+  ring.classList.remove(res);
   renderApRing(newAp, '', newMax);
   await wait(250);
 }
@@ -1236,7 +1237,7 @@ function renderMap() {
 }
 
 // AP gauge: a ring of 12 segments like the clock. Colour shows how full you are.
-// Colour: purple when you're at your max, otherwise by how much of the full 12 you have.
+// Colour: green when you're at your max, otherwise by how much of the full 12 you have (orange, then red, as it runs down).
 function apLevel(ap, max) {
   const f = ap / CONFIG.maxAP;
   return ap >= max ? 'full' : f >= 2 / 3 ? 'high' : f >= 1 / 3 ? 'mid' : 'low';
@@ -1398,7 +1399,7 @@ function renderPanel() {
     <div class="ribbon main">
       ${btn('pause', '⏸ Pause', 'Stop the clock', false)}
       ${btn('sleep', '😴 Sleep', t.safety ? `Gain 1d6 + ${t.safety} AP (🟡)` : 'Gain 1d6 AP · no 🟡', false)}
-      ${btn('scout', '🔭 Scout', scoutTargets(p).length ? `1 AP · reveal ${E.binocularsOf(p) ? 'up to ' : ''}${scoutTargets(p).length} hex${scoutTargets(p).length === 1 ? '' : 'es'}${E.binocularsOf(p) ? ' (binoculars)' : ''}` : 'All explored', noAP || !scoutTargets(p).length)}
+      ${btn('scout', '🗺️ Scout', scoutTargets(p).length ? `1 AP · reveal ${E.binocularsOf(p) ? 'up to ' : ''}${scoutTargets(p).length} hex${scoutTargets(p).length === 1 ? '' : 'es'}${E.binocularsOf(p) ? ' (binoculars)' : ''}` : 'All explored', noAP || !scoutTargets(p).length)}
       ${btn('move', '🚶 Move', p.freeMoved ? '1 AP · uses your action' : 'Free move · needs 1 AP', noAP || !moveAdj(p).length)}
       ${btn('scavenge', '🔍 Scavenge', !canScavengeHere(t) ? (t.def.table.length ? 'Picked clean' : 'Nothing to find') : t.zombies ? 'Blocked by zombies' : lootLeft(t) ? `1 AP · ${lootLeft(t)} of 5 left` : '1 AP · only zombies left', noAP || !canScavengeHere(t) || t.zombies > 0)}
       ${Object.keys(ITEMS).filter((id) => ITEMS[id].vehicle && vehiclesHere(p).some((v) => v.id === id)).map((id) => {

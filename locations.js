@@ -35,7 +35,7 @@
 //    'Food'  'Water'  'Fuel'  'Ammo'             gain 1d6 of it (CONFIG.lootDice in data.js)
 //    'Double Food'  'Triple Ammo'  …             1d6 × 2 (Double), × 3 (Triple), × 4 (Quadruple) — use sparingly
 //    'Pistol'  'Bow'  'Shotgun'                  (guns: fire ammo — the Shotgun kills up to 3 a shot)
-//    'Axe'  'Sword'  'Kitchen Knife'  'Frying Pan'  'Cricket Bat'  'Hockey Stick'  'Pickaxe'  'Wrench'   (melee: AP)
+//    'Axe'  'Sword'  'Kitchen Knife'  'Frying Pan'  'Cricket Bat'  'Hockey Stick'  'Pickaxe'   (melee: AP)
 //    'Chainsaw'  'Body Armor'  'Tool'  'Pills'  'Binoculars'  'Radio'
 //    'Truck'  'Tractor'  'Ambulance'  'Police Car'  'Jeep'  'Van'  'Bus'  'Campervan'  'Fire Engine'
 //    'Bike'  'Horse'                             (vehicles)
@@ -65,16 +65,16 @@ const LOCATIONS = [
     table: ['Zombies',       'Food',          'Random',        'Food + Water',  'Kitchen Knife', 'Booze'] },
   { name: 'Fishing Spot',   icon: '🎣', safety: 0, count: 0.7, table: ['Zombies',       'Food',          'Random',        'Double Food',   'Water',         'Food + Water'] },
   { name: 'Stables',        icon: '🐎', safety: 3, count: 0.6, table: ['Zombies',       'Water',         'Random',        'Food + Water',  'Double Food',   'Horse'] },
-  { name: 'Quarry',         icon: '⛏️', safety: 0, count: 0.6, table: ['Zombies',       'Pickaxe',       'Random',        'Tool',          'Fuel',          'Tool + Fuel'] },
+  { name: 'Quarry',         icon: '⛏️', safety: 0, count: 0.6, table: ['Zombies',       'Pickaxe',       'Random',        'Tool',          'Water',         'Tool + Fuel'] },
   // the best walls around, and almost nothing to find: somewhere to reach before nightfall
   { name: 'Castle',         icon: '🏰', safety: 8, count: 0.3, table: ['Zombies',       'Sword',         'Random',        'Bow + Ammo',    'Body Armor',    'Booze'] },
   // mostly zombies
   { name: 'Graveyard',      icon: '🪦', safety: 0, count: 0.5, table: ['Zombies',       'Zombies',       'Random',        'Pickaxe',       'Tool',          'Note'] },
   // roadside: alone in the country (the Petrol Station is also built in towns)
   { name: 'Petrol Station', icon: '⛽', safety: 3, count: 0.5, in: ['town'],
-    table: ['Zombies',       'Fuel',          'Random',        'Double Fuel',   'Food + Booze',  'Truck + Fuel'] },
-  { name: 'Army Checkpoint', icon: '🪖', safety: 7, count: 0.4, table: ['Zombies',       'Pistol + Ammo', 'Random',        'Double Ammo',   'Binoculars',    'Jeep'] },
-  { name: 'Diner',          icon: '🍔', safety: 3, count: 0.5, table: ['Zombies',       'Food',          'Random',        'Double Food',   'Food + Water',  'Frying Pan'] },
+    table: ['Zombies',       'Fuel',          'Random',        'Fuel + Water',  'Food + Booze',  'Truck + Fuel'] },
+  { name: 'Army Checkpoint', icon: '🪖', safety: 7, count: 0.4, table: ['Zombies',       'Pistol + Ammo', 'Random',        'Ammo + Water',  'Binoculars',    'Jeep'] },
+  { name: 'Diner',          icon: '🍔', safety: 3, count: 0.5, table: ['Zombies',       'Water',         'Random',        'Double Food',   'Food + Water',  'Frying Pan'] },
   { name: 'Fuel Depot',     icon: '🛢️', safety: 3, count: 0.3, table: ['Zombies',       'Fuel',          'Random',        'Double Fuel',   'Tool + Fuel',   'Truck + Fuel'] },
 
   // ---- villages (and bigger)
@@ -101,9 +101,9 @@ const LOCATIONS = [
   { name: 'Pharmacy',       icon: '💊', safety: 3, in: ['town', 'city'],
     table: ['Zombies',       'Pills',         'Random',        'Pills',         'Water',         'Food + Water'] },
   { name: 'Hardware Store', icon: '🔨', safety: 5, in: ['town', 'city'],
-    table: ['Zombies',       'Tool',          'Random',        'Axe',           'Chainsaw',      'Tool + Fuel'] },
+    table: ['Zombies',       'Water',         'Random',        'Axe',           'Chainsaw',      'Tool + Fuel'] },
   { name: 'Garage',         icon: '🔧', safety: 5, in: ['town', 'city'],
-    table: ['Zombies',       'Tool',          'Random',        'Double Fuel',   'Wrench',        'Truck'] },
+    table: ['Zombies',       'Tool',          'Random',        'Double Fuel',   'Water',         'Truck'] },
   { name: 'Fire Station',   icon: '🚒', safety: 7, in: ['town', 'city'],
     table: ['Zombies',       'Axe',           'Random',        'Chainsaw',      'Double Water',  'Fire Engine'] },
   // guns are a town thing: cities have only the Police Station
@@ -122,7 +122,7 @@ const LOCATIONS = [
   { name: 'Train Station',  icon: '🚉', safety: 4, in: ['city'],
     table: ['Zombies',       'Zombies',       'Random',        'Food',          'Food + Water',  'Note'] },
   { name: 'Stadium',        icon: '🏟️', safety: 6, in: ['city'],
-    table: ['Zombies',       'Zombies',       'Random',        'Hockey Stick',  'Cricket Bat',   'Food + Booze'] },
+    table: ['Zombies',       'Zombies',       'Random',        'Double Water',  'Cricket Bat',   'Food + Booze'] },
   { name: 'Car Park',       icon: '🅿️', safety: 2, in: ['city'],
     table: ['Zombies',       'Fuel',          'Random',        'Van',           'Jeep',          'Truck + Fuel'] },
   // a vault: the strongest walls in the city, and nothing worth taking
