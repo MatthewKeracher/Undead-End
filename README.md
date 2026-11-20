@@ -23,7 +23,7 @@ The game opens on a small menu: **Play**, or **Tutorial**, which explains each a
 | Enter | Confirm selected action |
 | Backspace | Deselect / cancel / stop driving (Esc works too) |
 | A Q E D X Z | Pick a neighbouring hex (move / flee / drive) |
-| 1–6, then Enter / E | Fight with that weapon / Flee (when zombies are on your tile: usable weapons light up in the backpack) |
+| 1–6, then Enter / E / H | Fight with that weapon / Flee / Hide behind the tile's Safety (when zombies are on your tile: usable weapons light up in the backpack) |
 | 1–6, then Enter | Pick a backpack slot and use it (Tool, Pills) — or leave the item there |
 | Shift+Enter | Keep attacking until clear |
 | T | Use tool |

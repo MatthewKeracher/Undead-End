@@ -238,23 +238,28 @@ test('row 3 is Random everywhere: drawn as the tile is placed — anything from 
   assert.equal(JSON.parse(JSON.stringify(S)).tiles['0,0'].drawn[3].zombies, shown.zombies);   // saved with the tile
 });
 
-test('scavenge zombies: Safety absorbs, the rest break through → fight', () => {
+test('zombies come past Safety: fight some down, then hide — Safety stops the rest, one for one', () => {
   const { S, p } = game();
   tile(S, 1, 0, 'Forest');              // somewhere to run, so running out of ammo isn't death
   E.tileOf(S, p).safety = 2;
   p.items.push({ id: 'Pistol', cond: 4 }); p.res.ammo = 2;
-  S.forced = [1, 5];                    // 5 zombies vs Safety 2 → 3 through
+  S.forced = [1, 5];                    // 5 zombies, and Safety 2 doesn't stop them yet
   act(S, { type: 'scavenge' });
   const t = E.tileOf(S, p);
-  assert.equal(t.safety, 0);
-  assert.equal(t.zombies, 3);
+  assert.equal(t.safety, 2);
+  assert.equal(t.zombies, 5);
   assert.equal(p.pending.kind, 'threat');
+  assert.equal(E.canHide(p, t), true);
   decide(S, 'shoot');
   assert.equal(p.pending.kind, 'fight');
   assert.equal(p.items[0].cond, 3);     // −1 condition per fight round
   decide(S, 'attack'); decide(S, 'attack');   // out of ammo → fight round ends
-  assert.equal(t.zombies, 1);
-  assert.equal(p.pending.kind, 'threat');     // still zombies: Fight or Flee again
+  assert.equal(t.zombies, 3);
+  assert.equal(p.pending.kind, 'threat');     // still zombies: fight, flee or hide
+  decide(S, 'hide');                    // Safety 2 stops 2 of the 3
+  assert.deepEqual([t.safety, t.zombies], [0, 1]);
+  assert.equal(p.pending.kind, 'threat');
+  assert.equal(E.canHide(p, t), false); // no Safety left to hide behind
 });
 
 test('flee: beat the zombies, then pick a safe hex', () => {
@@ -722,7 +727,10 @@ test('night attack: Safety holds, or zombies break through', () => {
   S.forced = [1, 3];                    // sleep 1, then 3 zombies at night (round 5)
   act(S, { type: 'sleep' });
   assert.equal(S.round, 5);
+  assert.equal(p.pending.kind, 'threat');   // they come at you: fight, flee — or hide
+  decide(S, 'hide');
   assert.equal(E.tileOf(S, p).safety, 3);
+  assert.equal(E.tileOf(S, p).zombies, 0);
   assert.equal(p.pending, null);
   S.badNight = false;                   // (a good night)
   S.forced = [1];                       // round 6 is night, but there's no attack
@@ -731,7 +739,7 @@ test('night attack: Safety holds, or zombies break through', () => {
   assert.equal(E.tileOf(S, p).safety, 3);
   E.tileOf(S, p).safety = 2;
   S.round = 4;
-  S.forced = [1, 6];                    // next round 5: 6 zombies vs Safety 2
+  S.forced = [1, 6];                    // next round 5: 6 zombies vs Safety 2 — no weapon, can't outrun 6: it hides
   act(S, { type: 'sleep' });
   assert.equal(E.tileOf(S, p).zombies, 4);
   assert.equal(p.pending.kind, 'threat');
@@ -744,10 +752,12 @@ test('a bad night: round 6 attacks too (after round 5), so two attacks back to b
   S.badNight = true;
   assert.equal(E.attackDue(S, 6), true);
   S.round = 4;
-  S.forced = [1, 2];                    // round 5: 2 zombies, absorbed
+  S.forced = [1, 2];                    // round 5: 2 zombies — hide
   act(S, { type: 'sleep' });
-  S.forced = [1, 3];                    // round 6 on a bad night: 3 more
+  decide(S, 'hide');
+  S.forced = [1, 3];                    // round 6 on a bad night: 3 more — hide again
   act(S, { type: 'sleep' });
+  decide(S, 'hide');
   assert.equal(E.tileOf(S, p).safety, 1);
   assert.equal(S.log.filter((l) => l.msg.includes('in the night')).length, 2);
 });
@@ -904,6 +914,7 @@ test('Safety tops out at 5; a tile still holds up to 6 zombies', () => {
   act(S, { type: 'fortify' });
   assert.equal(t.safety, 5);
   assert.match(act(S, { type: 'fortify' }).error, /full \(5\)/);
+  p.items.push({ id: 'Axe', cond: 3 });  // (so it's a choice, not an automatic hide)
   E.cheat(S, 0, 'zombies', [9]);
   assert.equal(t.zombies, 6);
 });
@@ -998,8 +1009,9 @@ test('zombies are crossed off once they come, and drift back when nobody is ther
   tile(S, 1, 0, 'Forest');
   const home = E.tileOf(S, p);
   home.safety = 6;
-  S.forced = [1, 2];                    // 2 zombies, absorbed by Safety
+  S.forced = [1, 2];                    // 2 zombies — hide behind the Safety
   act(S, { type: 'scavenge' });
+  decide(S, 'hide');
   assert.equal(E.tableView(home)[0].kind, 'looted');
   S.forced = [1, 4, 2, 2];
   act(S, { type: 'scavenge' });         // the cleared row is rolled again: 4 = Water

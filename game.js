@@ -171,6 +171,7 @@ async function show(ev) {
     case 'armor': return sfx.armor();
     case 'repair': return sfx.repair();
     case 'boost': return sfx.win(false);
+    case 'hide': await hideShow(ev); return renderMap();
     case 'hope': return sfx.hope();
     case 'lead': return leadShow(ev);
     case 'driveStep': sfx.drive(ev.fuel); return render();
@@ -537,7 +538,7 @@ async function takePills(i) {
 async function act(name) {
   if (busy || modalKey || G.over) return;
   const p = cur();
-  if (mode === 'threat') { if (name === 'flee' && await explain(name)) send({ type: 'decide', choice: name }); return; }   // weapons: in the backpack
+  if (mode === 'threat') { if ((name === 'flee' || name === 'hide') && await explain(name)) send({ type: 'decide', choice: name }); return; }   // weapons: in the backpack
   if (name === 'stopdrive') return send({ type: 'decide', choice: 'stop' });   // the touch way to end a trip
   if (p.pending) return;
   if (name === 'move') { if (mode !== name && !(await explain('move'))) return; mode = mode === name ? null : name; return render(); }
@@ -774,11 +775,36 @@ async function contestAnim(c) {
     tone(80 + Math.random() * 30, 0.25, 'sawtooth', 0.09, -20);
     await wait(280);
   }
-  const lost = c.left - added;
+  const lost = c.n - added;
+  $('#ctext').innerHTML = `<div class="big bad">🧟 ${c.left} ${c.after.safety ? 'at the door' : 'broke through'}!</div>`
+    + (c.after.safety ? `<small class="muted">🟡 ${c.after.safety} Safety between you — fight, flee or hide.</small>` : lost > 0 ? `<small class="muted">The tile is overrun (max ${CONFIG.maxZombies}).</small>` : '');
+  $('#popup').classList.add('zombie'); sfx.zombie();
+}
+
+// Hiding: a 🟡 Safety pip and a 🧟 zombie go together, pair by pair, until one side runs out.
+async function hideShow({ name, c }) {
+  const pop = $('#popup');
+  skipAnim = false;
+  pop.className = '';
+  pop.innerHTML = `<div class="pcard">
+    <div class="ptitle"><small>🛡️ Hiding</small><h2>${esc(name)}</h2></div>
+    <div class="presult" id="pres"><div class="cpips">${[...Array(c.slots)].map((_, i) =>
+      `<i class="${i < c.before.safety ? 'on' : i < c.before.safety + c.before.zombies ? 'zed' : ''}"></i>`).join('')}</div><div id="ctext"></div></div>
+    <small class="pskip">click or press any key</small></div>`;
+  pop.hidden = false;
+  const pips = [...pop.querySelectorAll('.cpips i')];
+  await wait(350);
+  for (let i = 0; i < c.absorbed; i++) {
+    pips[c.before.safety - 1 - i].className = 'burst';
+    pips[c.before.safety + i].className = 'burst';
+    tone(220 - i * 15, 0.12, 'triangle', 0.1, -80);
+    await wait(280);
+  }
   $('#ctext').innerHTML = c.left
-    ? `<div class="big bad">🧟 ${c.left} broke through!</div>${lost > 0 ? `<small class="muted">The tile is overrun (max ${max}).</small>` : ''}`
-    : `<div class="big good">🟡 Safety held!</div><small class="muted">Absorbed ${c.n} — 🟡 ${c.before.safety} → ${c.after.safety}</small>`;
-  if (c.left) { $('#popup').classList.add('zombie'); sfx.zombie(); } else sfx.win(false);
+    ? `<div class="big bad">🧟 ${c.left} still here!</div><small class="muted">🟡 ${c.before.safety} → 0</small>`
+    : `<div class="big good">🟡 Safety held!</div><small class="muted">🟡 ${c.before.safety} → ${c.after.safety}</small>`;
+  if (c.left) { pop.classList.add('zombie'); sfx.zombie(); } else sfx.win(false);
+  await popupHold(1800);
 }
 
 async function fortifyShow({ name, r, before, after, max }) {
@@ -964,11 +990,11 @@ function tableSvg(x, y, t) {
 // Safety pips along the bottom of the hex: filled = current Safety, hollow = room to fortify, black = zombies.
 // There's a circle for every zombie a tile can hold; the last (beyond max Safety) only ever holds zombies.
 function safetySvg(x, y, t) {
-  const top = E.maxSafetyOf(t), max = Math.max(CONFIG.maxZombies, top), gap = max > 6 ? 15 : 17, n = t.safety, z = t.zombies;
+  const top = E.maxSafetyOf(t), n = t.safety, z = t.zombies, max = Math.max(CONFIG.maxZombies, top, n + z), gap = max > 8 ? 12 : max > 6 ? 15 : 17;   // both on a tile: side by side
   let s = '';
   for (let i = 0; i < max; i++) {
     const cx = x + (i - (max - 1) / 2) * gap;
-    s += `<circle cx="${cx}" cy="${y}" r="${max > 6 ? 6 : 6.5}" class="pip ${i < n ? 'on' : i < n + z ? 'zed' : ''} ${i >= top ? 'zonly' : ''}"/>`;
+    s += `<circle cx="${cx}" cy="${y}" r="${max > 8 ? 5 : max > 6 ? 6 : 6.5}" class="pip ${i < n ? 'on' : i < n + z ? 'zed' : ''} ${i >= top ? 'zonly' : ''}"/>`;
   }
   return s;
 }
@@ -1291,9 +1317,10 @@ function renderPanel() {
 
   if (mode === 'threat') {   // fight with a weapon picked in the backpack (renderPack) — or flee, here
     $('#actions').innerHTML = `
-      <div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} on the ${esc(t.def.name)}! ${p.caught ? 'Caught — fight with a weapon from your backpack!' : canFight(p) ? 'Pick a weapon from your backpack, or flee.' : 'Nothing to fight with — if you fail to flee, you die.'}</div>
+      <div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} on the ${esc(t.def.name)}! ${p.caught ? 'Caught — fight with a weapon from your backpack!' : canFight(p) ? `Pick a weapon from your backpack, flee${t.safety ? ' or hide' : ''}.` : t.safety ? 'Flee or hide.' : 'Nothing to fight with — if you fail to flee, you die.'}</div>
       <div class="ribbon threat">
         ${btn('flee', '🏃 Flee', p.caught ? 'Caught — must fight' : !fleeAdj(p).length ? 'Nowhere to run' : t.zombies >= 6 ? 'Too many to outrun' : p.ap < 1 ? 'No AP' : `1 AP · roll > ${t.zombies}`, !canFlee(p, t))}
+        ${t.safety ? btn('hide', '🛡️ Hide', p.caught ? 'Caught — must fight' : `Free · 🟡 ${t.safety} stops ${Math.min(t.safety, t.zombies)}`, !E.canHide(p, t)) : ''}
       </div>`;
     renderLog();
     return;
@@ -1385,7 +1412,7 @@ const HOTKEYS = { r: 'sleep', s: 'scout', w: 'move', a: 'scavenge', f: 'fortify'
 const DRIVE_KEY = { fuel: 'driveFuel', ap: 'driveAP', water: 'driveWater' };
 const isDriveKey = (name) => Object.values(DRIVE_KEY).includes(name);
 const keyedVehicle = (p, key) => vehiclesHere(p).find((x) => DRIVE_KEY[ITEMS[x.id].uses] === key)?.id;
-const THREAT_KEYS = { e: 'flee' };   // weapons: 1–6 picks the slot, Enter swings it
+const THREAT_KEYS = { e: 'flee', h: 'hide' };   // weapons: 1–6 picks the slot, Enter swings it
 // Backspace cancels / goes back (Esc still works too, but full-screen Chrome can take it for itself).
 const isBack = (e) => e.key === 'Backspace' || e.key === 'Escape';
 // ---------------------------------------------------------------- cheats (testing)

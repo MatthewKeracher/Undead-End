@@ -428,7 +428,7 @@ const Engine = (() => {
       S.badNight = d6(S) <= CONFIG.badNightOn;
       if (S.badNight) log(S, '🌘 Something stirs… a bad night is coming: zombies after midnight too (round 6).', 'bad');
     }
-    if (attackDue(S, r)) nightAttack(S);   // queues Fight or Flee where zombies break through
+    if (attackDue(S, r)) nightAttack(S);   // queues Fight, Flee or Hide for everyone attacked
     if (S.checksOff && Object.keys(CONFIG.upkeep[r] || {}).length) log(S, `Round ${r} check skipped (cheat: checks off)`, 'cheat');
     if (!S.checksOff && Object.keys(CONFIG.upkeep[r] || {}).length) for (const p of S.players) if (!p.dead) p.queue.push({ type: 'upkeep' });
   }
@@ -464,31 +464,46 @@ const Engine = (() => {
   }
 
   // ---------------------------------------------------------------- zombies
-  // 1d6 zombies arrive: each one cancels (and uses up) a point of Safety; the rest
-  // fill the tile's circles as zombies, up to CONFIG.maxZombies (6).
-  function zombieContest(t, n) {
-    const absorbed = Math.min(t.safety, n), left = n - absorbed;
-    const zombies = Math.min(CONFIG.maxZombies, (t.zombies || 0) + left);
-    const slots = Math.max(CONFIG.maxZombies, maxSafetyOf(t));   // circles to draw: Safety and zombies share them
-    return { n, absorbed, left, slots, before: { safety: t.safety, zombies: t.zombies || 0 }, after: { safety: t.safety - absorbed, zombies } };
+  // 1d6 zombies arrive: they fill the tile's circles, up to CONFIG.maxZombies (6), and come at whoever's there —
+  // Safety doesn't stop them yet. With Safety up you can Hide (each point of Safety stops one zombie, and is used
+  // up), or fight some down first so less Safety is lost (see hide and STEPS.threat).
+  // A contest: { n arriving, absorbed by Safety, left on the tile, slots (circles to draw), before, after }.
+  const contestSlots = (t, c) => Math.max(CONFIG.maxZombies, maxSafetyOf(t), c.before.safety + c.before.zombies, c.after.safety + c.after.zombies);
+  function zombiesArrive(t, n) {
+    const before = { safety: t.safety, zombies: t.zombies || 0 }, zombies = Math.min(CONFIG.maxZombies, before.zombies + n);
+    const c = { n, absorbed: 0, left: zombies - before.zombies, before, after: { safety: t.safety, zombies } };
+    return { ...c, slots: contestSlots(t, c) };
+  }
+  // Hiding: the Safety takes the zombies on the tile, one for one.
+  function hideContest(t) {
+    const before = { safety: t.safety, zombies: t.zombies }, absorbed = Math.min(t.safety, t.zombies);
+    const c = { n: t.zombies, absorbed, left: t.zombies - absorbed, before, after: { safety: t.safety - absorbed, zombies: t.zombies - absorbed } };
+    return { ...c, slots: contestSlots(t, c) };
   }
   function applyContest(t, c) { t.safety = c.after.safety; t.zombies = c.after.zombies; }
-  function contestText(c) {
-    if (!c.left) return `🟡 Safety holds — absorbs all ${c.n} (🟡 ${c.before.safety} → ${c.after.safety}).`;
-    return `${c.absorbed ? `🟡 Safety absorbs ${c.absorbed}, ` : ''}🧟 ${c.left} break${c.left === 1 ? 's' : ''} through!`;
+  const arriveText = (t) => (t.safety ? `🟡 ${t.safety} Safety stands between you — fight, flee or hide.` : '🧟 Nothing to hold them back!');
+  // Hide: free, with Safety up and zombies on the tile — not once you've been caught fleeing.
+  const canHide = (p, t) => t.safety > 0 && t.zombies > 0 && !p.caught;
+  function hide(S, p) {
+    const t = tileOf(S, p), c = hideContest(t);
+    emit(S, { type: 'hide', player: p.id, k: key(p.q, p.r), name: t.def.name, c });
+    applyContest(t, c);
+    log(S, `🛡️ ${p.name} hides at the ${t.def.name}: 🟡 Safety stops ${plural(c.absorbed, 'zombie')} (🟡 ${c.before.safety} → ${c.after.safety})${c.left ? ` — ${c.left} still here!` : '.'}`, c.left ? 'bad' : 'good');
+    for (const o of S.players) if (o !== p && !o.dead && o.pending?.kind === 'threat' && key(o.q, o.r) === key(p.q, p.r)) { o.pending = null; o.queue.unshift({ type: 'threat' }); }   // everyone here: the horde has changed
+    if (t.zombies) p.queue.unshift({ type: 'threat' });
   }
 
-  // Each occupied tile is attacked by 1d6 zombies; everyone on a tile they break through faces Fight or Flee.
+  // Each occupied tile is attacked by 1d6 zombies; everyone there faces Fight, Flee or Hide.
   function nightAttack(S) {
     const groups = {};
     for (const p of S.players) if (!p.dead) (groups[key(p.q, p.r)] ??= []).push(p);
     for (const [k, grp] of Object.entries(groups)) {
       const t = S.tiles[k];
       const n = roll(S);
-      const c = zombieContest(t, n);
+      const c = zombiesArrive(t, n);
       emit(S, { type: 'night', k, name: t.def.name, c });
       applyContest(t, c);
-      logRoll(S, `🌙 ${plural(n, 'zombie')} attack the ${t.def.name} in the night. ${contestText(c)}`, c.left ? 'bad' : 'good');
+      logRoll(S, `🌙 ${plural(n, 'zombie')} attack the ${t.def.name} in the night. ${arriveText(t)}`, 'bad');
       if (t.zombies) for (const p of grp) p.queue.push({ type: 'threat' });
     }
   }
@@ -582,6 +597,7 @@ const Engine = (() => {
     threat(S, p) {
       const t = tileOf(S, p);
       if (!t.zombies) { p.caught = false; return; }
+      if (!canFight(p) && !canFlee(S, p, t) && canHide(p, t)) return hide(S, p);   // nothing else for it
       if (!canFight(p) && !canFlee(S, p, t)) {
         return die(S, p, p.ap < 1 ? `${p.name} has no strength left (0 🎲 AP) and nothing to fight with.`
           : !fleeAdj(S, p).length ? `${p.name} can't fight and has nowhere to run.`
@@ -807,14 +823,14 @@ const Engine = (() => {
       const parts = hit.kind === 'stash' || hit.kind === 'looted' ? [] : e.parts ?? [e];
       const dice = parts.map((x) => Array.from({ length: x.res ? CONFIG.lootDice : ITEMS[x.item]?.map ? 0 : 1 }, () => roll(S, true, x.res ? CONFIG.lootMin : 1)));   // a Map has no condition
       const amts = dice.map((d) => d.reduce((a, b) => a + b, 0)), amt = amts[0] ?? null;
-      const c = hit.kind === 'zombies' ? zombieContest(t, amt) : null;
+      const c = hit.kind === 'zombies' ? zombiesArrive(t, amt) : null;
       const snap = (x) => JSON.parse(JSON.stringify(x));   // events carry the table as it was when you rolled
       emit(S, { type: 'scavenge', player: p.id, k: key(p.q, p.r), name: t.def.name, rows: snap(rows), tries, r, hit: snap(hit), amt, amts, dice, c });
       const at = `${p.name} scavenges the ${t.def.name} — rolls ${tries.length > 1 ? `${tries.slice(0, -1).map((x) => `${x} (looted)`).join(', ')}, then ${r}` : r}`;
       if (c) {
         (t.looted ||= []).push(r);   // these zombies have come; the row is clear until they drift back
         applyContest(t, c);
-        logRoll(S, `${at}: 🧟 ${plural(amt, 'zombie')}! ${contestText(c)}`, c.left ? 'bad' : 'good');
+        logRoll(S, `${at}: 🧟 ${plural(amt, 'zombie')}! ${arriveText(t)}`, 'bad');
         if (t.zombies) p.queue.push({ type: 'threat' });
       } else if (hit.kind === 'looted') {
         logRoll(S, `${p.name} scavenges the ${t.def.name} — rolls ${tries.join(', ')}: all looted — finds nothing.`, 'bad');
@@ -939,11 +955,12 @@ const Engine = (() => {
       p.pending = null;
       spendHope(S, p, it);
     },
-    // 'flee', or { weapon: backpack index } to fight with that weapon ('shoot' / 'melee' / 'saw' pick your
+    // 'flee', 'hide', or { weapon: backpack index } to fight with that weapon ('shoot' / 'melee' / 'saw' pick your
     // most worn gun / melee weapon / chainsaw)
     threat(S, p, choice) {
       const t = tileOf(S, p);
       if (choice === 'flee' && canFlee(S, p, t)) { p.pending = null; p.ap--; return flee(S, p); }
+      if (choice === 'hide' && canHide(p, t)) { p.pending = null; return hide(S, p); }
       const w = choice?.weapon !== undefined ? p.items[choice.weapon] : weaponOf(p, { shoot: 'ammo', melee: 'ap', saw: 'fuel' }[choice]);
       if (w && canWield(p, w)) { p.pending = null; return startFight(S, p, w); }
       return "You can't do that now.";
@@ -1110,7 +1127,7 @@ const Engine = (() => {
   return {
     ICON, RES_LABEL, key, neighbors, isNight, isAttack, attackDue, cellText, upkeepText, roundBanner,
     tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText, loneItem, hopeItems, leadOpen,
-    fleeAdj, canShoot, canMelee, canSaw, canFight, canFlee, canWield, vehicleFuel, vehicleLeft, vehicleFed, vehicleOf, canDrive,
+    fleeAdj, canShoot, canMelee, canSaw, canFight, canFlee, canWield, canHide, vehicleFuel, vehicleLeft, vehicleFed, vehicleOf, canDrive,
     createGame, start, act, timeUp, cheat,
   };
 })();

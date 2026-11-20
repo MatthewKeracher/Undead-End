@@ -68,7 +68,7 @@ Each day starts on round 1, the first morning; rounds 5 and 6 are its night.
 
 ## Night
 - Rounds **5 and 6** are night.
-- At the **start of round 5** (before anyone acts), each occupied tile is attacked by **1d6 zombies** (same contest as scavenging, below). Round 6 is still night (and has the Hope check) but **no attack** (`CONFIG.attackRounds`)…
+- At the **start of round 5** (before anyone acts), each occupied tile is attacked by **1d6 zombies** (they come at you as scavenged ones do, below: fight, flee or hide). Round 6 is still night (and has the Hope check) but **no attack** (`CONFIG.attackRounds`)…
 - …**unless it's a bad night.** As round 1 starts each day, a **secret 1d6** is rolled: on a **1–2** the clock shows a 🟡 on round 6 and **round 6 brings a second attack**, straight after round 5's (`CONFIG.badNightOn`). The roll itself is never shown — just the warning.
 - Fighting or fleeing zombies **never uses up your action** for the round — whether they came from a night attack or another player's scavenge. You deal with them, then still act.
 
@@ -76,15 +76,15 @@ Each day starts on round 1, the first morning; rounds 5 and 6 are its night.
 - Zombies arrive two ways: a **scavenge roll of 1** (and any other Zombies results on a tile's table), or the **night attack**.
 - **Scavenge zombies are finite:** once a Zombies row has been rolled, it's crossed off — rolling it again finds nothing. It **comes back** when the tile has **no Safety and no survivor on it** (checked at the start of each round *(placeholder)*). So clearing a tile makes it safe to scavenge while you stay, and fortifying keeps it clear after you leave. Night attacks are unaffected.
 - The number arriving is always **1d6**.
-- **Contest Safety:** each zombie cancels one point of the tile's Safety (that Safety is used up). Leftover zombies fill the tile's 6 circles as **black circles** — a tile holds at most 6 zombies.
+- **They come past Safety:** arriving zombies fill the tile as **black circles** (at most 6) and come at whoever is there — the tile's Safety doesn't stop them **until you Hide** (see Fight, Flee or Hide). Safety and zombies are drawn side by side.
 - A tile with zombies on it blocks **scavenging** and **fortifying** *(fortify block is a placeholder)*.
 - Only a player **carrying a weapon** can move onto a tile with zombies.
 - **Zombies never leave a tile.**
 
-## Fight or Flee
-Triggered when zombies break through onto your tile, or when you move onto a tile with zombies.
+## Fight, Flee or Hide
+Triggered when zombies arrive on your tile (a night attack or a scavenge roll), or when you move onto a tile with zombies.
 Repeat until the tile is clear, you escape, or you die.
-- **Fight:** pick the weapon **in your backpack** — the ones you can use right now (with the ammo, fuel or AP they take) light up; everything else greys out, and **Flee** is the one button in the middle. **Using an item costs no AP**; the weapon loses **1 condition per fight round** (not per attack). Attack one at a time (**Enter** each): each attack kills 1 zombie. Stop any time (Esc).
+- **Fight:** pick the weapon **in your backpack** — the ones you can use right now (with the ammo, fuel or AP they take) light up; everything else greys out, and **Flee** (and **Hide**, with Safety up) are the buttons in the middle. **Using an item costs no AP**; the weapon loses **1 condition per fight round** (not per attack). Attack one at a time (**Enter** each): each attack kills 1 zombie. Stop any time (Esc).
   - **Gun (Pistol):** each shot costs **1 ammo** (no AP).
   - **Melee (Axe):** each swing costs **1 AP** — so swinging eats the AP you'd need to flee.
   - **Chainsaw:** each rev costs **1 fuel** and kills **up to 6 zombies** — a tile holds at most 6, so one rev always clears it.
@@ -92,7 +92,9 @@ Repeat until the tile is clear, you escape, or you die.
   On success, move to an adjacent **already-scouted** tile with no zombies.
   **On failure:** only **armor** allows a reroll (−1 armor condition, 1 AP). Otherwise you're **caught**: you can't flee again this encounter and must fight —
   and **with no usable weapon, a failed flee is instant death**.
-- **Can't fight (no usable weapon / no ammo / no AP to swing) and can't flee (no AP, no safe scouted neighbour, or too many to outrun) → you die.**
+- **Hide:** free, whenever the tile has **🟡 Safety** (not once you've been caught fleeing). The Safety takes the zombies **one for one** — each point stops one zombie and is used up. Hide straight away and it's the walls that pay; **fight some down first** and you lose less Safety. Any left over once the Safety is gone stay to be fought or fled.
+- If you flee, the zombies and the Safety both stay on the tile.
+- **Can't fight (no usable weapon / no ammo / no AP to swing) and can't flee (no AP, no safe scouted neighbour, or too many to outrun) → you hide if there's Safety; if not, you die.**
 
 ## Items
 - Item cards appear **explicitly in tile loot tables** (e.g. "Pistol") so players can plan where to go.
@@ -172,7 +174,7 @@ Repeat until the tile is clear, you escape, or you die.
   - Every resource result gives **1d6** of that resource (`CONFIG.lootDice`) — quietly **never a 1**: the die only lands 2–6, evenly (`CONFIG.lootMin`; not shown to players); a **Double** gives **1d6 × 2** (at most one Double per place, on what it's richest in — e.g. YOLO Foods' Double Food, the Gun Shop's Double Ammo). "Triple" (× 3) also works but isn't used. Item condition and zombie counts are **1d6**. A **mix** gives every part, each rolled on its own — used a lot: Food + Water, Food + Booze (an item), Pistol + Ammo, Fuel + Ammo, Tool + Fuel, Truck + Fuel. A few places are overrun — **a second Zombies row**: the Graveyard, Train Station and Stadium.
 - Tiles differ in what their 5 results give.
 - **Wasteland** tiles have **no scavenge table** (Scavenge is blocked) and **cannot be fortified** (Safety stays 0, so night attacks hit in full). Zombies only reach them at night. They come in **belts**: a **triangle of 3** or (30% of the time) a **cluster of 7** — when a fresh one is revealed, the rest of the belt is set on the unexplored hexes around it and appears as you explore (`spread: 'belt'`, `CONFIG.beltBig`). About 14% of the land.
-- **Max Safety differs by place** (`safety:` in `locations.js`): **0 outdoors** — Forest, Lake, Campsite, Orchard, Fishing Spot, Quarry, Graveyard, Fields, Golf Course, Wasteland, Mountain can't be fortified (night attacks hit in full; cleared zombies drift back as soon as you leave) — and **2–8 indoors**, from the Car Park (2) to the Castle, Police Station and Bank (8). At 7–8 a single night attack (max 6) can't break through. The countryside has the food and water but few walls; settlements have the walls.
+- **Max Safety differs by place** (`safety:` in `locations.js`): **0 outdoors** — Forest, Lake, Campsite, Orchard, Fishing Spot, Quarry, Graveyard, Fields, Golf Course, Wasteland, Mountain can't be fortified (night attacks hit in full; cleared zombies drift back as soon as you leave) — and **2–8 indoors**, from the Car Park (2) to the Castle, Police Station and Bank (8). At 7–8, hiding stops even a full night attack (max 6). The countryside has the food and water but few walls; settlements have the walls.
 - **Every place is found half fortified:** it starts with **half its max Safety, rounded down** (`CONFIG.startSafety`) — a Castle 4 of 8, a Farmhouse 2 of 5, a Car Park 1 of 2, outdoors 0. Your starting tile too.
 - **Countryside and settlements.** Scouting draws each new hex at random from the **countryside** places (Farmhouse, Forest, Lake, Campsite, Orchard, Cottage, Fishing Spot, Stables, Quarry, Castle, Graveyard, and the roadside Petrol Station, Army Checkpoint, Diner and Fuel Depot), Wasteland, Mountain — or the first hex of a new **settlement**, planned whole at once (`CONFIG.settlements`) and appearing as you explore:
   | Settlement | Hexes | How common | Built from (each hex a different place) |
