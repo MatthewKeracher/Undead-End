@@ -409,8 +409,12 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 .leadmark span { font-size: 20px; line-height: 1; }
 .leadmark i { position: absolute; inset: 0; }
 .leadmark i::after { content: ''; position: absolute; right: -11px; top: 50%; margin-top: -6px; border: 6px solid transparent; border-left: 9px solid var(--hope); }
-#popup.hopeask { background: #12062acc; }
-#popup.hopeask .pcard { border-color: var(--hope); box-shadow: 0 0 40px #c084ff44, 0 20px 60px #000c; }
+/* the night asks for hope: chosen in the backpack — hope items lit purple, the rest greyed out */
+.note.hope { color: var(--hope); border: 1px solid #c084ff66; }
+#pack.hoping { border-color: var(--hope); box-shadow: 0 0 24px #c084ff55, 0 10px 30px #000a; }
+#pack .slot-item.greyed { opacity: .3; filter: grayscale(1); }
+#pack .slot-item.hopeable { border-color: var(--hope); cursor: pointer; }
+#pack .slot-item .use.hope { background: var(--hope); border-color: var(--hope); }
 /* looted rows are crossed off; stashes stand out */
 .hex .cell.looted { opacity: .35; text-decoration: line-through; }
 .ptable li.looted { opacity: .4; text-decoration: line-through; }

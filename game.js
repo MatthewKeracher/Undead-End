@@ -41,8 +41,8 @@ const vehicleOf = (p, id) => E.vehicleOf(G, p, id);
 const canDrive = (p, id) => E.canDrive(G, p, id);
 const vehiclesHere = (p) => tileOf(p).vehicles;
 const driving = () => (cur().pending?.kind === 'drive' ? cur().pending : null);   // the trip in progress
-// Decisions answered from the action tray / map rather than a popup
-const PENDING_MODE = { threat: 'threat', fleeTo: 'flee', drive: 'drive' };
+// Decisions answered from the action tray / map / backpack (hope) rather than a popup
+const PENDING_MODE = { threat: 'threat', fleeTo: 'flee', drive: 'drive', hope: 'hope' };
 
 // ---------------------------------------------------------------- setup
 function newGame(names = ['Survivor']) {
@@ -204,7 +204,6 @@ async function ask() {
   if (d.kind === 'escape') return send({ type: 'decide', choice: await chooseEscape(d.options) });
   if (d.kind === 'backpack') return send({ type: 'decide', choice: await backpackPrompt(p, d.item) });
   if (d.kind === 'stash') return send({ type: 'decide', choice: await stashPrompt(d) });
-  if (d.kind === 'hope') return send({ type: 'decide', choice: await hopePrompt(p) });
 }
 
 // ---------------------------------------------------------------- round timer (optional in single player: cheat timer(on))
@@ -421,25 +420,6 @@ async function backpackPrompt(p, item) {
   modalKey = null;
   pop.hidden = true;
   return i;
-}
-
-// The night asks for hope: which hope item do you lean on? (−1 condition)
-async function hopePrompt(p) {
-  const pop = $('#popup');
-  const opts = p.items.map((it, i) => ({ it, i })).filter(({ it }) => ITEMS[it.id].hope && it.cond > 0);
-  pop.className = 'hopeask';
-  pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>🌙 Round ${G.round}</small><h2>What hope is there?</h2></div>
-    <ol class="pack-choose">${opts.map(({ it }, n) => `<li><button data-n="${n}"><kbd>${n + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond, it.id)}</button></li>`).join('')}</ol>
-    <small class="pskip">press 1–${opts.length} or click</small></div>`;
-  pop.hidden = false;
-  const n = await new Promise((res) => {
-    pop.querySelectorAll('[data-n]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); res(+b.dataset.n); }));
-    modalKey = (e) => { const k = +e.key; if (k >= 1 && k <= opts.length) res(k - 1); };
-  });
-  modalKey = null;
-  pop.hidden = true;
-  return opts[n].i;
 }
 
 // A Note names a place: it appears on the map, purple-bordered, and the camera glides over to show it.
@@ -1216,17 +1196,23 @@ function apGauge(ap, flash, max, losing = -1, gaining = -1, losingEnd = losing +
 
 // Backpack: 6 slots in the top-right column of the board. ✕ arms, second click leaves it on this tile.
 // Keys 1–6 highlight a slot; Enter then presses its button (Use / Take, or else ✕).
+// When the night asks for hope, it's chosen here: hope items get a Hope button, everything else greys out.
 let dropArmed = -1, packSel = -1;
 function renderPack() {
-  const p = cur();
-  if (!p.items[packSel]) packSel = -1;
+  const p = cur(), hoping = mode === 'hope';
+  if (!p.items[packSel] || (hoping && !ITEMS[p.items[packSel].id].hope)) packSel = -1;
+  $('#pack').classList.toggle('hoping', hoping);
   // the header folds the backpack away on small screens (see style.css)
   let h = `<button type="button" class="packhead" data-packtoggle><span class="packname"><span class="word">Backpack</span><span class="bag">🎒</span> ${p.items.length}/${CONFIG.maxItems}</span>`
     // folded, it shows each item in brief: icon, name and condition (just icon and condition once there are more than 3)
     + `<span class="packicons ${p.items.length > 3 ? 'many' : ''}">${p.items.map((it) => `<span class="pchip"><span class="ic">${itemIcon(it.id)}</span><span class="pinfo"><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</span></span>`).join('')}</span><span class="caret"></span></button>`;
   for (let i = 0; i < CONFIG.maxItems; i++) {
     const it = p.items[i];
-    h += it
+    const hope = hoping && ITEMS[it?.id]?.hope;
+    h += it && hoping
+      ? `<div class="slot-item ${hope ? 'hopeable' : 'greyed'} ${packSel === i ? 'sel' : ''}" data-slot="${i}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</div>
+          ${hope ? `<button class="use hope" data-hope="${i}" title="Lean on it tonight (−1 condition)">Hope</button>` : ''}</div>`
+      : it
       ? `<div class="slot-item ${packSel === i ? 'sel' : ''}" data-slot="${i}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</div>
           ${ITEMS[it.id].tool ? `<button class="use" data-use="${i}" title="Use tool (T)">Use <kbd>T</kbd></button>` : ''}
           ${ITEMS[it.id].pills ? `<button class="use" data-pill="${i}" title="Take a dose: AP back up to your max">Take</button>` : ''}
@@ -1306,6 +1292,11 @@ function renderPanel() {
       <div class="note good">${itemIcon(v.id)} ${flee ? 'Escaping' : ITEMS[v.id].verb === 'Ride' ? 'Riding' : 'Driving'} the ${v.id} — ${uses === 'ap' ? `🎲 ${p.ap} AP` : `${ICON[uses]} ${p.res[uses]} ${uses}`} left · ${steps} tile${steps === 1 ? '' : 's'} so far.
         Next hex: A Q E D X Z or tap one.</div>
       <div class="ribbon">${btn('stopdrive', '⏹ Stop here', flee && !steps ? 'Pick a hex first' : 'Enter / Backspace', flee && !steps)}</div>`;
+    renderLog();
+    return;
+  }
+  if (mode === 'hope') {   // the night asks for hope: it's picked in the backpack (renderPack)
+    $('#actions').innerHTML = `<div class="note hope">🌙 What hope is there? Pick it from your backpack.</div>`;
     renderLog();
     return;
   }
@@ -1484,6 +1475,7 @@ document.addEventListener('keydown', (e) => {
   if (/^[1-6]$/.test(k)) {   // highlight a backpack slot (again to un-highlight)
     const i = +k - 1;
     if (!cur().items[i]) return toast(`Backpack slot ${k} is empty.`);
+    if (mode === 'hope' && !ITEMS[cur().items[i].id].hope) return;   // greyed out: no hope in it
     selectSlot(packSel === i ? -1 : i);
     return;
   }
@@ -1533,6 +1525,8 @@ $('#pack').addEventListener('click', (e) => {
   if (e.target.closest('[data-packtoggle]')) { $('#pack').classList.toggle('open'); return; }
   const u = e.target.closest('[data-use]'); if (u) { useTool(+u.dataset.use); return; }
   const pl = e.target.closest('[data-pill]'); if (pl) { takePills(+pl.dataset.pill); return; }
+  const hp = e.target.closest('[data-hope]') ?? (mode === 'hope' && e.target.closest('.slot-item.hopeable'));   // the night's hope: tap the item
+  if (hp) { if (!busy) { packSel = -1; send({ type: 'decide', choice: +(hp.dataset.hope ?? hp.dataset.slot) }); } return; }
   const b = e.target.closest('[data-drop]');
   if (!b) {   // the slot itself: what is it? (phones show only the icon)
     const it = cur().items[e.target.closest('[data-slot]')?.dataset.slot];
