@@ -12,7 +12,7 @@ const CONFIG = {
   startAP: 8,             // AP at the start (sleep — 1d6 + the tile's 🟡 Safety — tops it up to max AP)
   startRes: { food: 4, water: 6, fuel: 0, ammo: 0 },   // what every survivor starts with
   startItems: [{ id: 'Booze', cond: 3 }],              // …and carries (no weapon: find one)
-  startSafety: 0,         // Safety on the starting tile
+  startSafety: 0.5,       // every place is found with this share of its max Safety (rounded down): half
   maxSafety: 5,           // most Safety a tile can hold, unless its location says otherwise (safety: 0–8 in locations.js)
   maxZombies: 6,          // most zombies a tile can hold — and that many can't be outrun
   maxItems: 6,            // backpack size

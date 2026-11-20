@@ -158,7 +158,9 @@ const Engine = (() => {
   // ---------------------------------------------------------------- setup
   // A Random row (row 3 in every table) is given its result as the tile is placed — anything from any place's table,
   // zombies included — and from then on it's an ordinary row (t.drawn: row → its result).
-  function newTile(S, def, safety = 0) {
+  // A place is found with CONFIG.startSafety of its max Safety already up (rounded down): half, e.g. a Castle 4 of 8.
+  function newTile(S, def) {
+    const safety = Math.floor((def.safety ?? CONFIG.maxSafety) * CONFIG.startSafety);
     const t = { def, safety, zombies: 0, vehicles: [], looted: [], stashes: [] };
     def.table.forEach((e, i) => { if (e.random) (t.drawn ??= {})[i + 1] = anyResult(S); });
     return t;
@@ -320,7 +322,6 @@ const Engine = (() => {
       log: [], events: [], rolls: [], forced: [], autoEnd, timesUp: false, checksOff, badNight: false, over: null,
     };
     const first = reveal(S, 0, 0, true);   // you start somewhere random: anywhere in the countryside, or in a settlement
-    S.tiles[first.k].safety = CONFIG.startSafety;
     for (const id of CONFIG.testStartVehicles || []) S.tiles[key(0, 0)].vehicles.push({ id, cond: CONFIG.maxCondition });
     names.forEach((name, i) => {
       // CONFIG.startAP (8 of 12), CONFIG.startRes (4 food, 6 water) and CONFIG.startItems (Booze, condition 3)

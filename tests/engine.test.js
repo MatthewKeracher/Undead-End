@@ -882,6 +882,15 @@ test('taking the stash: everything, and its Note leads on — same writer — to
   assert.equal(Object.keys(S.tiles).length, tiles);
 });
 
+test('every place is found with half its max Safety, rounded down — the starting one too', () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    const S = E.createGame({ seed });
+    E.start(S);
+    act(S, { type: 'scout' });
+    for (const t of Object.values(S.tiles)) assert.equal(t.safety, Math.floor(E.maxSafetyOf(t) / 2), t.def.name);
+  }
+});
+
 test('Safety tops out at 5; a tile still holds up to 6 zombies', () => {
   const { S, p } = game();
   const t = E.tileOf(S, p);
