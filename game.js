@@ -170,7 +170,7 @@ async function show(ev) {
     case 'flee': return fleeShow(ev);
     case 'armor': return sfx.armor();
     case 'repair': return sfx.repair();
-    case 'pills': return sfx.win(false);
+    case 'boost': return sfx.win(false);
     case 'hope': return sfx.hope();
     case 'lead': return leadShow(ev);
     case 'driveStep': sfx.drive(ev.fuel); return render();
@@ -528,7 +528,7 @@ async function dropItem(i) {
 }
 async function takePills(i) {
   if (cur().pending || busy || modalKey) return;
-  if (await explain('pills')) send({ type: 'pills', item: i });
+  if (await explain('pills')) send({ type: 'boost', item: i });
 }
 
 // ---------------------------------------------------------------- actions
@@ -1232,7 +1232,7 @@ function renderPack() {
       : it
       ? `<div class="slot-item ${packSel === i ? 'sel' : ''}" data-slot="${i}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</div>
           ${ITEMS[it.id].tool ? `<button class="use" data-use="${i}" title="Use tool (T)">Use <kbd>T</kbd></button>` : ''}
-          ${ITEMS[it.id].pills ? `<button class="use" data-pill="${i}" title="Take a dose: AP back up to your max">Take</button>` : ''}
+          ${ITEMS[it.id].boost ? `<button class="use" data-pill="${i}" title="+${ITEMS[it.id].boost} AP, up to your max (−1 condition)">${ITEMS[it.id].verb}</button>` : ''}
           <button class="drop ${dropArmed === i ? 'armed' : ''}" data-drop="${i}" title="Leave it on this tile">${dropArmed === i ? 'Leave it?' : '✕'}</button></div>`
       : `<div class="slot-item empty"></div>`;
   }

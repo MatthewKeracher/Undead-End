@@ -607,17 +607,22 @@ test('driving is free movement: fuel per tile, −1 condition per trip, round no
   assert.equal(S.round, 1);
 });
 
-test('pills: a free dose tops AP up to max AP (max AP unchanged), −1 condition; gone at 0', () => {
+test('pills and booze: free, +6 AP up to max AP (max AP unchanged), −1 condition; gone at 0', () => {
   const { S, p } = game();
-  p.items.push({ id: 'Pills', cond: 2 });
-  p.ap = 1; p.maxAP = 7;
-  assert.ok(!act(S, { type: 'pills', item: 0 }).error);
-  assert.deepEqual([p.ap, p.maxAP, p.items[0].cond, p.acted], [7, 7, 1, false]);   // free: not your action
-  assert.match(act(S, { type: 'pills', item: 0 }).error, /already full/);        // no wasting a dose
-  p.ap = 0;
-  act(S, { type: 'pills', item: 0 });
-  assert.equal(p.ap, 7);
-  assert.equal(p.items.length, 0);      // last dose: gone
+  p.items.push({ id: 'Pills', cond: 2 }, { id: 'Booze', cond: 1 });
+  p.ap = 1; p.maxAP = 10;
+  assert.ok(!act(S, { type: 'boost', item: 0 }).error);
+  assert.deepEqual([p.ap, p.maxAP, p.items[0].cond, p.acted], [7, 10, 1, false]);   // free: not your action
+  act(S, { type: 'boost', item: 0 });   // capped at max AP
+  assert.equal(p.ap, 10);
+  assert.equal(p.items[0].id, 'Booze');  // last dose: the Pills are gone
+  assert.match(act(S, { type: 'boost', item: 0 }).error, /already full/);        // no wasting a swig
+  p.ap = 2;
+  act(S, { type: 'boost', item: 0 });
+  assert.equal(p.ap, 8);
+  assert.equal(p.items.length, 0);
+  p.items.push({ id: 'Note', cond: 2 });
+  assert.ok(act(S, { type: 'boost', item: 0 }).error);   // a Note is hope, but no AP
 });
 
 test('a Map (disabled in the tables for now) is read at once: every unexplored hex next to an explored one is revealed', () => {
@@ -798,14 +803,14 @@ test('max AP: water ±2, food ±1', () => {
 
 test('round 6 asks for hope: you pick a hope item and spend a pip of it', () => {
   const { S, p } = game({ checksOff: false });
-  p.items.push({ id: 'Axe', cond: 3 }, { id: 'Photo', cond: 1 }, { id: 'Booze', cond: 2 });
+  p.items.push({ id: 'Axe', cond: 3 }, { id: 'Pills', cond: 1 }, { id: 'Booze', cond: 2 });
   p.maxAP = 8; p.ap = 4;
   S.round = 5; S.badNight = false;
   S.forced = [1]; act(S, { type: 'sleep' });
   assert.equal(S.round, 6);
   assert.equal(p.pending.kind, 'hope');
   assert.ok(decide(S, 0).error);        // the Axe is no hope
-  decide(S, 1);                         // the Photo: its last pip
+  decide(S, 1);                         // the Pills: their last pip
   assert.equal(p.items.map((x) => x.id).join(), 'Axe,Booze');
   assert.equal(p.maxAP, 10);            // paid: +2, like water
   assert.equal(p.pending, null);
@@ -825,9 +830,9 @@ test('nothing to hope for: max AP −2 (and at 0, you give up)', () => {
   assert.equal(p.dead, true);
 });
 
-test('Booze, Photo, Music Box and Note are items on the tables now, not a resource', () => {
+test('hope is Booze, Pills and Notes: items on the tables, not a resource', () => {
   assert.deepEqual({ ...def('Pub').table[1] }, { item: 'Booze' });
-  for (const id of ['Booze', 'Photo', 'Music Box', 'Note']) assert.equal(ITEMS[id].hope, true, id);
+  assert.deepEqual(Object.keys(ITEMS).filter((id) => ITEMS[id].hope).sort(), ['Booze', 'Note', 'Pills']);
   const { S, p } = game();
   p.items.push({ id: 'Tool', cond: 3 }, { id: 'Booze', cond: 1 });
   assert.ok(act(S, { type: 'tool', tool: 0, target: { from: 'pack', index: 1 }, amount: 1 }).error);   // no topping up hope

@@ -899,18 +899,19 @@ const Engine = (() => {
         log(S, `${ITEMS[tool.id].icon} The ${tool.id} is used up and destroyed.`, 'bad');
       }
     },
-    // Pills: a dose (−1 condition) tops your AP up to your max AP (max AP itself doesn't change). Gone at 0.
-    pills(S, p, { item: i }) {
+    // Pills and Booze: a dose / swig (−1 condition, the pip hope would cost) gives +boost AP, up to your max AP
+    // (max AP itself doesn't change). Gone at 0.
+    boost(S, p, { item: i }) {
       const it = p.items[i];
-      if (!it || !ITEMS[it.id]?.pills) return 'Pick some pills to take.';
+      if (!it || !ITEMS[it.id]?.boost) return 'Pick something to take.';
       if (p.ap >= p.maxAP) return 'Your AP is already full.';
       const ap = p.ap;
-      it.cond--; p.ap = p.maxAP;
-      emit(S, { type: 'pills', player: p.id, item: it.id, ap, cond: it.cond });
-      log(S, `${p.name} takes the ${ITEMS[it.id].icon} ${it.id}: AP ${ap} → ${p.ap}.`, 'good');
+      it.cond--; p.ap = Math.min(p.maxAP, p.ap + ITEMS[it.id].boost);
+      emit(S, { type: 'boost', player: p.id, item: it.id, ap, cond: it.cond });
+      log(S, `${p.name} ${ITEMS[it.id].verb === 'Drink' ? 'drinks' : 'takes'} the ${ITEMS[it.id].icon} ${it.id}: AP ${ap} → ${p.ap}.`, 'good');
       if (it.cond <= 0) {
         p.items.splice(i, 1);
-        log(S, `${ITEMS[it.id].icon} The ${it.id} are all gone.`, 'bad');
+        log(S, `${ITEMS[it.id].icon} The ${it.id} ${it.id === 'Pills' ? 'are' : 'is'} all gone.`, 'bad');
       }
     },
     // Dropping leaves the item in your stash on this tile — anyone who rolls that row can take it.
