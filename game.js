@@ -258,7 +258,7 @@ function renderTimer() {
   if (!timerOn || tutorial || !G || G.over) { el.innerHTML = ''; el.className = ''; return; }
   const s = Math.ceil(timer.left / 1000);
   el.className = `${s <= 10 ? 'low' : ''} ${busy || paused ? 'paused' : ''}`;
-  el.innerHTML = `⏱️ <b>${s}s</b><span class="bar"><i style="width:${(100 * timer.left / fullTime()).toFixed(1)}%"></i></span>`;
+  el.innerHTML = `<i style="width:${(100 * timer.left / fullTime()).toFixed(1)}%"></i>`;   // a line draining along the header
 }
 // Pause (single player only — online the clock is shared): stops the round timer and covers the board.
 let paused = false;
