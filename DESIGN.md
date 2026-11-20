@@ -92,9 +92,9 @@ Repeat until the tile is clear, you escape, or you die.
   On success, move to an adjacent **already-scouted** tile with no zombies.
   **On failure:** only **armor** allows a reroll (−1 armor condition, 1 AP). Otherwise you're **caught**: you can't flee again this encounter and must fight —
   and **with no usable weapon, a failed flee is instant death**.
-- **Hide:** free, whenever the tile has **🟡 Safety** (not once you've been caught fleeing). The Safety takes the zombies **one for one** — each point stops one zombie and is used up. Hide straight away and it's the walls that pay; **fight some down first** and you lose less Safety. Any left over once the Safety is gone stay to be fought or fled.
+- **Hide:** free, when the tile has **🟡 Safety** — offered **only when you could fight instead** (a usable weapon); with nothing to fight with, you hide **at once**, as Safety always worked. Not once you've been caught fleeing. The Safety takes the zombies **one for one** — each point stops one zombie and is used up. Hide straight away and it's the walls that pay; **fight some down first** and you lose less Safety. Any left over once the Safety is gone stay to be fought or fled.
 - If you flee, the zombies and the Safety both stay on the tile.
-- **Can't fight (no usable weapon / no ammo / no AP to swing) and can't flee (no AP, no safe scouted neighbour, or too many to outrun) → you hide if there's Safety; if not, you die.**
+- **Can't fight (no usable weapon / no ammo / no AP to swing) and can't flee (no AP, no safe scouted neighbour, or too many to outrun) → you die** (once the Safety, if any, has taken what it can).
 
 ## Items
 - Item cards appear **explicitly in tile loot tables** (e.g. "Pistol") so players can plan where to go.

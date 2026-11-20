@@ -791,7 +791,7 @@ async function contestAnim(c) {
   }
   const lost = c.n - added;
   $('#ctext').innerHTML = `<div class="big bad">🧟 ${c.left} ${c.after.safety ? 'at the door' : 'broke through'}!</div>`
-    + (c.after.safety ? `<small class="muted">🟡 ${c.after.safety} Safety between you — fight, flee or hide.</small>` : lost > 0 ? `<small class="muted">The tile is overrun (max ${CONFIG.maxZombies}).</small>` : '');
+    + (c.after.safety ? `<small class="muted">🟡 ${c.after.safety} Safety between you.</small>` : lost > 0 ? `<small class="muted">The tile is overrun (max ${CONFIG.maxZombies}).</small>` : '');
   $('#popup').classList.add('zombie'); sfx.zombie();
 }
 
@@ -1337,7 +1337,7 @@ function renderPanel() {
 
   if (mode === 'threat') {   // fight with a weapon picked in the backpack (renderPack) — or flee, here
     $('#actions').innerHTML = `
-      <div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} on the ${esc(t.def.name)}! ${p.caught ? 'Caught — fight with a weapon from your backpack!' : canFight(p) ? `Pick a weapon from your backpack, flee${t.safety ? ' or hide' : ''}.` : t.safety ? 'Flee or hide.' : 'Nothing to fight with — if you fail to flee, you die.'}</div>
+      <div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} on the ${esc(t.def.name)}! ${p.caught ? 'Caught — fight with a weapon from your backpack!' : canFight(p) ? `Pick a weapon from your backpack, flee${t.safety ? ' or hide' : ''}.` : 'Nothing to fight with — if you fail to flee, you die.'}</div>
       <div class="ribbon threat">
         ${btn('flee', '🏃 Flee', p.caught ? 'Caught — must fight' : !fleeAdj(p).length ? 'Nowhere to run' : t.zombies >= 6 ? 'Too many to outrun' : p.ap < 1 ? 'No AP' : `1 AP · roll > ${t.zombies}`, !canFlee(p, t))}
         ${t.safety ? btn('hide', '🛡️ Hide', p.caught ? 'Caught — must fight' : `Free · 🟡 ${t.safety} stops ${Math.min(t.safety, t.zombies)}`, !E.canHide(p, t)) : ''}

@@ -492,8 +492,9 @@ const Engine = (() => {
     return { ...c, slots: contestSlots(t, c) };
   }
   function applyContest(t, c) { t.safety = c.after.safety; t.zombies = c.after.zombies; }
-  const arriveText = (t) => (t.safety ? `🟡 ${t.safety} Safety stands between you — fight, flee or hide.` : '🧟 Nothing to hold them back!');
-  // Hide: free, with Safety up and zombies on the tile — not once you've been caught fleeing.
+  const arriveText = (t) => (t.safety ? `🟡 ${t.safety} Safety stands between you.` : '🧟 Nothing to hold them back!');
+  // Hide: free, with Safety up and zombies on the tile — not once you've been caught fleeing. It's a choice only when
+  // you could fight instead; with no usable weapon you hide at once (STEPS.threat).
   const canHide = (p, t) => t.safety > 0 && t.zombies > 0 && !p.caught;
   function hide(S, p) {
     const t = tileOf(S, p), c = hideContest(t);
@@ -609,7 +610,7 @@ const Engine = (() => {
     threat(S, p) {
       const t = tileOf(S, p);
       if (!t.zombies) { p.caught = false; return; }
-      if (!canFight(p) && !canFlee(S, p, t) && canHide(p, t)) return hide(S, p);   // nothing else for it
+      if (!canFight(p) && canHide(p, t)) return hide(S, p);   // nothing to fight with: the Safety takes them, as it always did
       if (!canFight(p) && !canFlee(S, p, t)) {
         return die(S, p, p.ap < 1 ? `${p.name} has no strength left (0 🎲 AP) and nothing to fight with.`
           : !fleeAdj(S, p).length ? `${p.name} can't fight and has nowhere to run.`
