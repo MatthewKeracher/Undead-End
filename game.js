@@ -812,7 +812,7 @@ async function hideShow({ name, c, auto }) {
   skipAnim = false;
   pop.className = '';
   pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>🛡️ Hiding</small><h2>${auto ? 'Nothing to fight with' : esc(name)}</h2></div>
+    <div class="ptitle"><small>🟡 Hiding</small><h2>${auto ? 'Nothing to fight with' : esc(name)}</h2></div>
     ${auto ? `<p class="muted">The 🟡 Safety takes them.</p>` : ''}
     <div class="presult" id="pres"><div class="cpips ${c.before.safety + c.before.zombies > 8 ? 'many' : ''}">${'<i class="on"></i>'.repeat(c.before.safety)}${'<i class="zed"></i>'.repeat(c.before.zombies)}</div><div id="ctext"></div></div>
     <small class="pskip">click or press any key</small></div>`;
@@ -1373,7 +1373,7 @@ function renderActions() {
       <div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} on the ${esc(t.def.name)}! ${p.caught ? 'Caught — fight with a weapon from your backpack!' : canFight(p) ? `Pick a weapon from your backpack, flee${t.safety ? ' or hide' : ''}.` : 'Nothing to fight with — if you fail to flee, you die.'}</div>
       <div class="ribbon main threat">
         ${btn('flee', '🏃 Flee', p.caught ? 'Caught — must fight' : !fleeAdj(p).length ? 'Nowhere to run' : t.zombies >= 6 ? 'Too many to outrun' : p.ap < 1 ? 'No AP' : `1 AP · roll > ${t.zombies}`, !canFlee(p, t))}
-        ${t.safety ? btn('hide', '🛡️ Hide', p.caught ? 'Caught — must fight' : `Free · 🟡 ${t.safety} stops ${Math.min(t.safety, t.zombies)}`, !E.canHide(p, t)) : ''}
+        ${t.safety ? btn('hide', '🟡 Hide', p.caught ? 'Caught — must fight' : `Free · 🟡 ${t.safety} stops ${Math.min(t.safety, t.zombies)}`, !E.canHide(p, t)) : ''}
       </div>`;
     renderLog();
     return;

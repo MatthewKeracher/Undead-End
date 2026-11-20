@@ -507,7 +507,7 @@ const Engine = (() => {
     const t = tileOf(S, p), c = hideContest(t);
     emit(S, { type: 'hide', player: p.id, k: key(p.q, p.r), name: t.def.name, c, auto });
     applyContest(t, c);
-    log(S, `🛡️ ${p.name} hides at the ${t.def.name}: 🟡 Safety stops ${plural(c.absorbed, 'zombie')} (🟡 ${c.before.safety} → ${c.after.safety})${c.left ? ` — ${c.left} still here!` : '.'}`, c.left ? 'bad' : 'good');
+    log(S, `🟡 ${p.name} hides at the ${t.def.name}: 🟡 Safety stops ${plural(c.absorbed, 'zombie')} (🟡 ${c.before.safety} → ${c.after.safety})${c.left ? ` — ${c.left} still here!` : '.'}`, c.left ? 'bad' : 'good');
     for (const o of S.players) if (o !== p && !o.dead && o.pending?.kind === 'threat' && key(o.q, o.r) === key(p.q, p.r)) { o.pending = null; o.queue.unshift({ type: 'threat' }); }   // everyone here: the horde has changed
     if (t.zombies) p.queue.unshift({ type: 'threat' });
   }

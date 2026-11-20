@@ -160,7 +160,7 @@ const TUTORIAL = {
     shoot: { icon: '🔫', title: 'Shoot', text: ['Each shot fires 1 🟢 ammo and kills 1 zombie. No AP.', 'The gun loses 1 condition for each round of fighting, not each shot.'] },
     melee: { icon: '🪓', title: 'Melee', text: ['Each swing costs 1 🎲 AP and kills 1 zombie — AP you might need to flee.', 'The weapon loses 1 condition for each round of fighting, not each swing.'] },
     saw: { icon: '🪚', title: 'Saw', text: ['Each rev burns 1 🟠 fuel and kills up to 6 zombies — one rev clears the tile.'] },
-    hide: { icon: '🛡️', title: 'Hide', text: ['Free: let the 🟡 Safety here take the zombies, one point each. Fight some down first and you lose less of it.'] },
+    hide: { icon: '🟡', title: 'Hide', text: ['Free: let the 🟡 Safety here take the zombies, one point each. Fight some down first and you lose less of it.'] },
     flee: { icon: '🏃', title: 'Flee', text: ['1 AP: roll a d6 and beat the number of zombies to escape to a safe, scouted hex next to you — or away in a vehicle here.', 'Fail and you\'re caught: you must fight. Six zombies can\'t be outrun.'] },
     tool: { icon: '🧰', title: 'Use a tool', text: ['Free, any time: move some of the tool\'s condition onto another item, or a vehicle on your tile (up to 6). The tool is gone at 0.'] },
     pills: { icon: '💊', title: 'Pills and booze', text: ['Free, any time: Booze +6 AP for −1 max AP, Pills +12 AP for −2 max AP. −1 condition — a pip of hope.'] },
