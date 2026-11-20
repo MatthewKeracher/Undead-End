@@ -186,6 +186,13 @@ body:not(.log-open) #panel { display: none; }
 #apring.tint .seg.on, #apring .seg.doomed { fill: var(--lc); filter: drop-shadow(0 0 4px var(--lc)); }
 #apring .seg.doomed { animation: doomed .5s ease-in-out infinite alternate; }
 @keyframes doomed { to { opacity: .55; } }
+#clock.shake { animation: clockshake .5s ease-in-out; }
+@keyframes clockshake { 15%, 55% { translate: -7px 0; } 35%, 75% { translate: 7px 0; } 90% { translate: -3px 0; } }
+.clocktag { position: fixed; z-index: 7; translate: -50% -50%; pointer-events: none; white-space: nowrap; padding: 6px 14px; border-radius: 999px;
+  font-size: 18px; font-weight: 900; letter-spacing: .02em; color: #fff; background: var(--lc); box-shadow: 0 6px 20px #000a, 0 0 18px var(--lc);
+  animation: tagpop .35s cubic-bezier(.2, 1.8, .5, 1); }
+.clocktag.food { --lc: #e0443c; } .clocktag.water { --lc: #2f8de0; } .clocktag.hope { --lc: #9b5de5; }
+@keyframes tagpop { from { scale: .3; opacity: 0; } }
 #apring .seg.losing { animation: ringloss 1s ease-out forwards; transform-box: fill-box; transform-origin: center; }
 @keyframes ringloss { 0% { fill: var(--lc); transform: scale(1.35); filter: drop-shadow(0 0 10px var(--lc)); } 50% { fill: var(--lc); transform: scale(1); } 100% { fill: #050505; } }
 /* bottom dock: toast, hint, notes and the action ribbon, centred along the bottom */

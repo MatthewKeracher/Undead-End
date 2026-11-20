@@ -876,19 +876,30 @@ function showSafety(k, n) {
   document.querySelectorAll(`#map .hex[data-k="${k}"] .pip`).forEach((c, i) => c.classList.toggle('on', i < n));
 }
 
-// A missed food / water / hope check: on the clock's AP ring, no popup — the AP takes the colour of what was
-// missing, and the max AP lost throbs, then swells and goes dark.
+// A missed food / water / hope check: on the clock's AP ring, no popup — the clock shakes, a tag over it says
+// what was missing ("No Water"), the AP takes that colour and the max AP lost throbs, then swells and goes dark.
+function shakeClock() {
+  const clock = $('#clock');
+  clock.classList.remove('shake'); void clock.getBoundingClientRect(); clock.classList.add('shake');
+}
 async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
   const ring = $('#apring');
   skipAnim = false;
   $('#popup').hidden = true;
+  const tag = Object.assign(document.createElement('div'), { className: `clocktag ${res}`, textContent: `No ${res[0].toUpperCase()}${res.slice(1)}` });
+  const place = () => { const r = $('#clock').getBoundingClientRect(); Object.assign(tag.style, { left: `${r.left + r.width / 2}px`, top: `${r.top + r.height / 2}px` }); };   // over the clock's middle
+  document.body.append(tag);   // (not in #board: its container query would offset a positioned tag)
+  place(); window.addEventListener('resize', place);   // follows the clock if the window changes (a phone turned)
   ring.classList.add('tint', res);   // the reason: the AP takes the colour of what was missing…
   renderApRing(oldAp, '', oldMax, -1, [newMax, oldMax, 'doomed']);   // …and the max AP about to go throbs
+  shakeClock();
   tone(300, 0.5, 'sawtooth', 0.08, -200);
-  await wait(900);
+  await wait(1000);
   renderApRing(newAp, '', newMax, -1, [newMax, oldMax, 'losing']);   // then it swells and goes dark
+  shakeClock();
   noise(0.25, 0.3, 700); tone(90, 0.6, 'square', 0.12, -40);
-  await wait(1100);
+  await wait(1200);
+  tag.remove(); window.removeEventListener('resize', place);
   ring.classList.remove('tint', res);
   renderApRing(newAp, '', newMax);
   await wait(250);
