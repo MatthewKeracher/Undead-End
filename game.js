@@ -520,7 +520,7 @@ function tone(freq, dur = 0.05, type = 'square', vol = 0.04, slide = 0) {
   } catch { /* audio unavailable */ }
 }
 // Recorded sounds (assets/), restarted rather than stacked when played again quickly.
-const CLIPS = { chainsaw: 'assets/chainsaw.mp3', pistol: 'assets/pistol.mp3', shotgun: 'assets/shotgun.mp3' }, clipEls = {};
+const CLIPS = { axe: 'assets/axe.mp3', chainsaw: 'assets/chainsaw.mp3', pistol: 'assets/pistol.mp3', shotgun: 'assets/shotgun.mp3' }, clipEls = {};
 function clip(name, volume = 0.7) {
   if (muted) return;
   try {
@@ -556,7 +556,7 @@ const sfx = {
     : kind === 'water'   // hooves: clip-clop
       ? [0, 140, 300, 440].forEach((d, i) => setTimeout(() => { noise(0.04, 0.12, 1800); tone(i % 2 ? 520 : 680, 0.04, 'square', 0.04); }, d))
       : (noise(0.08, 0.1, 2500), setTimeout(() => tone(1400, 0.08, 'sine', 0.05), 80)),
-  axe: () => { tone(320, 0.12, 'sawtooth', 0.05, -260); setTimeout(() => tone(70, 0.18, 'square', 0.18, -30), 90); },
+  axe: () => clip('axe'),   // every melee weapon but the Chainsaw
   bow: () => { tone(220, 0.25, 'triangle', 0.12, -120); noise(0.12, 0.12, 4000); },   // twang and whoosh
   saw: () => clip('chainsaw'),
   zombie: () => { tone(95, 0.9, 'sawtooth', 0.12, -50); setTimeout(() => tone(70, 0.7, 'sawtooth', 0.1, -30), 150); },
