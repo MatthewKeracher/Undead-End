@@ -776,6 +776,7 @@ function bfOpen(k) {
   bf.k = k; bf.closing = false;
   el.getAnimations().forEach((a) => a.cancel());
   el.hidden = false;
+  el.style.background = cur().color;   // its edge: your colour, as your hex is outlined on the map
   document.body.classList.add('battling');   // everything but the battlefield and the bars goes out of focus
   bfPlace();
   const from = bfFromHex();

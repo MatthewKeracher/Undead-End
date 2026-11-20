@@ -448,7 +448,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 /* the battlefield: the tile come forward — hex-shaped, grown from the tile to fill the open space above the bars
    (which stay clear). No words: just the horde, the die and your Safety. Sized off its width (cqw). */
 #battle { position: absolute; z-index: 4; pointer-events: none; container-type: size;
-  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: #e86a5a; }   /* (the red: its edge) */
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: var(--line); }   /* (its edge: your colour, set in bfOpen) */
 /* while it's open everything else goes out of focus but the bars (and a toast, if one comes up) */
 header, #map, #clock, #notes > *, #hint, #stats, #leadmarks, #panel { transition: filter .3s; }
 body.battling :is(header, #map, #clock, #notes > *, #hint, #stats, #leadmarks, #panel) { filter: blur(3px); }
