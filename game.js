@@ -830,7 +830,8 @@ const bfHordeSize = (n) => { const rows = Math.ceil(n / 3); $('#battle .bf-horde
 function bfDraw(safety, zombies) {
   $('#battle').innerHTML = `<div class="bf-in"><div class="bf-horde">${Array.from({ length: zombies }, (_, i) => bfZed(i)).join('')}</div></div>
     <div class="bf-mid"><div class="bf-die slot"></div></div>
-    <div class="bf-safe ${safety > 8 ? 'n9' : safety > 6 ? 'n7' : ''}">${'<i></i>'.repeat(safety)}</div>`;
+    <div class="bf-safe ${safety > 8 ? 'n9' : safety > 6 ? 'n7' : ''}">${'<i></i>'.repeat(safety)}</div>
+    <div class="bf-you">🧔‍♂️</div>`;
   bfHordeSize(zombies);
   bfPlace();
 }

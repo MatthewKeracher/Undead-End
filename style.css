@@ -476,6 +476,8 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
 .bf-safe { position: absolute; left: 0; right: 0; top: 82%; translate: 0 -50%; display: flex; justify-content: center; gap: 1.92cqw; }
 .bf-safe i { width: 6.26cqw; height: 6.26cqw; border-radius: 50%; background: #f2c94c; border: .5cqw solid #8a6d12; box-shadow: 0 0 10px #f2c94c88; }
 .bf-safe.n7 { gap: 1.44cqw; } .bf-safe.n7 i { width: 5.77cqw; height: 5.77cqw; }
+/* you, down in the bottom point under your Safety */
+.bf-you { position: absolute; left: 50%; top: 91.5%; translate: -50% -50%; font-size: 8cqw; line-height: 1; }
 .bf-safe.n9 { gap: .96cqw; } .bf-safe.n9 i { width: 4.81cqw; height: 4.81cqw; }
 
 .leadmark { position: absolute; width: 40px; height: 40px; margin: -20px 0 0 -20px; display: grid; place-items: center; border-radius: 50%;
