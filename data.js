@@ -77,6 +77,7 @@ const hopeItem = (icon, desc, extra = {}) => ({ icon, hope: true, desc: `Hope: $
 const ITEMS = {
   Pistol: gun('🔫'),
   Bow: gun('🏹', 'Loose', { sound: 'bow' }),
+  Shotgun: gun('🔫', 'Fire', { img: 'assets/shotgun.png', kills: 3, sound: 'shotgun', desc: 'Fight: no AP; 1 condition per round; each 🟢 ammo fired kills up to 3 zombies.' }),
   Axe: melee('🪓'),
   Sword: melee('🗡️', 'Slash'),
   'Kitchen Knife': melee('🔪', 'Stab'),

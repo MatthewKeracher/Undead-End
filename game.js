@@ -625,6 +625,7 @@ const sfx = {
   land: () => tone(140, 0.18, 'triangle', 0.15, -40),
   win: (big) => (big ? [523, 659, 784, 1047] : [523, 659, 784]).forEach((f, i) => setTimeout(() => tone(f, 0.22, 'triangle', 0.07), i * 90)),
   count: () => tone(900, 0.02, 'square', 0.02),
+  shotgun: () => { sfx.gun(); tone(55, 0.4, 'square', 0.14, -25); setTimeout(() => { noise(0.05, 0.25, 2600); setTimeout(() => noise(0.06, 0.25, 1800), 110); }, 420); },   // a heavier boom, then the pump
   gun: () => {
     if (muted) return;
     try {

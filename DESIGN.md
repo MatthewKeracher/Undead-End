@@ -99,7 +99,8 @@ Repeat until the tile is clear, you escape, or you die.
 - When found, an item's **condition is rolled 1d6**. Condition = number of uses; at 0 the item breaks.
 - **Backpack holds 6 items.** If full when finding one, **leave one on the tile** — one you carry, or the new one. It goes in the row the new item was found in (just emptied), keeping its condition, so it can be rolled for again later. Nothing is ever destroyed to make room.
 - Items can be dropped at any time: a dropped item is left on that tile, **keeping its condition** (see Stashes, under Tiles).
-- **Pistol** (gun): see Fight. Found in towns (Gun Shop, Sheriff's Office), at the Army Checkpoint, and in cities only at the Police Station (one row) — guns are a town thing.
+- **Pistol** (gun): see Fight. Found in towns (Gun Shop, Sheriff's Office), at the Army Checkpoint — guns are a town thing.
+- **Shotgun** (gun): like the Pistol, but **each shot (1 ammo) kills up to 3 zombies**. Found at the Gun Shop, the Sheriff's Office (**Shotgun + Ammo**) and, in cities, the Police Station.
 - **Axe** (melee): see Fight. Found at Farmhouse, Forest, Cottage, Hardware Store, Fire Station.
 - **Weapon looks** (pure re-skins, like the vehicles): melee ones work exactly like the Axe, the Bow like the Pistol (it fires ammo).
   | Weapon | Kind | Found at |

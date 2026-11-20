@@ -34,7 +34,7 @@
 //                                                Doubles and mixes included (always row 3)
 //    'Food'  'Water'  'Fuel'  'Ammo'             gain 1d6 of it (CONFIG.lootDice in data.js)
 //    'Double Food'  'Triple Ammo'  …             1d6 × 2 (Double), × 3 (Triple), × 4 (Quadruple) — use sparingly
-//    'Pistol'  'Bow'                             (guns: fire ammo)
+//    'Pistol'  'Bow'  'Shotgun'                  (guns: fire ammo — the Shotgun kills up to 3 a shot)
 //    'Axe'  'Sword'  'Kitchen Knife'  'Frying Pan'  'Cricket Bat'  'Hockey Stick'  'Pickaxe'  'Wrench'   (melee: AP)
 //    'Chainsaw'  'Body Armor'  'Tool'  'Pills'  'Binoculars'  'Radio'
 //    'Truck'  'Tractor'  'Ambulance'  'Police Car'  'Jeep'  'Van'  'Bus'  'Campervan'  'Fire Engine'
@@ -108,15 +108,15 @@ const LOCATIONS = [
     table: ['Zombies',       'Axe',           'Random',        'Chainsaw',      'Double Water',  'Fire Engine'] },
   // guns are a town thing: cities have only the Police Station
   { name: 'Gun Shop',       icon: '🎯', safety: 6, in: ['town'],
-    table: ['Zombies',       'Pistol',        'Random',        'Pistol + Ammo', 'Double Ammo',   'Body Armor'] },
+    table: ['Zombies',       'Shotgun',       'Random',        'Pistol + Ammo', 'Double Ammo',   'Body Armor'] },
   { name: "Sheriff's Office", icon: '🤠', safety: 7, in: ['town'],
-    table: ['Zombies',       'Pistol + Ammo', 'Random',        'Ammo',          'Body Armor',    'Police Car'] },
+    table: ['Zombies',       'Pistol + Ammo', 'Random',        'Shotgun + Ammo', 'Body Armor',   'Police Car'] },
 
   // ---- cities only
   { name: 'Hospital',       icon: '🏥', safety: 6, in: ['city'],
     table: ['Zombies',       'Pills',         'Random',        'Pills',         'Food + Water',  'Ambulance'] },
   { name: 'Police Station', icon: '👮', safety: 8, in: ['city'],
-    table: ['Zombies',       'Pistol',        'Random',        'Ammo',          'Body Armor',    'Police Car'] },
+    table: ['Zombies',       'Shotgun',       'Random',        'Ammo',          'Body Armor',    'Police Car'] },
   { name: 'Shopping Mall',  icon: '🏬', safety: 5, in: ['city'],
     table: ['Zombies',       'Double Food',   'Random',        'Double Water',  'Music Box',     'Food + Water'] },
   { name: 'Train Station',  icon: '🚉', safety: 4, in: ['city'],
