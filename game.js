@@ -330,15 +330,15 @@ const itemIcon = (id) => ITEMS[id].img ? `<img class="iimg" src="${ITEMS[id].img
 const condPips = (n) => `<span class="cond">${[...Array(6)].map((_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
 
 // ---------------------------------------------------------------- items
-// Backpack full: pick an item to destroy (the new one is last — picking it leaves it behind).
+// Backpack full: pick an item to leave on this tile (the new one is last — picking it leaves it where it was found).
 async function backpackPrompt(p, item) {
   const pop = $('#popup');
   const all = [...p.items, item];
   pop.className = '';
   pop.innerHTML = `<div class="pcard">
-    <div class="ptitle"><small>Backpack full (${CONFIG.maxItems}/${CONFIG.maxItems})</small><h2>Destroy one item</h2></div>
+    <div class="ptitle"><small>Backpack full (${CONFIG.maxItems}/${CONFIG.maxItems})</small><h2>Leave one here</h2></div>
     <ol class="pack-choose">${all.map((it, i) => `<li><button data-i="${i}"><kbd>${i + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond)}${i === all.length - 1 ? ' <em>NEW</em>' : ''}</button></li>`).join('')}</ol>
-    <small class="pskip">press 1–${all.length} or click</small></div>`;
+    <small class="pskip">press 1–${all.length} or click · it stays on this tile, condition and all</small></div>`;
   pop.hidden = false;
   const i = await new Promise((res) => {
     pop.querySelectorAll('[data-i]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); res(+b.dataset.i); }));
@@ -614,8 +614,9 @@ async function scavengeShow({ name, rows: table, tries, r, hit, amt, amts, dice,
     $('#pres').innerHTML = `<div class="big bad">You found nothing</div><small class="muted">Every roll landed on a looted row.</small>`;
     tone(300, 0.25, 'triangle', 0.07, -120); setTimeout(() => tone(200, 0.35, 'triangle', 0.07, -80), 160);
   } else if (hit.kind === 'stash') {
-    const s = hit.stash;
-    $('#pres').innerHTML = `<div class="big good jackpot">🎒 ${esc(s.owner)}'s stash</div><div class="stashgot">${E.stashText(s) || 'empty'}</div>`;
+    const s = hit.stash, lone = E.loneItem(s);
+    $('#pres').innerHTML = lone ? `<div class="big good jackpot">${itemIcon(lone.id)} ${esc(lone.id)}</div><div>${condPips(lone.cond)}</div>`
+      : `<div class="big good jackpot">🎒 ${esc(s.owner)}'s stash</div><div class="stashgot">${E.stashText(s) || 'empty'}</div>`;
     pop.classList.add('jackpot');
     sfx.win(true);
   } else if (e.zombies) {
@@ -841,10 +842,15 @@ function hexPoints(cx, cy, s) {
   }).join(' ');
 }
 
-// A loot table row as words: looted rows are struck through (CSS), stashes show whose they are.
+// A loot table row as words: looted rows are struck through (CSS), stashes show whose they are —
+// and a lone item left there shows as itself, with its condition.
 const shortName = (n) => (n.length > 9 ? `${n.slice(0, 8)}…` : n);
-const rowText = (row) => (row.kind === 'stash' ? `🎒 ${shortName(row.stash.owner)}'s stash` : row.e ? cellText(row.e) : '—');
-const rowClass = (row) => ({ zombies: 'z', item: 'it', looted: 'looted', stash: 'stash' }[row.kind] || '');
+const rowText = (row) => {
+  if (row.kind !== 'stash') return row.e ? cellText(row.e) : '—';
+  const lone = E.loneItem(row.stash);
+  return lone ? `${lone.id} (${lone.cond})` : `🎒 ${shortName(row.stash.owner)}'s stash`;
+};
+const rowClass = (row) => (row.kind === 'stash' && E.loneItem(row.stash) ? 'it' : { zombies: 'z', item: 'it', looted: 'looted', stash: 'stash' }[row.kind] || '');
 
 // Results 2–6. 1 is always Zombies, so it isn't listed — the pips below show any zombies on the tile.
 function tableSvg(x, y, t) {
@@ -1064,7 +1070,7 @@ function apGauge(ap, flash, max, losing = -1, gaining = -1, losingEnd = losing +
     <text y="8" class="num">${ap}</text><text y="26" class="lbl">AP</text><text y="40" class="maxl">max ${max}</text></svg>`;
 }
 
-// Backpack: 6 slots in the top-right column of the board. ✕ arms, second click destroys.
+// Backpack: 6 slots in the top-right column of the board. ✕ arms, second click leaves it on this tile.
 // Keys 1–6 highlight a slot; Enter then presses its button (Use / Take, or else ✕).
 let dropArmed = -1, packSel = -1;
 function renderPack() {
@@ -1080,7 +1086,7 @@ function renderPack() {
       ? `<div class="slot-item ${packSel === i ? 'sel' : ''}" data-slot="${i}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond)}</div>
           ${ITEMS[it.id].tool ? `<button class="use" data-use="${i}" title="Use tool (T)">Use <kbd>T</kbd></button>` : ''}
           ${ITEMS[it.id].pills ? `<button class="use" data-pill="${i}" title="Take a dose: AP back up to your max">Take</button>` : ''}
-          <button class="drop ${dropArmed === i ? 'armed' : ''}" data-drop="${i}" title="Leave it in your stash on this tile">${dropArmed === i ? 'Leave it?' : '✕'}</button></div>`
+          <button class="drop ${dropArmed === i ? 'armed' : ''}" data-drop="${i}" title="Leave it on this tile">${dropArmed === i ? 'Leave it?' : '✕'}</button></div>`
       : `<div class="slot-item empty"></div>`;
   }
   $('#pack').innerHTML = h;

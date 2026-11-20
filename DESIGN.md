@@ -97,8 +97,8 @@ Repeat until the tile is clear, you escape, or you die.
 ## Items
 - Item cards appear **explicitly in tile loot tables** (e.g. "Pistol") so players can plan where to go.
 - When found, an item's **condition is rolled 1d6**. Condition = number of uses; at 0 the item breaks.
-- **Backpack holds 6 items.** If full when finding one, destroy an item or leave the new one.
-- Items can be dropped at any time: a dropped item goes into **your stash** on that tile (see Tiles).
+- **Backpack holds 6 items.** If full when finding one, **leave one on the tile** — one you carry, or the new one. It goes in the row the new item was found in (just emptied), keeping its condition, so it can be rolled for again later. Nothing is ever destroyed to make room.
+- Items can be dropped at any time: a dropped item is left on that tile, **keeping its condition** (see Stashes, under Tiles).
 - **Pistol** (gun): see Fight. Found in towns (Gun Shop, Sheriff's Office), at the Army Checkpoint, and in cities only at the Police Station (one row) — guns are a town thing.
 - **Axe** (melee): see Fight. Found at Farmhouse, Forest, Cottage, Hardware Store, Fire Station.
 - **Weapon looks** (pure re-skins, like the vehicles): melee ones work exactly like the Axe, the Bow like the Pistol (it fires ammo).
@@ -153,7 +153,7 @@ Repeat until the tile is clear, you escape, or you die.
 ## Tiles
 - A tile can be any real-world location (e.g. hospital, petrol station, farm).
 - **Depletion:** when a scavenge roll finds a result (resource or item), that row is **crossed off for good** — unless it's marked **Endless** (∞) in `locations.js`, e.g. the Lake's water. If the d6 lands on a crossed-off row, it's **rolled again automatically** (still a plain d6 each time) — **1 roll plus up to 2 rerolls**; if they all land on crossed-off rows, **you find nothing** and the AP is spent (`CONFIG.maxRerolls`). A tile with every row crossed off — cleared Zombies included — can't be scavenged ("Picked clean").
-- **Stashes:** dropped items — and everything a survivor carried when they die — become **"NAME's stash"** on a row of that tile's table. A stash covers a looted row if there is one, otherwise a random row (2–6); up to 5 per tile (your own stash on a tile grows; with all 5 rows taken, things join the oldest). Roll its number to claim it: all its resources, plus its items up to your backpack space (choose which; the rest stay). Once emptied, the row underneath shows again.
+- **Stashes:** dropped items — and everything a survivor carried when they die — become **"NAME's stash"** on a row of that tile's table — except a **single item on its own**, which shows (and is found) as just that item, with its condition: e.g. **Pistol (3)**. A second thing joining it makes it a stash. A stash covers a looted row if there is one, otherwise a random row (2–6); up to 5 per tile (your own stash on a tile grows; with all 5 rows taken, things join the oldest). Roll its number to claim it: all its resources, plus its items up to your backpack space (choose which; the rest stay). Once emptied, the row underneath shows again.
   - A tile with no table (Wasteland) only has empty rows — so it can be scavenged just for a stash left there *(placeholder)*.
 - Each tile has a **d6 scavenge table**:
   - **1 is always Zombies** (finite — see Zombies).

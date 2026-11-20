@@ -510,14 +510,51 @@ test('scout reveals every unexplored hex next to you', () => {
   assert.match(act(S, { type: 'scout' }).error, /already explored/);
 });
 
-test('backpack full: choose what to destroy', () => {
+test('backpack full: leave one here — in the row the new item came from, condition and all', () => {
   const { S, p } = game();
-  for (let i = 0; i < 6; i++) p.items.push({ id: 'Tool', cond: 1 });
-  E.cheat(S, 0, 'item', ['axe', 4]);
+  const t = E.tileOf(S, p);
+  p.items.push({ id: 'Pistol', cond: 2 });
+  for (let i = 0; i < 5; i++) p.items.push({ id: 'Tool', cond: 1 });
+  S.forced = [5, 4];                    // Farmhouse 5 = Axe, condition 4
+  act(S, { type: 'scavenge' });
   assert.equal(p.pending.kind, 'backpack');
-  decide(S, 0);
+  decide(S, 0);                         // leave the Pistol
   assert.equal(p.items.length, 6);
   assert.equal(p.items[5].id, 'Axe');
+  assert.equal(JSON.stringify(t.stashes.map((x) => [x.row, x.items])), JSON.stringify([[5, [{ id: 'Pistol', cond: 2 }]]]));
+  assert.deepEqual({ ...E.loneItem(t.stashes[0]) }, { id: 'Pistol', cond: 2 });   // one item: it's just the Pistol
+});
+
+test('backpack full: leaving the new item leaves it where it was found, to come back for', () => {
+  const { S, p } = game();
+  const t = E.tileOf(S, p);
+  for (let i = 0; i < 6; i++) p.items.push({ id: 'Tool', cond: 1 });
+  S.forced = [5, 3];                    // the Axe, condition 3
+  act(S, { type: 'scavenge' });
+  decide(S, 6);                         // the new one
+  assert.equal(p.items.filter((x) => x.id === 'Axe').length, 0);
+  assert.equal(E.tableView(t)[4].kind, 'stash');
+  p.items.pop();                        // make room, and roll it again: the same Axe, still condition 3
+  S.forced = [5];
+  act(S, { type: 'scavenge' });
+  assert.deepEqual({ ...p.items.at(-1) }, { id: 'Axe', cond: 3 });
+  assert.equal(t.stashes.length, 0);
+  assert.equal(E.tableView(t)[4].kind, 'looted');
+});
+
+test('a lone item left on a tile is found as itself, and a full backpack can swap for it', () => {
+  const { S, p } = game();
+  const t = E.tileOf(S, p);
+  t.looted = [4];
+  t.stashes = [{ owner: 'Ana', row: 4, res: {}, items: [{ id: 'Pistol', cond: 1 }] }];
+  for (let i = 0; i < 6; i++) p.items.push({ id: 'Tool', cond: 5 });
+  S.forced = [4];
+  act(S, { type: 'scavenge' });
+  assert.equal(p.pending.kind, 'backpack');
+  assert.deepEqual({ ...p.pending.item }, { id: 'Pistol', cond: 1 });   // no fresh condition roll
+  decide(S, 0);                         // leave a Tool in its place
+  assert.deepEqual({ ...p.items.at(-1) }, { id: 'Pistol', cond: 1 });
+  assert.equal(JSON.stringify(t.stashes.map((x) => [x.owner, x.row, x.items])), JSON.stringify([['Survivor', 4, [{ id: 'Tool', cond: 5 }]]]));
 });
 
 test('driving is free movement: fuel per tile, −1 condition per trip, round not used', () => {
@@ -832,6 +869,7 @@ test('dropping an item leaves it in your stash, on a looted row if there is one'
   assert.equal(t.stashes[0].row, 4);
   assert.equal(t.stashes[0].owner, 'Survivor');
   assert.equal(E.tableView(t)[3].kind, 'stash');
+  assert.equal(E.loneItem(t.stashes[0]), null);   // two things: a stash
 });
 
 test('rolling a stash takes everything; once empty, the row underneath shows again', () => {
