@@ -19,7 +19,7 @@ Living rules document for the digital version. Updated as rules are clarified.
 ## Components
 - Item cards
 - Six-sided dice (d6)
-- Resources: **Safety, Fuel, Ammo, Food, Water, Booze**
+- Resources: **Safety, Fuel, Ammo, Food, Water** — and **Hope** 🟣, which isn't counted: it's carried in hope items (see Hope)
 
 ## Action Points (AP)
 - Players spend AP to take actions.
@@ -48,8 +48,8 @@ Checked at the **start** of the round, before anyone acts (on night rounds, the 
 | 2 | Day | 1 Food |
 | 3 | Day | 1 Water |
 | 4 | Day | 1 Food |
-| 5 | Night | 1 Water *(may become Booze — undecided)* + Safety check |
-| 6 | Night | 1 Booze |
+| 5 | Night | 1 Water + Safety check |
+| 6 | Night | 1 Hope *(a pip from a hope item you carry — you choose which)* |
 
 Each day starts on round 1, the first morning; rounds 5 and 6 are its night.
 
@@ -59,7 +59,7 @@ Each day starts on round 1, the first morning; rounds 5 and 6 are its night.
   - **Food** check paid → **max AP +1**; missed → **max AP −1**.
   - Max AP can't go above 12; when it drops, current AP drops to fit. **Max AP 0 → death.** (`CONFIG.trackGain` / `trackLoss`)
   - Sleep can't take you above your max. Players never lose turns.
-- **Having to give Booze without having it → the player dies** (the night Booze check when you have 0 Booze). Reaching 0 Booze by itself is survivable.
+  - **Hope** check (round 6) paid → **max AP +2**; nothing to hope for → **max AP −2** (like water).
 
 ## Turn structure
 - Each round, each player takes **one action or sleeps**.
@@ -68,7 +68,7 @@ Each day starts on round 1, the first morning; rounds 5 and 6 are its night.
 
 ## Night
 - Rounds **5 and 6** are night.
-- At the **start of round 5** (before anyone acts), each occupied tile is attacked by **1d6 zombies** (same contest as scavenging, below). Round 6 is still night (and has the Booze check) but **no attack** (`CONFIG.attackRounds`)…
+- At the **start of round 5** (before anyone acts), each occupied tile is attacked by **1d6 zombies** (same contest as scavenging, below). Round 6 is still night (and has the Hope check) but **no attack** (`CONFIG.attackRounds`)…
 - …**unless it's a bad night.** As round 1 starts each day, a **secret 1d6** is rolled: on a **1–2** the clock shows a 🟡 on round 6 and **round 6 brings a second attack**, straight after round 5's (`CONFIG.badNightOn`). The roll itself is never shown — just the warning.
 - Fighting or fleeing zombies **never uses up your action** for the round — whether they came from a night attack or another player's scavenge. You deal with them, then still act.
 
@@ -104,7 +104,7 @@ Repeat until the tile is clear, you escape, or you die.
 - **Weapon looks** (pure re-skins, like the vehicles): melee ones work exactly like the Axe, the Bow like the Pistol (it fires ammo).
   | Weapon | Kind | Found at |
   |---|---|---|
-  | 🏹 Bow | gun (ammo) | Campsite, Castle (**Bow + Ammo**) |
+  | 🏹 Bow | gun (ammo) | Castle (**Bow + Ammo**) |
   | 🗡️ Sword | melee | Castle |
   | 🔪 Kitchen Knife | melee | Cottage, Hotel |
   | 🍳 Frying Pan | melee | Diner, Café |
@@ -142,9 +142,18 @@ Repeat until the tile is clear, you escape, or you die.
   - Keys: **E** drives the fuel vehicle parked here, **B** rides the pedal one, **H** the animal.
 - **Radio** *(multiplayer, planned)*: talk to players **not on your tile** (same-tile voice is the default). Details in `MULTIPLAYER.md`.
 - **Tools** (e.g. the **Tool**): have a condition like any item. Can be used **at any time, for free**, to transfer any amount of their condition to another item (max 6 condition). At 0 condition the tool is destroyed. Tool found at the Hardware Store, Garage, Quarry, Fuel Depot, Graveyard and Post Office *(placeholder)*.
-- **Pills**: taken **at any time, for free** (not your action; not mid-fight): each dose costs **1 condition** and tops your **AP up to your max AP** (max AP itself doesn't change — only food and water do that). Can't be taken when AP is already at max. Found with **1d6 condition**, like any item. Gone at 0 condition. Found at the Pharmacy (two rows), Hospital (two rows) and Post Office *(placeholder)*.
+- **Pills**: taken **at any time, for free** (not your action; not mid-fight): each dose costs **1 condition** and tops your **AP up to your max AP** (max AP itself doesn't change — only food, water and hope do that). Can't be taken when AP is already at max. Found with **1d6 condition**, like any item. Gone at 0 condition. Found at the Pharmacy (two rows) and Hospital (two rows) *(placeholder)*.
 - **Binoculars**: while carried, **Scout reveals the hexes next to you, then the hexes next to those** (the second ring) — **but not past a Mountain**: a hex 2 away is only seen through a non-Mountain hex next to you. With everything next to you explored, you can still scout the second ring. Each scout with them costs **1 condition**; gone at 0. Found at the Army Checkpoint, Library and Post Office *(placeholder)*.
 - **Map** *(disabled for now — in no loot table)*: used the moment it's found (never carried, no condition) — like scouting everywhere at once: every unexplored hex next to any explored one is revealed.
+- **Hope items** — 🍾 **Booze**, 🖼️ **Photo**, 🎶 **Music Box**, 📝 **Note** — are carried in the backpack like any item, found with **1d6 condition**, shown with **purple pips**, and purple on a loot table. A Tool can't top them up.
+
+## Hope
+- Hope isn't counted. When **round 6** asks for it, a screen asks **"What hope is there?"** and you pick one of the hope items you carry: it loses **1 condition** (gone at 0) and your **max AP +2**. Carrying none: **max AP −2** (max AP 0 = death).
+- **Booze, Photo, Music Box** are hope and nothing more.
+- A **Note** also shows the way: the moment it's found, a place **6 hexes away** (`CONFIG.leadDistance`; nearer or farther if there's no room) is revealed with a **purple border**, and the Note names it in a line (*"Gone to the Lake. Follow if you can. — Mara"*; tap it in the backpack to read it again). That place is always open country with a table — never in a settlement's room or beside a Mountain. One row of its table (2, 4, 5 or 6) is **purple**: another hope item — half the time the **next Note**, up to **3 places in a trail** (`CONFIG.leadChain`). Once that row is found, the border goes.
+- Off screen, each place you've been led to shows as a **purple marker** circling your hex, with its icon, pointing the way.
+- A Note picked up again (from a stash) leads nowhere new. Words in `LEADS` (data.js).
+- Found at: Farmhouse, Campsite, Church, Post Office, Library, Train Station (Note); Cottage, Graveyard (Photo); Pub, Shopping Mall (Music Box); Orchard, Castle, Petrol Station, Pub, Corner Shop, YOLO Foods, Hotel, Stadium (Booze).
 - If you carry several weapons of the same kind, the one with the **lowest condition** is used first *(placeholder)*.
 
 ## Fuel & Ammo
@@ -159,7 +168,7 @@ Repeat until the tile is clear, you escape, or you die.
   - **1 is always Zombies** (finite — see Zombies).
   - **3 is random:** as each tile is placed, its row 3 is given a result picked at random from every place's table (each row of each place equally likely) — zombies (about 1 in 5), Doubles and mixes included; never Endless. From then on it's an ordinary row: players just see what it is (`'Random'` in `locations.js`).
   - Results 2, 4, 5 and 6 are what you'd really find at that place: food and drink at the Diner, Café and YOLO Foods; pills at the Pharmacy and Hospital; guns and armour at the Gun Shop, Sheriff's Office and Police Station; sports kit at the School and Stadium; a sword, bow and armour at the Castle; and so on.
-  - Every resource result gives **1d6** of that resource (`CONFIG.lootDice`) — quietly **never a 1**: the die only lands 2–6, evenly (`CONFIG.lootMin`; not shown to players); a **Double** gives **1d6 × 2** (at most one Double per place, on what it's richest in — e.g. YOLO Foods' Double Food, the Gun Shop's Double Ammo). "Triple" (× 3) also works but isn't used. Item condition and zombie counts are **1d6**. A **mix** gives every part, each rolled on its own — used a lot: Food + Water, Food + Booze, Pistol + Ammo, Fuel + Ammo, Tool + Fuel, Truck + Fuel. A few places are overrun — **a second Zombies row**: the Graveyard, Train Station and Stadium.
+  - Every resource result gives **1d6** of that resource (`CONFIG.lootDice`) — quietly **never a 1**: the die only lands 2–6, evenly (`CONFIG.lootMin`; not shown to players); a **Double** gives **1d6 × 2** (at most one Double per place, on what it's richest in — e.g. YOLO Foods' Double Food, the Gun Shop's Double Ammo). "Triple" (× 3) also works but isn't used. Item condition and zombie counts are **1d6**. A **mix** gives every part, each rolled on its own — used a lot: Food + Water, Food + Booze (an item), Pistol + Ammo, Fuel + Ammo, Tool + Fuel, Truck + Fuel. A few places are overrun — **a second Zombies row**: the Graveyard, Train Station and Stadium.
 - Tiles differ in what their 5 results give.
 - **Wasteland** tiles have **no scavenge table** (Scavenge is blocked) and **cannot be fortified** (Safety stays 0, so night attacks hit in full). Zombies only reach them at night. They come in **belts**: a **triangle of 3** or (30% of the time) a **cluster of 7** — when a fresh one is revealed, the rest of the belt is set on the unexplored hexes around it and appears as you explore (`spread: 'belt'`, `CONFIG.beltBig`). About 14% of the land.
 - **Max Safety differs by place** (`safety:` in `locations.js`): **0 outdoors** — Forest, Lake, Campsite, Orchard, Fishing Spot, Quarry, Graveyard, Fields, Golf Course, Wasteland, Mountain can't be fortified (night attacks hit in full; cleared zombies drift back as soon as you leave) — and **2–8 indoors**, from the Car Park (2) to the Castle, Police Station and Bank (8). At 7–8 a single night attack (max 6) can't break through. The countryside has the food and water but few walls; settlements have the walls.
@@ -175,7 +184,6 @@ Repeat until the tile is clear, you escape, or you die.
 - **Mountain** tiles are **impassable wasteland**: nobody can move, flee or drive onto or through them. Scouting still reveals them, so they shape the map. They come in **ranges**: a fresh one runs 1–3 more hexes off each way in a rough line (bending now and then), with about a quarter of those left as **passes** — ordinary places to get through (`spread: 'range'`, `CONFIG.rangeArm`, `rangeGap`, `rangeTurn`). About 10% of the land. Belts and ranges don't merge: a hex next to one can't start another of the same kind.
 
 ## Open questions
-- Round 5: water or booze?
 - More item cards; what uses Fuel
 - Item cards and their fuel/ammo use
 - Starting tile list and their d6 tables (prototype uses placeholders)
@@ -183,7 +191,7 @@ Repeat until the tile is clear, you escape, or you die.
 ## Prototype placeholders (in `data.js` and `locations.js`, change freely)
 - Game starts Day 1, Round 1 (first morning).
 - **You start somewhere random:** the first hex is revealed like any other — a countryside place or the first hex of a village, town or city — but never Wasteland or Mountain. You know nothing else of the map.
-- Each player starts with **8 AP** (`CONFIG.startAP`) and **max AP 12**, **4 Food, 6 Water and 3 Booze**, 0 Fuel and 0 Ammo (`CONFIG.startRes`), and **no items** (`CONFIG.startItems`) — find a weapon.
+- Each player starts with **8 AP** (`CONFIG.startAP`) and **max AP 12**, **4 Food and 6 Water**, 0 Fuel and 0 Ammo (`CONFIG.startRes`), and a **Booze** (condition 3) (`CONFIG.startItems`) — no weapon: find one.
 - A tile holds as much Safety as its place allows (default **5**, `CONFIG.maxSafety`) — and at most **6 zombies** (`CONFIG.maxZombies`). Safety belongs to the tile and is shared by everyone on it; it does not decay.
 - Scouting reveals a random tile from the tile list for each unexplored neighbour; the scout stays put.
 - Sharing resources with a player on the same tile is free (doesn't use the round).

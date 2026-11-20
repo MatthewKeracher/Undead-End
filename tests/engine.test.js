@@ -53,12 +53,12 @@ test('same seed, same game', () => {
   assert.equal(a.rng, b.rng);
 });
 
-test('every survivor starts with 8 of 12 AP, 4 food, 6 water, 3 booze, and an empty backpack', () => {
+test('every survivor starts with 8 of 12 AP, 4 food, 6 water, and a Booze (condition 3) — hope is carried, not counted', () => {
   const S = E.createGame({ seed: 3 });
   assert.equal(S.players[0].ap, 8);
   assert.equal(S.players[0].maxAP, 12);
-  assert.deepEqual({ ...S.players[0].res }, { food: 4, water: 6, booze: 3, fuel: 0, ammo: 0 });
-  assert.equal(S.players[0].items.length, 0);
+  assert.deepEqual({ ...S.players[0].res }, { food: 4, water: 6, fuel: 0, ammo: 0 });
+  assert.equal(JSON.stringify(S.players[0].items), JSON.stringify([{ id: 'Booze', cond: 3 }]));
 });
 
 test('the first move each round is free (but needs 1 AP); the second costs 1 AP and is your action', () => {
@@ -741,6 +741,75 @@ test('max AP: water ±2, food ±1', () => {
   assert.equal(p.maxAP, 6);
 });
 
+test('round 6 asks for hope: you pick a hope item and spend a pip of it', () => {
+  const { S, p } = game({ checksOff: false });
+  p.items.push({ id: 'Axe', cond: 3 }, { id: 'Photo', cond: 1 }, { id: 'Booze', cond: 2 });
+  p.maxAP = 8; p.ap = 4;
+  S.round = 5; S.badNight = false;
+  S.forced = [1, 1]; act(S, { type: 'sleep' });
+  assert.equal(S.round, 6);
+  assert.equal(p.pending.kind, 'hope');
+  assert.ok(decide(S, 0).error);        // the Axe is no hope
+  decide(S, 1);                         // the Photo: its last pip
+  assert.equal(p.items.map((x) => x.id).join(), 'Axe,Booze');
+  assert.equal(p.maxAP, 10);            // paid: +2, like water
+  assert.equal(p.pending, null);
+});
+
+test('nothing to hope for: max AP −2 (and at 0, you give up)', () => {
+  const { S, p } = game({ checksOff: false });
+  p.items.push({ id: 'Axe', cond: 3 });
+  p.maxAP = 5; p.ap = 4;
+  S.round = 5; S.badNight = false;
+  S.forced = [1, 1]; act(S, { type: 'sleep' });
+  assert.equal(p.pending, null);
+  assert.equal(p.maxAP, 3);
+  assert.equal(p.dead, false);
+  p.maxAP = 2; S.round = 5;
+  S.forced = [1, 1]; act(S, { type: 'sleep' });
+  assert.equal(p.dead, true);
+});
+
+test('Booze, Photo, Music Box and Note are items on the tables now, not a resource', () => {
+  assert.deepEqual({ ...def('Pub').table[1] }, { item: 'Booze' });
+  for (const id of ['Booze', 'Photo', 'Music Box', 'Note']) assert.equal(ITEMS[id].hope, true, id);
+  const { S, p } = game();
+  p.items.push({ id: 'Tool', cond: 3 }, { id: 'Booze', cond: 1 });
+  assert.ok(act(S, { type: 'tool', tool: 0, target: { from: 'pack', index: 1 }, amount: 1 }).error);   // no topping up hope
+});
+
+test('finding a Note reveals a place 6 hexes away, purple-bordered, with a purple row', () => {
+  const { S, p } = game();
+  S.forced = [4, 2];                    // Farmhouse 4 = Note, condition 2
+  const { events } = act(S, { type: 'scavenge' });
+  const note = p.items[0];
+  assert.equal(note.id, 'Note');
+  assert.equal(note.cond, 2);
+  assert.ok(note.text.length <= 280 && note.text.includes(S.tiles[note.to].def.name), note.text);
+  const [q, r] = note.to.split(',').map(Number);
+  assert.equal((Math.abs(q) + Math.abs(r) + Math.abs(q + r)) / 2, 6);
+  const there = S.tiles[note.to];
+  assert.ok(there.def.passable && there.def.table.length && !there.def.spread);
+  assert.ok(ITEMS[E.tableView(there)[there.lead.row - 1].e.item].hope);   // its purple row holds hope
+  assert.equal(there.lead.depth, 1);
+  assert.equal(events.find((e) => e.type === 'lead').k, note.to);
+});
+
+test('a Note on a trail leads on, up to leadChain places; a Note picked up again leads nowhere new', () => {
+  const { S, p } = game();
+  const t = E.tileOf(S, p);
+  t.lead = { row: 5, depth: 1, entry: { item: 'Note' } };
+  S.forced = [5, 3];
+  act(S, { type: 'scavenge' });
+  assert.equal(S.tiles[p.items[0].to].lead.depth, 2);
+  const tiles = Object.keys(S.tiles).length;
+  act(S, { type: 'drop', item: 0 });
+  S.forced = [5];                       // the dropped Note now covers row 5: roll it back
+  act(S, { type: 'scavenge' });
+  assert.equal(p.items[0].id, 'Note');
+  assert.equal(Object.keys(S.tiles).length, tiles);
+});
+
 test('Safety tops out at 5; a tile still holds up to 6 zombies', () => {
   const { S, p } = game();
   const t = E.tileOf(S, p);
@@ -790,16 +859,16 @@ test('state survives a JSON round trip and plays on identically', () => {
 // ---------------------------------------------------------------- depletion & stashes
 test('found results are crossed off; landing on one rolls again until it finds something', () => {
   const { S, p } = game();
-  S.forced = [2, 3];                    // Farmhouse 2 = Food
+  S.forced = [2, 3, 3];                 // Farmhouse 2 = Food + Water
   act(S, { type: 'scavenge' });
   assert.deepEqual([...E.tileOf(S, p).looted], [2]);
   const water = p.res.water;
-  S.forced = [2, 2, 4, 4];              // 2 (looted), 2 (looted), then 4 = Water: 4
+  S.forced = [2, 2, 3, 4];              // 2 (looted), 2 (looted), then 3 = this test's Double Water: 4 × 2
   const { events } = act(S, { type: 'scavenge' });
   const ev = events.find((e) => e.type === 'scavenge');
-  assert.deepEqual([...ev.tries], [2, 2, 4]);
-  assert.equal(p.res.water, water + 4);
-  assert.ok(S.log.some((l) => l.msg.includes('2 (looted), 2 (looted), then 4')));
+  assert.deepEqual([...ev.tries], [2, 2, 3]);
+  assert.equal(p.res.water, water + 8);
+  assert.ok(S.log.some((l) => l.msg.includes('2 (looted), 2 (looted), then 3')));
 });
 
 test('1 roll + 2 rerolls: then you find nothing (AP still spent)', () => {

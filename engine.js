@@ -10,8 +10,8 @@
 // =====================================================================
 
 const Engine = (() => {
-  const ICON = { food: '🔴', water: '🔵', booze: '🟣', fuel: '🟠', ammo: '🟢', safety: '🟡', ap: '🎲' };
-  const RES_LABEL = { food: 'Food', water: 'Water', booze: 'Booze', fuel: 'Fuel', ammo: 'Ammo' };
+  const ICON = { food: '🔴', water: '🔵', hope: '🟣', fuel: '🟠', ammo: '🟢', safety: '🟡', ap: '🎲' };
+  const RES_LABEL = { food: 'Food', water: 'Water', fuel: 'Fuel', ammo: 'Ammo' };
   const COLORS = ['#e4572e', '#29a3d6', '#f3c13a', '#9b5de5', '#2ec4b6', '#ff7eb6'];
   const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 
@@ -89,6 +89,7 @@ const Engine = (() => {
   // scavenged for a stash left there.
   const stashAt = (t, row) => (t.stashes || []).find((s) => s.row === row);
   const rowEntry = (t, row) => {
+    if (t.lead?.row === row) return t.lead.entry;   // a place a Note led to: its purple row
     const e = t.def.table[row - 1] ?? (row === 1 ? { zombies: 1 } : null);
     return e?.random ? t.drawn?.[row] ?? null : e;   // a Random row: what was drawn for it when the tile was placed
   };
@@ -321,7 +322,7 @@ const Engine = (() => {
     S.tiles[first.k].safety = CONFIG.startSafety;
     for (const id of CONFIG.testStartVehicles || []) S.tiles[key(0, 0)].vehicles.push({ id, cond: CONFIG.maxCondition });
     names.forEach((name, i) => {
-      // CONFIG.startAP (8 of 12), CONFIG.startRes (4 food, 6 water, 3 booze) and CONFIG.startItems (none)
+      // CONFIG.startAP (8 of 12), CONFIG.startRes (4 food, 6 water) and CONFIG.startItems (Booze, condition 3)
       const p = {
         id: i, name, color: COLORS[i % COLORS.length], q: 0, r: 0, ap: Math.min(CONFIG.startAP, CONFIG.startMaxAP), maxAP: CONFIG.startMaxAP,
         res: { ...CONFIG.startRes }, items: [], dead: false, acted: false, freeMoved: false, caught: false, pending: null, queue: [], visited: ['0,0'],
@@ -333,7 +334,7 @@ const Engine = (() => {
     });
     log(S, `Day ${S.day} begins. ${plural(names.length, 'survivor')} shelter at the ${first.icon} ${first.name}.`, 'phase');
     for (const p of S.players) {
-      log(S, `${p.name} starts with 🎲 ${p.ap} AP, ${p.res.food} ${ICON.food} food, ${p.res.water} ${ICON.water} water, ${p.res.booze} ${ICON.booze} booze.`);
+      log(S, `${p.name} starts with 🎲 ${p.ap} AP, ${p.res.food} ${ICON.food} food, ${p.res.water} ${ICON.water} water${p.items.length ? `, and ${p.items.map((it) => `${ITEMS[it.id].icon} ${it.id}`).join(', ')}` : ''}.`);
     }
     log(S, roundBanner(S), 'phase');
     return S;
@@ -408,7 +409,7 @@ const Engine = (() => {
   // As round 1 starts, a secret 1d6 decides whether the coming night is a bad one (CONFIG.badNightOn).
   // Food & water feed max AP: each check paid → +trackGain[res] (max 12); each missed → −trackLoss[res]. Max AP 0 = death.
   // (Water: ±2, food: ±1.)
-  // A Booze check you can't pay is death.
+  // Hope isn't counted: the check asks which hope item to lean on (a 'hope' step), and works the same way (±2).
   // Zombies drift back into a tile's table once it has no Safety and nobody is on it.
   function restockZombies(S) {
     for (const [k, t] of Object.entries(S.tiles)) {
@@ -431,6 +432,7 @@ const Engine = (() => {
       if (p.dead) continue;
       for (const [res, n] of Object.entries(up)) {
         if (p.dead) break;
+        if (res === 'hope') { p.queue.push({ type: 'hope' }); continue; }   // asked before any night attack (queued after it)
         const body = res === 'food' || res === 'water';   // food & water feed your max AP
         if (p.res[res] >= n) {
           p.res[res] -= n;
@@ -447,9 +449,6 @@ const Engine = (() => {
           emit(S, { type: 'maxApLoss', player: p.id, res, oldMax, newMax: p.maxAP, oldAp, newAp: p.ap });
           log(S, `${p.name} has no ${res}! Max AP ${oldMax} → ${p.maxAP}.`, 'bad');
           if (p.maxAP <= 0) die(S, p, `${p.name} ${res === 'food' ? 'starved' : 'died of thirst'} (max AP 0).`);
-        } else if (res === 'booze') {
-          p.res[res] = 0;
-          die(S, p, `${p.name} can't face another night sober (no ${ICON.booze} booze left).`);
         } else {
           p.res[res] = 0;
           log(S, `${p.name} has no ${res}!`, 'bad');
@@ -509,7 +508,70 @@ const Engine = (() => {
   // ---------------------------------------------------------------- fight / flee
   // Zombies on your tile: choose Fight (free to start; gun: 1 ammo/shot, melee: 1 AP/swing) or Flee (1 AP, roll 1d6 > zombies).
   // Repeats until the tile is clear, you escape, or you die.
+  // ---------------------------------------------------------------- hope
+  // The night asks for hope: pick a hope item you carry and spend a pip of it. Nothing to hope for: max AP drops.
+  const hopeItems = (p) => p.items.filter((it) => ITEMS[it.id].hope && it.cond > 0);
+  function trackMaxAP(S, p, res, paid) {
+    const oldMax = p.maxAP, oldAp = p.ap;
+    p.maxAP = paid ? Math.min(CONFIG.maxAP, p.maxAP + CONFIG.trackGain[res]) : Math.max(0, p.maxAP - CONFIG.trackLoss[res]);
+    p.ap = Math.min(p.ap, p.maxAP);
+    if (!paid) emit(S, { type: 'maxApLoss', player: p.id, res, oldMax, newMax: p.maxAP, oldAp, newAp: p.ap });
+    return oldMax;
+  }
+  function spendHope(S, p, it) {
+    it.cond--;
+    const oldMax = trackMaxAP(S, p, 'hope', true);
+    emit(S, { type: 'hope', player: p.id, item: it.id, cond: it.cond });
+    log(S, `${p.name} finds hope in the ${ITEMS[it.id].icon} ${it.id}${p.maxAP > oldMax ? ` — max AP ${oldMax} → ${p.maxAP}` : ''}.`, 'good');
+    if (it.cond <= 0) {
+      p.items.splice(p.items.indexOf(it), 1);
+      log(S, `${ITEMS[it.id].icon} The ${it.id} has nothing left to give.`);
+    }
+  }
+
+  // ---------------------------------------------------------------- leads
+  // A Note found: a place CONFIG.leadDistance hexes away (or the nearest distance with room) is revealed now,
+  // purple-bordered, with a purple row on its table — another hope item, maybe the next Note (up to CONFIG.leadChain).
+  // It's always open country with a table: never inside a settlement's room or next to a Mountain.
+  function makeLead(S, from, depth = 1) {
+    const [fq, fr] = from.split(',').map(Number), d0 = CONFIG.leadDistance;
+    const ok = ([q, r]) => !S.tiles[key(q, r)] && !S.planned[key(q, r)] && !nearTown(S, q, r)
+      && !neighbors(q, r).some(([a, b]) => (S.tiles[key(a, b)]?.def.name ?? S.planned[key(a, b)]) === 'Mountain');
+    for (const d of [d0, d0 - 1, d0 + 1, d0 - 2, d0 + 2]) {
+      const ring = [];
+      for (let q = fq - d; q <= fq + d; q++) for (let r = fr - d; r <= fr + d; r++) if (hexDist(fq, fr, q, r) === d && ok([q, r])) ring.push([q, r]);
+      if (!ring.length) continue;
+      const [q, r] = ring[Math.floor(rand(S) * ring.length)], k = key(q, r);
+      const def = drawTile(S, (t) => !t.spread && !t.settlement && t.table.length > 0 && t.passable);
+      const t = S.tiles[k] = newTile(S, def);
+      const chain = depth < CONFIG.leadChain && rand(S) < 0.5;
+      const rows = [2, 4, 5, 6];
+      t.lead = { row: rows[Math.floor(rand(S) * rows.length)], depth, entry: { item: chain ? 'Note' : LEADS.ends[Math.floor(rand(S) * LEADS.ends.length)] } };
+      const pick = (list) => list[Math.floor(rand(S) * list.length)];
+      const text = pick(LEADS.notes).replace('{place}', def.name).replace('{name}', pick(LEADS.names));
+      return { to: k, text };
+    }
+    return null;   // nowhere to point (very unlikely): just a note
+  }
+  // Every Note found new (not picked up from a stash) points somewhere: the place it names appears on the map.
+  // depth: how far along a trail of Notes this one is (1 = the first).
+  function readNote(S, p, item, depth = 1) {
+    if (!ITEMS[item.id].leads || item.to) return;
+    const lead = makeLead(S, key(p.q, p.r), depth);
+    if (!lead) return;
+    Object.assign(item, lead);
+    const there = S.tiles[lead.to];
+    log(S, `📝 “${lead.text}”`, 'good');
+    emit(S, { type: 'lead', player: p.id, k: lead.to, name: there.def.name, icon: there.def.icon, text: lead.text });
+  }
+
   const STEPS = {
+    hope(S, p) {
+      if (hopeItems(p).length) { p.pending = { kind: 'hope' }; return; }
+      const oldMax = trackMaxAP(S, p, 'hope', false);
+      log(S, `${p.name} has nothing left to hope for. Max AP ${oldMax} → ${p.maxAP}.`, 'bad');
+      if (p.maxAP <= 0) die(S, p, `${p.name} gave up hope (max AP 0).`);
+    },
     threat(S, p) {
       const t = tileOf(S, p);
       if (!t.zombies) { p.caught = false; return; }
@@ -642,7 +704,7 @@ const Engine = (() => {
     if (lone) {
       t.stashes.splice(t.stashes.indexOf(s), 1);   // picked up: the row underneath shows again
       logRoll(S, `${at}: ${ITEMS[lone.id].icon} ${lone.id}, condition ${lone.cond}!`, 'good');
-      return gainItem(S, p, lone.id, lone.cond, s.row);
+      return gainItem(S, p, lone, s.row);
     }
     const got = stashText({ res: s.res, items: [] });
     for (const [k, n] of Object.entries(s.res)) p.res[k] += n;
@@ -664,14 +726,14 @@ const Engine = (() => {
   // ---------------------------------------------------------------- items
   // Backpack full: leave one on this tile to make room, or leave the new item (a 'backpack' decision).
   // Whatever's left goes in the row the new item was found in (`row`), which it has just left empty.
-  function gainItem(S, p, id, cond, row) {
-    if (ITEMS[id].map) return readMap(S, p);
+  function gainItem(S, p, item, row) {
+    if (ITEMS[item.id].map) return readMap(S, p);
     if (p.items.length < CONFIG.maxItems) {
-      p.items.push({ id, cond });
-      log(S, `${p.name} finds a ${ITEMS[id].icon} ${id} (condition ${cond}).`, 'good');
+      p.items.push(item);
+      log(S, `${p.name} finds a ${ITEMS[item.id].icon} ${item.id} (condition ${item.cond}).`, 'good');
       return;
     }
-    p.pending = { kind: 'backpack', item: { id, cond }, row };
+    p.pending = { kind: 'backpack', item, row };
   }
 
   // A Map is used the moment it's found, like scouting everywhere at once: every unexplored hex
@@ -755,7 +817,11 @@ const Engine = (() => {
           if (ITEMS[x.item].vehicle) {
             t.vehicles.push(parked(x.item, amts[i]));
             log(S, `${ITEMS[x.item].icon} The ${x.item} ${ITEMS[x.item].animal ? 'waits' : 'is parked'} at the ${t.def.name}.`, 'good');
-          } else gainItem(S, p, x.item, amts[i], r);
+          } else {
+            const item = { id: x.item, cond: amts[i] };
+            readNote(S, p, item, t.lead?.row === r ? t.lead.depth + 1 : 1);   // a Note: the place it names appears
+            gainItem(S, p, item, r);
+          }
         });
       }
     },
@@ -807,7 +873,7 @@ const Engine = (() => {
     tool(S, p, { tool: i, target, amount }) {
       const tool = p.items[i], list = target?.from === 'tile' ? tileOf(S, p).vehicles : p.items, it = list?.[target?.index];
       if (!tool || !ITEMS[tool.id]?.tool || !it || it === tool) return 'Pick a tool and an item to repair.';
-      if (ITEMS[it.id].animal) return `A Tool can't help the ${it.id}.`;
+      if (ITEMS[it.id].animal || ITEMS[it.id].hope) return `A Tool can't help the ${it.id}.`;
       if (!(amount >= 1 && amount <= Math.min(tool.cond, CONFIG.maxCondition - it.cond))) return 'Not that much.';
       tool.cond -= amount; it.cond += amount;
       emit(S, { type: 'repair', player: p.id, tool: tool.id, target: it.id, amount });
@@ -849,6 +915,13 @@ const Engine = (() => {
 
   // Answers to pending decisions.
   const DECISIONS = {
+    // index (in the backpack) of the hope item to lean on tonight
+    hope(S, p, i) {
+      const it = p.items[i];
+      if (!it || !ITEMS[it.id].hope || it.cond < 1) return 'Pick something to hope for.';
+      p.pending = null;
+      spendHope(S, p, it);
+    },
     threat(S, p, choice) {
       const t = tileOf(S, p);
       if (choice === 'shoot' && canShoot(p)) { p.pending = null; return startFight(S, p, 'ammo'); }
@@ -986,16 +1059,20 @@ const Engine = (() => {
           const item = Object.keys(ITEMS).find((k) => k.toLowerCase().replace(/\s/g, '') === String(n[0] ?? '').toLowerCase().replace(/\s/g, ''));
           if (!item) { say = `Unknown item. Items: ${Object.keys(ITEMS).join(', ')}`; break; }
           const cond = Math.max(1, Math.min(CONFIG.maxCondition, n[1] ?? CONFIG.maxCondition));
-          if (ITEMS[item].vehicle) { t.vehicles.push(parked(item, cond)); say = `${item}${ITEMS[item].animal ? '' : ` (${cond})`} parked here`; } else { gainItem(S, p, item, cond); say = `${item} (${cond}) added`; }
+          if (ITEMS[item].vehicle) { t.vehicles.push(parked(item, cond)); say = `${item}${ITEMS[item].animal ? '' : ` (${cond})`} parked here`; } else {
+            const it = { id: item, cond };
+            readNote(S, p, it);
+            gainItem(S, p, it); say = `${item} (${cond}) added`;
+          }
           break;
         }
         case 'ap': p.ap = Math.max(0, Math.min(p.maxAP, n[0] ?? 0)); say = `AP: ${p.ap}`; break;
         case 'maxap': p.maxAP = Math.max(1, Math.min(CONFIG.maxAP, n[0] ?? CONFIG.maxAP)); p.ap = Math.min(p.ap, p.maxAP); say = `Max AP: ${p.maxAP}`; break;
-        case 'food': case 'water': case 'booze': case 'fuel': case 'ammo': p.res[cmd] = Math.max(0, n[0] ?? 0); say = `${cmd}: ${p.res[cmd]}`; break;
+        case 'food': case 'water': case 'fuel': case 'ammo': p.res[cmd] = Math.max(0, n[0] ?? 0); say = `${cmd}: ${p.res[cmd]}`; break;
         case 'checks': {
           const v = String(n[0] ?? '').toLowerCase();
           S.checksOff = v === 'off' ? true : v === 'on' ? false : !S.checksOff;
-          say = `Resource checks ${S.checksOff ? 'OFF — no food, water or booze is taken' : 'ON'}`; break;
+          say = `Resource checks ${S.checksOff ? 'OFF — no food, water or hope is taken' : 'ON'}`; break;
         }
         case 'badnight': {
           const v = String(n[0] ?? '').toLowerCase();
@@ -1012,7 +1089,7 @@ const Engine = (() => {
 
   return {
     ICON, RES_LABEL, key, neighbors, isNight, isAttack, attackDue, cellText, upkeepText, roundBanner,
-    tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText, loneItem,
+    tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText, loneItem, hopeItems,
     fleeAdj, canShoot, canMelee, canSaw, canFight, canFlee, vehicleFuel, vehicleLeft, vehicleFed, vehicleOf, canDrive,
     createGame, start, act, timeUp, cheat,
   };

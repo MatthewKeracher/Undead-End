@@ -26,7 +26,7 @@ function pickNumber(p, q, r) {
 let G = null;        // game state (owned by the engine)
 let mode = null;     // 'move' while picking a hex; mirrors the decision being made: 'threat' | 'flee' | 'drive'
 let modalKey = null;  // when set, receives all key presses (shooting, backpack-full prompt)
-let checksOff = false;   // cheat: skip the food / water / booze checks (kept across new games until reload)
+let checksOff = false;   // cheat: skip the food / water / hope checks (kept across new games until reload)
 let justRevealed = [];    // tile keys to highlight after scouting, in reveal order
 let camInit = false;
 
@@ -171,6 +171,8 @@ async function show(ev) {
     case 'armor': return sfx.armor();
     case 'repair': return sfx.repair();
     case 'pills': return sfx.win(false);
+    case 'hope': return sfx.hope();
+    case 'lead': return leadShow(ev);
     case 'driveStep': sfx.drive(ev.fuel); return render();
     case 'move': renderMap(); return wait(450);   // arrive (the camera glides over) before the round can move on
     case 'outOfFuel': return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'ap' ? 'AP' : ev.fuel} — stopping here.`);
@@ -202,6 +204,7 @@ async function ask() {
   if (d.kind === 'escape') return send({ type: 'decide', choice: await chooseEscape(d.options) });
   if (d.kind === 'backpack') return send({ type: 'decide', choice: await backpackPrompt(p, d.item) });
   if (d.kind === 'stash') return send({ type: 'decide', choice: await stashPrompt(d) });
+  if (d.kind === 'hope') return send({ type: 'decide', choice: await hopePrompt(p) });
 }
 
 // ---------------------------------------------------------------- round timer (optional in single player: cheat timer(on))
@@ -397,7 +400,8 @@ async function fightPopup(p) {
 // An item's picture for HTML: its own image if it has one (img: in data.js), otherwise its emoji.
 // (Plain text — toasts, the log — always uses the emoji.)
 const itemIcon = (id) => ITEMS[id].img ? `<img class="iimg" src="${ITEMS[id].img}" alt="${ITEMS[id].icon}">` : ITEMS[id].icon;
-const condPips = (n) => `<span class="cond">${[...Array(6)].map((_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
+// condition pips — purple for a hope item (pass its id)
+const condPips = (n, id) => `<span class="cond ${ITEMS[id]?.hope ? 'hope' : ''}">${[...Array(6)].map((_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
 
 // ---------------------------------------------------------------- items
 // Backpack full: pick an item to leave on this tile (the new one is last — picking it leaves it where it was found).
@@ -407,7 +411,7 @@ async function backpackPrompt(p, item) {
   pop.className = '';
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>Backpack full (${CONFIG.maxItems}/${CONFIG.maxItems})</small><h2>Leave one here</h2></div>
-    <ol class="pack-choose">${all.map((it, i) => `<li><button data-i="${i}"><kbd>${i + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond)}${i === all.length - 1 ? ' <em>NEW</em>' : ''}</button></li>`).join('')}</ol>
+    <ol class="pack-choose">${all.map((it, i) => `<li><button data-i="${i}"><kbd>${i + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond, it.id)}${i === all.length - 1 ? ' <em>NEW</em>' : ''}</button></li>`).join('')}</ol>
     <small class="pskip">press 1–${all.length} or click · it stays on this tile, condition and all</small></div>`;
   pop.hidden = false;
   const i = await new Promise((res) => {
@@ -417,6 +421,38 @@ async function backpackPrompt(p, item) {
   modalKey = null;
   pop.hidden = true;
   return i;
+}
+
+// The night asks for hope: which hope item do you lean on? (−1 condition)
+async function hopePrompt(p) {
+  const pop = $('#popup');
+  const opts = p.items.map((it, i) => ({ it, i })).filter(({ it }) => ITEMS[it.id].hope && it.cond > 0);
+  pop.className = 'hopeask';
+  pop.innerHTML = `<div class="pcard">
+    <div class="ptitle"><small>🌙 Round ${G.round}</small><h2>What hope is there?</h2></div>
+    <ol class="pack-choose">${opts.map(({ it }, n) => `<li><button data-n="${n}"><kbd>${n + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond, it.id)}</button></li>`).join('')}</ol>
+    <small class="pskip">press 1–${opts.length} or click</small></div>`;
+  pop.hidden = false;
+  const n = await new Promise((res) => {
+    pop.querySelectorAll('[data-n]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); res(+b.dataset.n); }));
+    modalKey = (e) => { const k = +e.key; if (k >= 1 && k <= opts.length) res(k - 1); };
+  });
+  modalKey = null;
+  pop.hidden = true;
+  return opts[n].i;
+}
+
+// A Note names a place: it appears on the map, purple-bordered, and the camera glides over to show it.
+async function leadShow(ev) {
+  justRevealed = [ev.k];
+  renderMap();
+  cameraTo(...pix(...ev.k.split(',').map(Number)));
+  toast(`📝 “${ev.text}”`);
+  sfx.hope();
+  await new Promise((res) => { const tm = setTimeout(res, skipAnim ? 0 : 2400); dismissPopup = () => { clearTimeout(tm); res(); }; });
+  dismissPopup = null;
+  justRevealed = [];
+  renderMap();   // back to you
 }
 
 // A stash with more items than your backpack can hold: choose which to take — the rest stay in the stash.
@@ -434,7 +470,7 @@ async function stashPrompt(d) {
     const draw = () => {
       pop.innerHTML = `<div class="pcard">
         <div class="ptitle"><small>🎒 ${esc(s.owner)}'s stash</small><h2>${d.room ? `Take up to ${d.room} item${d.room === 1 ? '' : 's'}` : 'Your backpack is full'}</h2></div>
-        <ol class="pack-choose">${s.items.map((it, i) => `<li><button data-i="${i}" class="${picked.has(i) ? 'on' : ''}" ${!picked.has(i) && picked.size >= d.room ? 'disabled' : ''}><kbd>${i + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond)}${picked.has(i) ? ' <em>TAKE</em>' : ''}</button></li>`).join('')}</ol>
+        <ol class="pack-choose">${s.items.map((it, i) => `<li><button data-i="${i}" class="${picked.has(i) ? 'on' : ''}" ${!picked.has(i) && picked.size >= d.room ? 'disabled' : ''}><kbd>${i + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond, it.id)}${picked.has(i) ? ' <em>TAKE</em>' : ''}</button></li>`).join('')}</ol>
         <button class="primary" id="take">${picked.size ? `Take ${picked.size}` : 'Leave them'} <kbd>Enter</kbd></button>
         <small class="pskip">press 1–${s.items.length} to choose · the rest stay in the stash</small></div>`;
       pop.querySelectorAll('[data-i]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); toggle(+b.dataset.i); }));
@@ -620,14 +656,14 @@ const sfx = {
     if (dir < 0) {
       if (k === 'food') { noise(0.07, 0.25, 1800); setTimeout(() => noise(0.06, 0.2, 1400), 90); setTimeout(() => noise(0.05, 0.15, 1100), 170); }   // crunch crunch
       else if (k === 'water') { tone(520, 0.12, 'sine', 0.15, -260); setTimeout(() => tone(380, 0.14, 'sine', 0.12, -180), 130); }               // gulp gulp
-      else if (k === 'booze') { [392, 349, 294].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.07), i * 140)); }             // sad sigh
       else if (k === 'fuel') { noise(0.3, 0.12, 600); tone(140, 0.3, 'sine', 0.08, -40); }                                                      // slosh
       else if (k === 'ammo') { if (!modalKey) tone(1600, 0.03, 'square', 0.05); }                                                             // click (gun fight has its own sound)
     } else {
-      const base = { food: 440, water: 587, booze: 659, fuel: 330, ammo: 784 }[k] || 500;
+      const base = { food: 440, water: 587, fuel: 330, ammo: 784 }[k] || 500;
       tone(base, 0.09, 'triangle', 0.08); setTimeout(() => tone(base * 1.5, 0.12, 'triangle', 0.07), 70);   // little pickup chime
     }
   },
+  hope: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.5, 'sine', 0.05), i * 160)),   // a music-box rise
   repair: () => [0, 110, 220].forEach((d, i) => setTimeout(() => { noise(0.05, 0.2, 3000); tone(900 + i * 200, 0.05, 'square', 0.03); }, d)),
   armor: () => { noise(0.12, 0.35, 900); tone(180, 0.2, 'square', 0.1, -60); setTimeout(() => tone(1200, 0.25, 'triangle', 0.04, -300), 60); },
   drive: (kind) => kind === 'fuel'
@@ -691,7 +727,7 @@ async function scavengeShow({ name, rows: table, tries, r, hit, amt, amts, dice,
     tone(300, 0.25, 'triangle', 0.07, -120); setTimeout(() => tone(200, 0.35, 'triangle', 0.07, -80), 160);
   } else if (hit.kind === 'stash') {
     const s = hit.stash, lone = E.loneItem(s);
-    $('#pres').innerHTML = lone ? `<div class="big good jackpot">${itemIcon(lone.id)} ${esc(lone.id)}</div><div>${condPips(lone.cond)}</div>`
+    $('#pres').innerHTML = lone ? `<div class="big good jackpot">${itemIcon(lone.id)} ${esc(lone.id)}</div><div>${condPips(lone.cond, lone.id)}</div>`
       : `<div class="big good jackpot">🎒 ${esc(s.owner)}'s stash</div><div class="stashgot">${E.stashText(s) || 'empty'}</div>`;
     pop.classList.add('jackpot');
     sfx.win(true);
@@ -717,7 +753,7 @@ async function scavengeShow({ name, rows: table, tries, r, hit, amt, amts, dice,
       await Promise.all(dice[i].map((v, j) => rollDie($(`#pd2d${j}`), v, 800 + j * 150)));
       await wait(250);
       if (x.item) {
-        shown += `<div class="big good jackpot">${itemIcon(x.item)} ${esc(x.item)}</div><div>${condPips(a)}</div>`;
+        shown += `<div class="big good jackpot">${itemIcon(x.item)} ${esc(x.item)}</div><div>${condPips(a, x.item)}</div>`;
         $('#pres').innerHTML = shown;
         big = true;
       } else {
@@ -804,7 +840,7 @@ function showSafety(k, n) {
 // Missed food / water: pause the game and show the max AP ring losing a segment.
 async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
   const pop = $('#popup');
-  const what = res === 'food' ? `${ICON.food} No food` : `${ICON.water} No water`;
+  const what = res === 'food' ? `${ICON.food} No food` : res === 'water' ? `${ICON.water} No water` : `${ICON.hope} Nothing to hope for`;
   skipAnim = false;
   pop.className = 'zombie';
   pop.innerHTML = `<div class="pcard">
@@ -819,7 +855,7 @@ async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
   noise(0.25, 0.3, 700); tone(90, 0.6, 'square', 0.12, -40);
   await wait(500);
   $('#pres').innerHTML = newMax > 0
-    ? `<div class="big bad">Max AP ${oldMax} → ${newMax}</div><small class="muted">Each ${res} check you pay raises it by ${CONFIG.trackGain[res]}; each one missed costs ${CONFIG.trackLoss[res]}.</small>`
+    ? `<div class="big bad">Max AP ${oldMax} → ${newMax}</div><small class="muted">Each ${res === 'hope' ? 'night you find hope' : `${res} check you pay`} raises it by ${CONFIG.trackGain[res]}; each one missed costs ${CONFIG.trackLoss[res]}.</small>`
     : `<div class="big bad">Max AP 0</div>`;
   await popupHold(newMax > 0 ? 2600 : 1500);
 }
@@ -926,7 +962,8 @@ const rowText = (row) => {
   const lone = E.loneItem(row.stash);
   return lone ? `${lone.id} (${lone.cond})` : `🎒 ${shortName(row.stash.owner)}'s stash`;
 };
-const rowClass = (row) => (row.kind === 'stash' && E.loneItem(row.stash) ? 'it' : { zombies: 'z', item: 'it', looted: 'looted', stash: 'stash' }[row.kind] || '');
+const hopeRow = (row) => (row.kind === 'stash' ? ITEMS[E.loneItem(row.stash)?.id]?.hope : row.kind === 'item' && [row.e, ...(row.e.parts || [])].some((x) => ITEMS[x.item]?.hope));
+const rowClass = (row) => (row.kind !== 'looted' && hopeRow(row) ? 'hope' : row.kind === 'stash' && E.loneItem(row.stash) ? 'it' : { zombies: 'z', item: 'it', looted: 'looted', stash: 'stash' }[row.kind] || '');
 
 // Results 2–6. 1 is always Zombies, so it isn't listed — the pips below show any zombies on the tile.
 function tableSvg(x, y, t) {
@@ -981,7 +1018,22 @@ function applyView() {
   const z = fit * userZoom;   // …times however far you've pinched or scrolled
   const w = b.width / z, h = b.height / z;
   const dx = (f.left + f.width / 2 - (b.left + b.width / 2)) / z, dy = (f.top + f.height / 2 - (b.top + b.height / 2)) / z;
-  svg.setAttribute('viewBox', `${cam.x - dx - drag.x / z - w / 2} ${cam.y - dy - drag.y / z - h / 2} ${w} ${h}`);
+  const vx = cam.x - dx - drag.x / z - w / 2, vy = cam.y - dy - drag.y / z - h / 2;
+  svg.setAttribute('viewBox', `${vx} ${vy} ${w} ${h}`);
+  leadMarks(vx, vy, z, b, f);
+}
+// A place a Note leads to, out of view: a purple marker with its icon on a ring around your hex (clear of the
+// trays and dials), pointing the way — a compass.
+function leadMarks(vx, vy, z, b, f) {
+  const board = $('#board').getBoundingClientRect(), ring = Math.min(f.width / 2 - 30, f.height / 2 - 30, 250);
+  const cx = f.left + f.width / 2, cy = f.top + f.height / 2;
+  $('#leadmarks').innerHTML = Object.entries(G?.tiles || {}).filter(([, t]) => t.lead && !t.looted?.includes(t.lead.row)).map(([k, t]) => {
+    const [x, y] = pix(...k.split(',').map(Number));
+    const sx = b.left + (x - vx) * z, sy = b.top + (y - vy) * z;   // where it is on screen
+    if (sx > f.left && sx < f.right && sy > f.top && sy < f.bottom) return '';   // in view: its border shows it
+    const a = Math.atan2(sy - cy, sx - cx);
+    return `<div class="leadmark" style="left:${cx + ring * Math.cos(a) - board.left}px;top:${cy + ring * Math.sin(a) - board.top}px"><i style="transform:rotate(${a}rad)"></i><span>${t.def.icon}</span></div>`;
+  }).join('');
 }
 window.addEventListener('resize', applyView);
 
@@ -1108,7 +1160,7 @@ function renderMap() {
     const isHere = q === p.q && r === p.r;
     const town = G.towns?.[t.town], townLabel = town ? `${town.name} (${town.kind})` : '';
     const target = adj.has(k) && ((mode === 'move' && canEnter(p, t)) || (mode === 'flee' && passable(t) && !t.zombies) || (mode === 'drive' && passable(t)));
-    const g = `<g class="hex tile d${Math.min(danger, 4)} ${t.def.table.length ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${justRevealed.includes(k) ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''} ${town ? 'town' : ''}" data-k="${k}" ${justRevealed.includes(k) ? `style="--i:${justRevealed.indexOf(k)}"` : ''}>
+    const g = `<g class="hex tile d${Math.min(danger, 4)} ${t.def.table.length ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${justRevealed.includes(k) ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''} ${town ? 'town' : ''} ${t.lead && !t.looted?.includes(t.lead.row) ? 'lead' : ''}" data-k="${k}" ${justRevealed.includes(k) ? `style="--i:${justRevealed.indexOf(k)}"` : ''}>
       <polygon points="${hexPoints(x, y, HEX - (isHere ? 4 : 2))}" ${isHere ? `style="stroke:${p.color}"` : ''}/>
       ${isHere ? `${town ? `<text x="${x}" y="${y - HEX * 0.72}" class="townname">${esc(town.name)}</text>` : ''}<text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>${tableSvg(x, y + 4, t)}`
         : `<text x="${x}" y="${y - 10}" class="art"><title>${esc(t.def.name)}${town ? ` — ${esc(townLabel)}` : ''}</title>${t.def.icon}</text>`}
@@ -1155,11 +1207,11 @@ function renderPack() {
   // the header folds the backpack away on small screens (see style.css)
   let h = `<button type="button" class="packhead" data-packtoggle><span class="packname"><span class="word">Backpack</span><span class="bag">🎒</span> ${p.items.length}/${CONFIG.maxItems}</span>`
     // folded, it shows each item in brief: icon, name and condition (just icon and condition once there are more than 3)
-    + `<span class="packicons ${p.items.length > 3 ? 'many' : ''}">${p.items.map((it) => `<span class="pchip"><span class="ic">${itemIcon(it.id)}</span><span class="pinfo"><b>${esc(it.id)}</b>${condPips(it.cond)}</span></span>`).join('')}</span><span class="caret"></span></button>`;
+    + `<span class="packicons ${p.items.length > 3 ? 'many' : ''}">${p.items.map((it) => `<span class="pchip"><span class="ic">${itemIcon(it.id)}</span><span class="pinfo"><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</span></span>`).join('')}</span><span class="caret"></span></button>`;
   for (let i = 0; i < CONFIG.maxItems; i++) {
     const it = p.items[i];
     h += it
-      ? `<div class="slot-item ${packSel === i ? 'sel' : ''}" data-slot="${i}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond)}</div>
+      ? `<div class="slot-item ${packSel === i ? 'sel' : ''}" data-slot="${i}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</div>
           ${ITEMS[it.id].tool ? `<button class="use" data-use="${i}" title="Use tool (T)">Use <kbd>T</kbd></button>` : ''}
           ${ITEMS[it.id].pills ? `<button class="use" data-pill="${i}" title="Take a dose: AP back up to your max">Take</button>` : ''}
           <button class="drop ${dropArmed === i ? 'armed' : ''}" data-drop="${i}" title="Leave it on this tile">${dropArmed === i ? 'Leave it?' : '✕'}</button></div>`
@@ -1189,11 +1241,11 @@ function renderStats(p = cur()) {
   // AP gets its own big counter in the bottom-left of the board
   const apd = prevStats.ap === undefined ? '' : (p.ap > prevStats.ap || p.maxAP > prevStats.maxAP) ? 'up' : (p.ap < prevStats.ap || p.maxAP < prevStats.maxAP) ? 'down' : '';
   $('#apbox').innerHTML = apGauge(p.ap, apd, p.maxAP);
-  const label = { ap: 'AP', food: 'Food', water: 'Water', booze: 'Booze', fuel: 'Fuel', ammo: 'Ammo' };
+  const label = { ap: 'AP', food: 'Food', water: 'Water', fuel: 'Fuel', ammo: 'Ammo' };
   $('#stats').innerHTML = Object.entries(vals).map(([k, v]) => {
     const prev = prevStats[k];
     const d = prev === undefined ? '' : v > prev ? 'up' : v < prev ? 'down' : '';
-    const low = ['food', 'water', 'booze'].includes(k) && v <= 2 ? (v <= 1 ? 'low1' : 'low2') : '';
+    const low = ['food', 'water'].includes(k) && v <= 2 ? (v <= 1 ? 'low1' : 'low2') : '';
     if (d) setTimeout(() => sfx.res(k, d === 'up' ? 1 : -1), 0);
     const delta = d ? `<span class="delta ${d}">${v > prev ? '+' : '−'}${Math.abs(v - prev)}</span>` : '';
     return `<div class="stat ${k} ${d} ${low}" title="${label[k]}"><div class="orb"><b>${v}</b>${delta}</div><small>${label[k]}</small></div>`;
@@ -1329,9 +1381,9 @@ const CHEATS = {
   'zombies(n)': 'set zombies on your tile (fight/flee if > 0)',
   'safety(n)': 'set your tile\'s Safety',
   'item(name[,cond])': 'add an item (vehicles park on your tile)',
-  'ap(n) maxap(n) food(n) water(n) booze(n) fuel(n) ammo(n)': 'set a value',
+  'ap(n) maxap(n) food(n) water(n) fuel(n) ammo(n)': 'set a value',
   'round(n) day(n)': 'jump the clock (no checks run)',
-  'checks() checks(on|off)': 'toggle the food / water / booze checks',
+  'checks() checks(on|off)': 'toggle the food / water / hope checks',
   'badnight() badnight(on|off)': 'toggle a bad night (round 6 attacks too)',
   'timer() timer(on|off)': 'the 30 s round timer: act in time or lose 1 AP (remembered)',
   'reset()': 'start a fresh world (admin-only once online)',
@@ -1468,7 +1520,7 @@ $('#pack').addEventListener('click', (e) => {
   const b = e.target.closest('[data-drop]');
   if (!b) {   // the slot itself: what is it? (phones show only the icon)
     const it = cur().items[e.target.closest('[data-slot]')?.dataset.slot];
-    if (it) toast(`${ITEMS[it.id].icon} ${it.id} — condition ${it.cond}. ${ITEMS[it.id].desc}`);
+    if (it) toast(it.text ? `${ITEMS[it.id].icon} “${it.text}”` : `${ITEMS[it.id].icon} ${it.id} — condition ${it.cond}. ${ITEMS[it.id].desc}`);
     return;
   }
   const i = +b.dataset.drop;

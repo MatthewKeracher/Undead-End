@@ -6,12 +6,12 @@ const CONFIG = {
   startDay: 1,
   startRound: 1,          // 1 = first morning; 5 and 6 are the night
   maxAP: 12,              // highest max AP can grow to
-  trackGain: { food: 1, water: 2 },   // max AP gained per check paid
-  trackLoss: { food: 1, water: 2 },   // max AP lost per check missed (max AP 0 = death)
+  trackGain: { food: 1, water: 2, hope: 2 },   // max AP gained per check paid
+  trackLoss: { food: 1, water: 2, hope: 2 },   // max AP lost per check missed (max AP 0 = death)
   startMaxAP: 12,         // max AP at the start (food & water missed lower it; paid raises it back, up to 12)
   startAP: 8,             // AP at the start (sleep tops it up to max AP)
-  startRes: { food: 4, water: 6, booze: 3, fuel: 0, ammo: 0 },   // what every survivor starts with
-  startItems: [],                                                // …and carries (nothing: find a weapon)
+  startRes: { food: 4, water: 6, fuel: 0, ammo: 0 },   // what every survivor starts with
+  startItems: [{ id: 'Booze', cond: 3 }],              // …and carries (no weapon: find one)
   startSafety: 0,         // Safety on the starting tile
   maxSafety: 5,           // most Safety a tile can hold, unless its location says otherwise (safety: 0–8 in locations.js)
   maxZombies: 6,          // most zombies a tile can hold — and that many can't be outrun
@@ -43,6 +43,8 @@ const CONFIG = {
   townGap: 2,             // at least this many hexes of countryside between two settlements
   edgeChain: [1, 3],      // a stretch of edge land (Fields, Golf Course: edge: in locations.js) is 1–3 hexes long
   roundSeconds: 30,       // round timer: act within this or lose 1 AP (online always; single player: on by default)
+  leadDistance: 6,        // a Note reveals a place this many hexes away (or as near to it as there's room)
+  leadChain: 3,           // …whose purple row may be another Note, up to this many places in a row
 
   // What each round of the clock calls for (checked at the END of the round).
   upkeep: {
@@ -51,7 +53,7 @@ const CONFIG = {
     3: { water: 1 },
     4: { food: 1 },
     5: { water: 1 },
-    6: { booze: 1 },
+    6: { hope: 1 },   // not a resource: a pip from a hope item you carry (you choose which)
   },
 };
 
@@ -65,6 +67,11 @@ const animal = (icon) => ({ icon, vehicle: true, animal: true, uses: 'water', ea
 // Weapons come in kinds too, each in many looks: guns fire ammo, melee weapons cost AP.
 const gun = (icon, verb = 'Fire', extra = {}) => ({ icon, weapon: true, uses: 'ammo', verb, desc: 'Fight: no AP; 1 condition per round; each 🟢 ammo fired kills 1 zombie.', ...extra });
 const melee = (icon, verb = 'Swing') => ({ icon, weapon: true, uses: 'ap', verb, desc: `Fight: 1 condition per round; each ${verb.toLowerCase()} costs 1 AP and kills 1 zombie.` });
+
+// Hope items: the night (round 6) asks for hope, and you spend a pip (−1 condition) of one you carry — shown in
+// purple. Some just comfort you; a Note also shows the way: as it's found, a place CONFIG.leadDistance hexes off is
+// revealed with a purple border, and a purple row on its table holds more hope (maybe the next Note).
+const hopeItem = (icon, desc, extra = {}) => ({ icon, hope: true, desc: `Hope: ${desc} −1 condition each night you lean on it.`, ...extra });
 
 // Item cards. Condition = uses left; at 0 the item breaks.
 const ITEMS = {
@@ -98,6 +105,23 @@ const ITEMS = {
   Map:   { icon: '🗺️', map: true, desc: 'Used the moment you find it (never carried): reveals every unexplored hex next to an explored one.' },
   Binoculars: { icon: '🔭', binoculars: true, desc: 'Scouting also reveals the hexes beyond the ones next to you — but not past a Mountain. −1 condition per scout; gone at 0.' },
   Pills: { icon: '💊', pills: true, desc: 'Take any time (free): AP back up to your max AP. −1 condition per dose; gone at 0.' },
+  Booze: hopeItem('🍾', 'a swig gets you through the night.'),
+  Photo: hopeItem('🖼️', 'a face to keep going for.'),
+  'Music Box': hopeItem('🎶', 'a tune from before.'),
+  Note: hopeItem('📝', 'someone went on ahead — the place it names is marked in purple on the map.', { leads: true }),
+};
+
+// What a Note says: {name} and {place} are filled in. Keep each one short — it's read in a glance.
+const LEADS = {
+  names: ['Mara', 'Tom', 'Dad', 'Mum', 'Priya', 'Sam', 'Grandad', 'Jules', 'Ellie', 'Kofi', 'Nana', 'Rob'],
+  notes: [
+    'Gone to the {place}. Follow if you can. — {name}',
+    "We're heading for the {place}. Don't wait. — {name}",
+    'Saw smoke over the {place}. Going to look. — {name}',
+    'If you find this, find us at the {place}. — {name}',
+    'Safe at the {place}, for now. — {name}',
+  ],
+  ends: ['Booze', 'Photo', 'Music Box'],   // what else a lead's purple row can hold
 };
 
 // Tutorial games (chosen from the opening menu): a card before the first round, a card for each action the
@@ -109,7 +133,7 @@ const TUTORIAL = {
     text: [
       'Stay alive as long as you can. Each day is 6 rounds — the clock, top left. Rounds 5 and 6 are night, and at night the zombies come.',
       'Each round you take one action. Most cost 1 🎲 AP; sleeping gets AP back.',
-      'Each round also asks for something, shown on the clock: 🔴 food and 🔵 water keep your max AP up (miss them and it drops — at 0 you die). 🟣 Booze gets you through the night: no booze when round 6 asks for it, and you die.',
+      'Each round also asks for something, shown on the clock: 🔴 food and 🔵 water keep your max AP up (miss them and it drops — at 0 you die). 🟣 Hope: round 6 asks you to lean on a hope item (purple pips), or lose max AP.',
       '🟠 Fuel and 🟢 ammo run vehicles and guns. 🟡 Safety belongs to a place — it stops zombies at night.',
       'Each action and item is explained the first time you meet it. The round timer is off while you learn.',
     ],
@@ -161,10 +185,10 @@ function parseResult(text, where) {
   const [first, ...rest] = t.split(' ');
   const n = MULTIPLIERS[first] && rest.length ? MULTIPLIERS[first] : 1;
   const res = n > 1 ? rest.join(' ') : t;
-  if (['food', 'water', 'booze', 'fuel', 'ammo'].includes(res)) return { res, n, ...(endless && { endless }) };
+  if (['food', 'water', 'fuel', 'ammo'].includes(res)) return { res, n, ...(endless && { endless }) };
   const item = Object.keys(ITEMS).find((id) => id.toLowerCase() === t);
   if (item) return { item, ...(endless && { endless }) };
-  throw new Error(`${where}: "${text}" isn't a result I know. Use Zombies, Food/Water/Booze/Fuel/Ammo (optionally Double/Triple/Quadruple, and/or Endless), or an item: ${Object.keys(ITEMS).join(', ')}.`);
+  throw new Error(`${where}: "${text}" isn't a result I know. Use Zombies, Food/Water/Fuel/Ammo (optionally Double/Triple/Quadruple, and/or Endless), or an item: ${Object.keys(ITEMS).join(', ')}.`);
 }
 function loadLocations(list) {
   const errors = [];

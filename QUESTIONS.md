@@ -21,8 +21,9 @@ Logged from a playtest. Tick when handled.
 ## Core rules (single player)
 
 ### Clock & checks
-- [ ] **Round 5 check (the first night round): water or booze?**
+- [x] **Round 5 check (the first night round): water or booze?**
   *Now: 1 water.*
+  > Answer: Water. Booze is now a hope item; round 6 asks for hope (see DESIGN.md, Hope).
   > Answer:
 
 ### Zombies

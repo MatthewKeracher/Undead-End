@@ -146,7 +146,6 @@ body:not(.log-open) #panel { display: none; }
 .stat .orb b { font-size: calc(var(--o) * .7); font-weight: 900; line-height: 1; color: var(--c); text-shadow: 0 2px 3px #000, 0 0 10px #000c; font-variant-numeric: tabular-nums; }
 .stat.food .orb { --c: #ff5a52; }
 .stat.water .orb { --c: #4aa8ff; }
-.stat.booze .orb { --c: #c084ff; }
 .stat.fuel .orb { --c: #ffa040; }
 .stat.ammo .orb { --c: #5fd068; }
 .stat.low2 .orb, .stat.low1 .orb { --glow: #f0922b; }
@@ -382,6 +381,22 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 .hex .cell.it { fill: var(--accent); font-weight: 700; }
 .ptable li.it { color: var(--accent); }
 .ptable li.it.picked, .ptable li.stash.picked { color: #111; }   /* a picked item or stash row: dark on gold, like the rest */
+/* hope is purple: hope items' pips, their rows on a table, a place a Note leads to, and the night's question */
+:root { --hope: #c084ff; }
+.cond.hope i.on { background: var(--hope); }
+.hex .cell.hope { fill: var(--hope); font-weight: 700; }
+.ptable li.hope { color: var(--hope); }
+.ptable li.hope.picked { color: #111; background: var(--hope); }
+.hex.lead polygon { stroke: var(--hope); stroke-width: 5; filter: drop-shadow(0 0 10px #c084ffaa); animation: leadglow 2.4s ease-in-out infinite; }
+@keyframes leadglow { 50% { filter: drop-shadow(0 0 3px #c084ff55); } }
+#leadmarks { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.leadmark { position: absolute; width: 40px; height: 40px; margin: -20px 0 0 -20px; display: grid; place-items: center; border-radius: 50%;
+  background: #241038e6; border: 2px solid var(--hope); box-shadow: 0 0 14px #c084ff88; }
+.leadmark span { font-size: 20px; line-height: 1; }
+.leadmark i { position: absolute; inset: 0; }
+.leadmark i::after { content: ''; position: absolute; right: -11px; top: 50%; margin-top: -6px; border: 6px solid transparent; border-left: 9px solid var(--hope); }
+#popup.hopeask { background: #12062acc; }
+#popup.hopeask .pcard { border-color: var(--hope); box-shadow: 0 0 40px #c084ff44, 0 20px 60px #000c; }
 /* looted rows are crossed off; stashes stand out */
 .hex .cell.looted { opacity: .35; text-decoration: line-through; }
 .ptable li.looted { opacity: .4; text-decoration: line-through; }
