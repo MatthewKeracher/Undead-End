@@ -986,7 +986,9 @@ function renderClock() {
     const c = wedgeCenterDeg(r) * Math.PI / 180, a0 = c - Math.PI / 6, a1 = c + Math.PI / 6;
     const now = r === G.round;
     const off = now ? 3 : 0;
-    const icons = (E.attackDue(G, r) ? '🟡' : '') + Object.keys(CONFIG.upkeep[r] || {}).map((res) => ICON[res]).join('');   // a night attack tests your Safety first (round 6 only on a bad night), then the check
+    // a night attack tests your Safety first, then the check. One that only comes on a bad night (round 6) glows red.
+    const omen = E.attackDue(G, r) && !CONFIG.attackRounds.includes(r);
+    const icons = (E.attackDue(G, r) ? `<tspan class="${omen ? 'omen' : ''}">🟡</tspan>` : '') + Object.keys(CONFIG.upkeep[r] || {}).map((res) => ICON[res]).join('');
     const lx = 57 * Math.cos(c), ly = 57 * Math.sin(c);
     s += `<g class="wedge ${isNight(r) ? 'night' : 'day'} ${now ? 'now' : ''}" transform="translate(${(off * Math.cos(c)).toFixed(2)} ${(off * Math.sin(c)).toFixed(2)})">
       <path d="${wedgePath(a0 + 0.015, a1 - 0.015, CLOCK_R0 + 2, CLOCK_R)}"/>

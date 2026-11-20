@@ -80,6 +80,8 @@ body:not(.log-open) #panel { display: none; }
 .wedge text { text-anchor: middle; fill: var(--muted); }
 .wedge .rn { font-size: 15px; font-weight: 800; }
 .wedge .up { font-size: 10px; }
+.wedge .up .omen { filter: drop-shadow(0 0 3px #ff2020) drop-shadow(0 0 6px #ff2020); animation: omen 1.4s ease-in-out infinite; }   /* a bad night's extra attack */
+@keyframes omen { 50% { filter: drop-shadow(0 0 1px #ff2020); } }
 .wedge.now path { stroke: var(--accent); stroke-width: 3; }
 .wedge.night.now path { fill: #34407a; }
 .wedge.day.now path { fill: #8a6a22; }
