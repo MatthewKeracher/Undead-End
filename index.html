@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Zombie Survival</title>
-  <link rel="stylesheet" href="style.css?v=4cc121ab">
+  <link rel="stylesheet" href="style.css?v=b7abb6ab">
 </head>
 <body>
   <div id="app">
@@ -18,13 +18,14 @@
     </header>
     <main>
       <section id="board"><svg id="map"></svg><div id="mapframe"></div>
-        <svg id="clock" viewBox="-96 -96 192 192" aria-label="Round clock">
+        <svg id="clock" viewBox="-110 -110 220 220" aria-label="Round clock and AP">
           <g id="wedges"></g>
-          <g id="hand"><path d="M0 -84 L-7 -95 L7 -95 Z"/></g>
+          <g id="apring"></g>
+          <g id="hand"><path d="M0 -100 L-7 -110 L7 -110 Z"/></g>
           <circle r="28" class="hub"/>
           <text y="-6" class="dl" id="clocklabel">Day</text>
           <text y="14" class="dn" id="clockday">1</text>
-        </svg><div id="timer"></div><div id="dock"><div id="toast"></div><div id="hint"></div><div id="actions"></div></div><div id="apbox"></div><div id="rightcol"><div id="pack"></div><div id="stats"></div></div><div id="leadmarks"></div><div id="roundbanner" hidden></div><div id="popup" hidden></div><div id="pauseveil" hidden><div class="pv-title">⏸ Paused</div><div class="pv-sub">Press <kbd>P</kbd> or click to carry on</div></div></section>
+        </svg><div id="timer"></div><div id="dock"><div id="toast"></div><div id="hint"></div><div id="actions"></div></div><div id="rightcol"><div id="pack"></div><div id="stats"></div></div><div id="leadmarks"></div><div id="roundbanner" hidden></div><div id="popup" hidden></div><div id="pauseveil" hidden><div class="pv-title">⏸ Paused</div><div class="pv-sub">Press <kbd>P</kbd> or click to carry on</div></div></section>
       <aside id="panel">
         <details id="playersbox" open>
           <summary class="chathead">Players</summary>
@@ -43,6 +44,6 @@
   <script src="locations.js?v=8842e57e"></script>
   <script src="data.js?v=2428fc4a"></script>
   <script src="engine.js?v=23bf745b"></script>
-  <script src="game.js?v=0e730ea4"></script>
+  <script src="game.js?v=01d28b9d"></script>
 </body>
 </html>

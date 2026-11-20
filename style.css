@@ -7,8 +7,8 @@
   --board-in: #143021; --board-out: #0a1911;   /* the board's glow */
   --text: #e6e2d8; --muted: #8da198; --good: #7bc47f; --bad: #e86a5a; --accent: #d9a441;
   /* board overlay sizes — shrunk for tablets and phones in the media queries at the end */
-  --gap: 14px; --clock: 247px; --ap: 170px; --col: 236px; --orbmax: 64px;
-  --dockl: calc(var(--gap) * 2 + (var(--clock) + var(--ap)) / 2);   /* action dock starts right of the AP gauge */
+  --gap: 14px; --clock: 247px; --col: 236px; --orbmax: 64px;
+  --dockl: var(--gap);   /* where the action dock may start */
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
@@ -161,7 +161,21 @@ body:not(.log-open) #panel { display: none; }
 .stat.down .orb { animation: orbdown .7s ease-out; }
 @keyframes orbup { 40% { transform: scale(1.25); filter: drop-shadow(0 0 8px #4cd964); } }
 @keyframes orbdown { 20% { transform: translateX(-4px); filter: drop-shadow(0 0 8px #ff3b30); } 40% { transform: translateX(4px); } }
-#apbox { position: absolute; left: calc(var(--gap) + (var(--clock) - var(--ap)) / 2);  /* centre = clock centre */ bottom: var(--gap); z-index: 3; width: var(--ap); height: var(--ap); filter: drop-shadow(0 6px 14px #000a); }
+/* AP around the clock: lit up to your AP (coloured by how much of the 12 you have; purple at your max), dim up
+   to your max AP, black above it. It pops when AP changes and the lit segments pulse when you're low. */
+#clock { --c: var(--bad); }
+#clock.full { --c: #a259ff; }
+#clock.high { --c: #4cd964; }
+#clock.mid { --c: #f0922b; }
+#clock.low { --c: #ff3b30; }
+#apring .seg { fill: #ffffff26; stroke: var(--ink); stroke-width: 1.5; transition: fill .3s; }
+#apring .seg.on { fill: var(--c); }
+#apring .seg.locked { fill: #050505; stroke: #000; }
+#clock.full #apring .seg.on { filter: drop-shadow(0 0 3px #a259ff); }
+#clock.low #apring .seg.on { animation: lowseg 1s ease-in-out infinite; }
+@keyframes lowseg { 50% { opacity: .45; } }
+#clock.up #apring, #clock.down #apring { animation: ringpop .5s cubic-bezier(.2, 1.8, .5, 1); transform-box: view-box; transform-origin: center; }
+@keyframes ringpop { 40% { transform: scale(1.05); } }
 .apgauge { width: 100%; height: 100%; --c: var(--bad); }
 .apgauge.full { --c: #a259ff; }
 .apgauge.high { --c: #4cd964; }
@@ -186,11 +200,11 @@ body:not(.log-open) #panel { display: none; }
 .apgauge.up, .apgauge.down { animation: appop .5s cubic-bezier(.2, 1.8, .5, 1); }
 @keyframes appop { 40% { transform: scale(1.08); } }
 @keyframes lowpulse { 50% { stroke-width: 6; } }
-/* bottom dock: toast, hint, notes and the action ribbon, centred in the space right of the AP gauge */
+/* bottom dock: toast, hint, notes and the action ribbon, centred along the bottom */
 #dock { position: absolute; z-index: 3; left: var(--dockl); right: var(--gap); bottom: var(--gap); width: fit-content; margin-inline: auto; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
 #actions { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; }
 /* with room to spare, the same inset on both sides, so the dock (and the notes above it) centre under your tile */
-/* (one line, never wrapped: too wide to centre, it starts right of the AP gauge and runs on to the right) */
+/* (one line, never wrapped: too wide to centre, it starts at the left and runs on to the right) */
 @container board (min-width: 1260px) { #dock { right: var(--dockl); width: max-content; } }
 @media (max-height: 860px) { @container board (min-width: 1190px) { #dock { right: var(--dockl); width: max-content; } } }   /* smaller dials there */
 /* round timer: top middle of the board, level with the top of the clock. Seconds left and a bar that
@@ -448,7 +462,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   #panel { position: absolute; top: 0; right: 0; bottom: 0; z-index: 10; width: min(380px, 100%); box-shadow: -12px 0 40px #000a; }
 }
 @media (max-width: 1100px), (max-height: 860px) {
-  :root { --clock: 200px; --ap: 140px; --col: 220px; }
+  :root { --clock: 200px; --col: 220px; }
   .slot-item { height: 38px; }
   .slot-item .ic { font-size: 19px; }
 }
@@ -457,7 +471,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   kbd, .act.sel::after, .slot-item.sel::after { display: none; }
 }
 @media (max-width: 640px), (max-height: 500px) {
-  :root { --gap: 8px; --clock: 104px; --ap: 76px; --orbmax: 48px; }
+  :root { --gap: 8px; --clock: 104px; --orbmax: 48px; }
   header { gap: 8px; padding: 6px 8px; }
   h1 { font-size: 15px; }
   .hbtns { gap: 6px; }
@@ -480,10 +494,9 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 }
 /* ---------------------------------------------------------------- touch layout (phones and tablets, either way up)
    The map fills the board under everything (game.js frames the open space, #mapframe). Upright:
-   the resources in a half-width tray at the top left (timer under it), the clock in the top-right corner;
-   the map; the AP dial below it;
-   then the backpack and the action tray. Sideways: the resources and the backpack along the top;
-   the clock (timer under it) left of the map, the AP dial right of it, both level; the action tray along the
+   the resources in a half-width tray at the top left (timer under it), the clock (AP around it) in the
+   top-right corner; the map; then the backpack and the action tray. Sideways: the resources and the backpack
+   along the top; the clock (timer under it) left of the map; the action tray along the
    bottom. The resources and the main action tray lead with colour and emoji, each named in small grey
    type under it (phones drop the names: no room). Used on touch screens, and on any
    window that's upright, ≤1100px wide or ≤500px tall — so a desktop window snapped to half or a quarter of
@@ -491,14 +504,13 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 #mapframe { display: none; }
 @media (pointer: coarse), (orientation: portrait), (max-width: 1100px), (max-height: 500px) {
   /* the dials shrink on short screens so the map keeps ~280px of height (the rest: header, bars, dock ≈ 324px) */
-  :root { --clock: clamp(110px, calc((100dvh - 604px) / 2), 210px); --ap: var(--clock); --orbsize: 50px; --bar: 64px; }
+  :root { --clock: clamp(110px, calc((100dvh - 604px) / 2), 210px); --orbsize: 50px; --bar: 64px; }
   #board { display: grid; padding: var(--gap); gap: 8px 10px;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto var(--bar) auto;
-    grid-template-areas: "stats clock" "timer clock" "map map" "ap ap" "pack pack" "dock dock"; }
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) var(--bar) auto;
+    grid-template-areas: "stats clock" "timer clock" "map map" "pack pack" "dock dock"; }
   #map { grid-area: 1 / 1 / -1 / -1; margin: calc(-1 * var(--gap)); width: calc(100% + 2 * var(--gap)); height: calc(100% + 2 * var(--gap)); min-height: 0; border-radius: 0; background: none; }
   #mapframe { display: block; grid-area: map; visibility: hidden; pointer-events: none; }
   #clock { grid-area: clock; position: static; align-self: start; justify-self: end; }
-  #apbox { grid-area: ap; position: static; align-self: center; justify-self: center; }
   #timer { grid-area: timer; position: static; transform: none; justify-self: center; align-self: start; justify-content: center; padding: 8px 12px; font-size: 18px; }
   #timer .bar { display: none; }
   #rightcol { display: contents; }
@@ -542,24 +554,24 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   #board.threat #dock { position: absolute; grid-area: auto; }
   #board.threat .ribbon { grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); }
 }
-/* sideways: the resources and the backpack share the top row; the clock and AP dial flank the map */
+/* sideways: the resources and the backpack share the top row; the clock sits left of the map */
 @media (orientation: landscape) and (pointer: coarse), (orientation: landscape) and (max-width: 1100px), (orientation: landscape) and (max-height: 500px) {
   #board { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto; grid-template-rows: var(--bar) minmax(0, 1fr) auto;
-    grid-template-areas: "stats stats pack pack" "clock map map ap" "dock dock dock dock"; }
-  #timer { grid-area: clock; align-self: end; }   /* tucked under the clock, which stays level with the AP dial */
+    grid-template-areas: "stats stats pack pack" "clock map map map" "dock dock dock dock"; }
+  #timer { grid-area: clock; align-self: end; }   /* tucked under the clock */
   /* the dials sit beside the map: keep ~320px of width for it, and room under the clock for the timer */
   :root { --clock: clamp(110px, min(calc((100dvw - 370px) / 2), calc(100dvh - 300px)), 210px); }
 }
 /* tablets and half-screen windows held sideways: the backpack bar moves from the top row to just above the actions */
 @media (pointer: coarse) and (min-width: 700px) and (min-height: 600px) and (orientation: landscape), (max-width: 1100px) and (min-width: 700px) and (min-height: 600px) and (orientation: landscape) {
   #board { grid-template-rows: var(--bar) minmax(0, 1fr) auto auto;
-    grid-template-areas: "stats stats stats stats" "clock map map ap" "pack pack pack pack" "dock dock dock dock"; }
+    grid-template-areas: "stats stats stats stats" "clock map map map" "pack pack pack pack" "dock dock dock dock"; }
   :root { --clock: clamp(110px, min(calc((100dvw - 370px) / 2), calc(100dvh - 370px)), 210px); }
 }
 /* phone sizes */
 @media (max-width: 640px), (max-height: 500px) {
-  /* the clock fills its corner: half the width, less the gaps (the AP dial keeps to the height left over) */
-  :root { --gap: 8px; --clock: clamp(96px, calc((100dvw - 3 * var(--gap)) / 2), 180px); --ap: clamp(96px, calc((100dvh - 511px) / 2), 136px); --orbsize: 44px; --bar: 50px; }
+  /* the clock fills its corner: half the width, less the gaps */
+  :root { --gap: 8px; --clock: clamp(96px, calc((100dvw - 3 * var(--gap)) / 2), 180px); --orbsize: 44px; --bar: 50px; }
   #board { gap: 6px 8px; }
   /* six narrow slots: the icon, its condition under it, ✕ in the corner, Use / Take on the icon (no names: tap a slot for it) */
   #pack, #pack.open { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; padding: 4px; }
@@ -579,6 +591,6 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   .stat small, .ribbon.main .act .al { display: none; }   /* no room for the names */
 }
 @media (max-height: 500px) and (orientation: landscape) {
-  :root { --clock: 120px; --ap: 128px; }
+  :root { --clock: 120px; }
   #timer { padding: 6px 10px; font-size: 16px; }
 }

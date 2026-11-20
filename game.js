@@ -917,8 +917,9 @@ function render() {
   renderPanel();
 }
 
-// Round clock: 6 wedges, nights (1 & 6) at the top like midnight, a hand that sweeps forward.
-const CLOCK_R = 84, CLOCK_R0 = 30;
+// Round clock: 6 wedges, nights (1 & 6) at the top like midnight, a hand that sweeps forward. Your AP rings it:
+// 12 segments around the outside, two to a round (renderApRing).
+const CLOCK_R = 80, CLOCK_R0 = 30;
 function wedgePath(a0, a1, r0, r1) {
   const P = (a, r) => `${(r * Math.cos(a)).toFixed(2)} ${(r * Math.sin(a)).toFixed(2)}`;
   return `M${P(a0, r1)} A${r1} ${r1} 0 0 1 ${P(a1, r1)} L${P(a1, r0)} A${r0} ${r0} 0 0 0 ${P(a0, r0)}Z`;
@@ -929,7 +930,7 @@ function renderClock() {
   for (let r = 1; r <= 6; r++) {
     const c = wedgeCenterDeg(r) * Math.PI / 180, a0 = c - Math.PI / 6, a1 = c + Math.PI / 6;
     const now = r === G.round;
-    const off = now ? 5 : 0;
+    const off = now ? 3 : 0;
     const icons = Object.keys(CONFIG.upkeep[r] || {}).map((res) => ICON[res]).join('') + (E.attackDue(G, r) ? '🟡' : '');   // a night attack tests your Safety (round 6 only on a bad night)
     const lx = 57 * Math.cos(c), ly = 57 * Math.sin(c);
     s += `<g class="wedge ${isNight(r) ? 'night' : 'day'} ${now ? 'now' : ''}" transform="translate(${(off * Math.cos(c)).toFixed(2)} ${(off * Math.sin(c)).toFixed(2)})">
@@ -1185,7 +1186,22 @@ function apLevel(ap, max) {
   const f = ap / CONFIG.maxAP;
   return ap >= max ? 'full' : f >= 2 / 3 ? 'high' : f >= 1 / 3 ? 'mid' : 'low';
 }
-// Segments above your current max AP are locked (food & water raise / lower the max).
+// Your AP around the outside of the clock: 12 segments from the top, clockwise — lit up to your AP (coloured by
+// apLevel), dim up to your max AP, black beyond it (food, water and hope raise / lower the max).
+function renderApRing(ap, flash, max) {
+  const n = CONFIG.maxAP, step = (2 * Math.PI) / n, gap = 0.03;
+  let s = `<title>${ap} AP (max ${max})</title>`;
+  for (let i = 0; i < n; i++) {
+    const a0 = -Math.PI / 2 + i * step + gap, a1 = a0 + step - gap * 2;
+    s += `<path d="${wedgePath(a0, a1, 86, 98)}" class="seg ${i < ap ? 'on' : i >= max ? 'locked' : ''}"/>`;
+  }
+  $('#apring').innerHTML = s;
+  const clock = $('#clock');
+  clock.classList.remove('full', 'high', 'mid', 'low', 'up', 'down');
+  void clock.getBoundingClientRect();   // restart the pop animation
+  clock.classList.add(apLevel(ap, max), ...(flash ? [flash] : []));
+}
+// The big AP gauge in popups (sleep, max AP lost). Segments above your current max AP are locked.
 function apGauge(ap, flash, max, losing = -1, gaining = -1, losingEnd = losing + 1) {
   const n = CONFIG.maxAP, step = (2 * Math.PI) / n, gap = 0.04;
   let s = '';
@@ -1238,9 +1254,9 @@ function renderPlayers() {
 let prevStats = {};
 function renderStats(p = cur()) {
   const vals = { ...p.res };
-  // AP gets its own big counter in the bottom-left of the board
+  // AP rings the clock (renderApRing)
   const apd = prevStats.ap === undefined ? '' : (p.ap > prevStats.ap || p.maxAP > prevStats.maxAP) ? 'up' : (p.ap < prevStats.ap || p.maxAP < prevStats.maxAP) ? 'down' : '';
-  $('#apbox').innerHTML = apGauge(p.ap, apd, p.maxAP);
+  renderApRing(p.ap, apd, p.maxAP);
   const label = { ap: 'AP', food: 'Food', water: 'Water', fuel: 'Fuel', ammo: 'Ammo' };
   $('#stats').innerHTML = Object.entries(vals).map(([k, v]) => {
     const prev = prevStats[k];
