@@ -518,7 +518,7 @@ test('shotgun: each shot burns 1 ammo and kills up to 3 zombies', () => {
   assert.equal(p.res.ammo, 0);
 });
 
-test('chainsaw: one rev burns 1 fuel and clears the tile (up to 6); −1 condition when drawn', () => {
+test('chainsaw: each rev burns 1 fuel and kills up to 3; −1 condition once per encounter', () => {
   const { S, p } = game();
   p.items.push({ id: 'Chainsaw', cond: 3 });
   p.res.fuel = 5;
@@ -527,10 +527,13 @@ test('chainsaw: one rev burns 1 fuel and clears the tile (up to 6); −1 conditi
   act(S, { type: 'scavenge' });
   assert.equal(p.pending.kind, 'threat');
   assert.ok(E.canSaw(p));
-  decide(S, 'saw');      // one rev: all six
+  decide(S, 'saw');      // one rev: three of them
+  assert.equal(E.tileOf(S, p).zombies, 3);
+  assert.equal(p.res.fuel, 4);
+  decide(S, 'saw');      // and the other three
   assert.equal(p.items[0].cond, 2);
   assert.equal(E.tileOf(S, p).zombies, 0);
-  assert.equal(p.res.fuel, 4);
+  assert.equal(p.res.fuel, 3);
   assert.equal(p.pending, null);
 });
 
