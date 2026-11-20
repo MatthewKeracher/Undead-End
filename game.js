@@ -611,7 +611,7 @@ function tone(freq, dur = 0.05, type = 'square', vol = 0.04, slide = 0) {
   } catch { /* audio unavailable */ }
 }
 // Recorded sounds (assets/), restarted rather than stacked when played again quickly.
-const CLIPS = { chainsaw: 'assets/chainsaw.mp3' }, clipEls = {};
+const CLIPS = { chainsaw: 'assets/chainsaw.mp3', pistol: 'assets/pistol.mp3', shotgun: 'assets/shotgun.mp3' }, clipEls = {};
 function clip(name, volume = 0.7) {
   if (muted) return;
   try {
@@ -625,19 +625,8 @@ const sfx = {
   land: () => tone(140, 0.18, 'triangle', 0.15, -40),
   win: (big) => (big ? [523, 659, 784, 1047] : [523, 659, 784]).forEach((f, i) => setTimeout(() => tone(f, 0.22, 'triangle', 0.07), i * 90)),
   count: () => tone(900, 0.02, 'square', 0.02),
-  shotgun: () => { sfx.gun(); tone(55, 0.4, 'square', 0.14, -25); setTimeout(() => { noise(0.05, 0.25, 2600); setTimeout(() => noise(0.06, 0.25, 1800), 110); }, 420); },   // a heavier boom, then the pump
-  gun: () => {
-    if (muted) return;
-    try {
-      AC ??= new AudioContext();
-      const len = 0.25, buf = AC.createBuffer(1, AC.sampleRate * len, AC.sampleRate), d = buf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 4);
-      const src = AC.createBufferSource(), g = AC.createGain();
-      src.buffer = buf; g.gain.value = 0.35;
-      src.connect(g).connect(AC.destination); src.start();
-      tone(90, 0.15, 'triangle', 0.2, -50);
-    } catch { /* audio unavailable */ }
-  },
+  gun: () => clip('pistol'),        // guns (the Pistol)
+  shotgun: () => clip('shotgun'),   // the blast, then the pump
   // resource sounds: dir = +1 gained, -1 spent
   res: (k, dir) => {
     if (dir < 0) {
