@@ -140,14 +140,15 @@ let held = {};   // tile key → { safety, zombies } to draw instead, while the 
 async function play(events) {
   busy = true;
   // the round is over: grey out the action bar until the next one has started and you can act again
-  $('#actions').classList.toggle('roundover', events.some((ev) => ev.type === 'round'));
+  const over = events.some((ev) => ev.type === 'round');
+  for (const el of [$('#actions'), $('#pack')]) el.classList.toggle('roundover', over);   // the backpack greys out with the actions
   // a night attack later in the batch has already happened in the engine: until it plays, draw its tile as it was before
   held = {};
   for (const ev of events) if (ev.type === 'night') held[ev.k] ??= ev.c.before;
   for (const ev of events) if (ev.player === undefined || ev.player === cur().id) await show(ev);
   busy = false;
   held = {};
-  $('#actions').classList.remove('roundover');
+  for (const el of [$('#actions'), $('#pack')]) el.classList.remove('roundover');
   const d = cur().pending;
   mode = d ? PENDING_MODE[d.kind] ?? null : null;   // whatever was going on (e.g. a drive cut short by the timer) is over
   render();

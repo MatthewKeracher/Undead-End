@@ -217,7 +217,7 @@ body:not(.log-open) #panel { display: none; }
 @container board (max-width: 900px) { #timer { font-size: 20px; gap: 10px; padding: 8px 16px; } #timer .bar { width: 140px; height: 10px; } }
 @container board (max-width: 740px) { #timer .bar { display: none; } }
 #actions > * { pointer-events: auto; }
-#actions.roundover > * { opacity: .35; filter: grayscale(1); pointer-events: none; }
+#actions.roundover > *, #pack.roundover > * { opacity: .35; filter: grayscale(1); pointer-events: none; }
 #actions.roundover .act.sel { animation: none; }
 #actions .note { margin: 0; box-shadow: 0 4px 12px #0008; background: var(--panel-a); border: 1px solid var(--line); }
 .ribbon { display: flex; gap: 6px; padding: 14px 8px 8px; background: var(--panel-a); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px #000a; backdrop-filter: blur(4px); flex-wrap: wrap; justify-content: center; max-width: 100%; }
