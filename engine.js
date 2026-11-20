@@ -1085,7 +1085,7 @@ const Engine = (() => {
     const res = run(S, () => {
       switch (cmd) {
         case 'roll': S.forced.push(...n.filter((v) => typeof v === 'number')); say = `Next rolls forced: ${S.forced.join(', ')}`; break;
-        case 'scavenge':
+        case 'find':   // scavenge, with the rolls forced
           if (busy) { say = 'Busy — deal with what is happening first.'; break; }
           if (p.ap < 1) { say = 'No AP — use ap(n) first.'; break; }
           if (!canScavengeHere(t)) { say = 'Nothing left to scavenge on this tile.'; break; }

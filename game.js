@@ -1466,7 +1466,7 @@ const isBack = (e) => e.key === 'Backspace' || e.key === 'Escape';
 const CHEATS = {
   help: 'list cheats',
   'roll(a,b,…)': 'force the next dice rolls',
-  'scavenge(r[,a,b])': 'scavenge with table roll r (and the amount dice / condition / zombie count)',
+  'find(r[,a,b])': 'scavenge with table roll r (and the amount dice / condition / zombie count)',
   'sleep(n) sleep(a,b)': 'sleep and gain n AP (2–12), or force both dice',
   'fortify(n)': 'fortify with a roll of n',
   'flee(n)': 'force your next flee roll',
