@@ -777,7 +777,7 @@ function bfOpen(k) {
   el.getAnimations().forEach((a) => a.cancel());
   el.hidden = false;
   el.style.background = cur().color;   // its edge: your colour, as your hex is outlined on the map
-  document.body.classList.add('battling');   // everything but the battlefield and the bars goes out of focus
+  document.body.classList.add('battling');   // the board goes out of focus but for the battlefield and the bars
   bfPlace();
   const from = bfFromHex();
   if (from) el.animate([{ transform: from, filter: 'brightness(1.4)' }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2, 1.1, .3, 1)' });
