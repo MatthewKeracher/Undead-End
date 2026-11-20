@@ -831,7 +831,7 @@ function bfDraw(safety, zombies) {
   $('#battle').innerHTML = `<div class="bf-in"><div class="bf-horde">${Array.from({ length: zombies }, (_, i) => bfZed(i)).join('')}</div></div>
     <div class="bf-mid"><div class="bf-die slot"></div></div>
     <div class="bf-safe ${safety > 8 ? 'n9' : safety > 6 ? 'n7' : ''}">${'<i></i>'.repeat(safety)}</div>
-    <div class="bf-you">🧔‍♂️</div>`;
+    <div class="bf-you ${safety ? '' : 'bare'}">🧔‍♂️</div>`;
   bfHordeSize(zombies);
   bfPlace();
 }
@@ -906,6 +906,7 @@ async function bfHide({ k, c }) {
     tone(220 - i * 15, 0.12, 'triangle', 0.1, -80);
     await wait(200);
   }
+  if (!$('#battle .bf-safe i:not(.gone)')) $('#battle .bf-you').classList.add('bare', 'moving');   // no Safety left: you're in the open
   if (c.left) sfx.zombie(); else sfx.win(false);
   await wait(900);
 }
