@@ -112,6 +112,17 @@ const ITEMS = {
   Note: { icon: '📝', hope: true, leads: true, desc: 'Hope: someone went on ahead and left a stash — the place it names is marked in purple on the map. −1 condition each night you lean on it.' },
 };
 
+// The welcome sign on the banner when you first set foot in a village, town or city — each settlement always has the
+// same one (picked by its name). Edit freely.
+const TOWN_SIGNS = [
+  'We hope you have a pleasant stay!',
+  'Please drive carefully.',
+  'A friendly place to call home.',
+  'Come for the views, stay forever.',
+  'Visitors always welcome.',
+  'Where everyone knows your name.',
+];
+
 // What a Note says: {name} (who wrote it, and whose stash waits there) and {place} are filled in. Keep each one
 // short — it's read in a glance.
 const LEADS = {

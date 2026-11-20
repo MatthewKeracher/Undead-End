@@ -197,14 +197,15 @@ async function roundBannerShow({ day, round }) {
   el.hidden = true;
 }
 
-// First steps into a village, town or city: a band across the board names it.
+// First steps into a village, town or city: a band across the board names it, with its welcome sign (TOWN_SIGNS).
+const townSign = (name) => TOWN_SIGNS[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % TOWN_SIGNS.length];
 async function townBannerShow({ name, kind }) {
   const el = $('#roundbanner');
   el.className = 'town';
-  el.innerHTML = `<div class="rb-sub">You have discovered the ${kind} of</div><div class="rb-title">${esc(name)}</div>`;
+  el.innerHTML = `<div class="rb-sub">You have discovered the ${kind} of</div><div class="rb-title">${esc(name)}</div><div class="rb-sign">“${esc(townSign(name))}”</div>`;
   el.hidden = false;
   [392, 494, 587, 784].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'triangle', 0.06), i * 110));
-  await new Promise((res) => { const tm = setTimeout(res, skipAnim ? 0 : 1900); dismissPopup = () => { clearTimeout(tm); res(); }; });
+  await new Promise((res) => { const tm = setTimeout(res, skipAnim ? 0 : 2600); dismissPopup = () => { clearTimeout(tm); res(); }; });
   dismissPopup = null;
   el.hidden = true;
 }
