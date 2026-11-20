@@ -762,7 +762,8 @@ async function sleepShow({ dice, bonus = 0, from, to, max }) {
 }
 
 // ---------------------------------------------------------------- the battlefield
-// An encounter plays out over your hex: the horde (🧟) above your 🟡 Safety, the dice, and what Flee and Hide would do.
+// An encounter plays out in a card over your hex (the bars stay clear): the horde (🧟) above your 🟡 Safety, the dice,
+// and what Flee and Hide would do.
 // It opens as zombies arrive (or you walk in on them) and stays as long as they're there and you're dealing with
 // them — it can't be put away. Every choice is made in the bars: weapons in the backpack (each click, one attack),
 // Flee / Hide in the action bar (and armor, or a ride, when those come up).
@@ -773,18 +774,24 @@ function bfOpen(k) {
   bfPlace();
 }
 function bfClose() { bf.k = null; $('#battle').hidden = true; }
-// over the hex, the hex's size and shape (follows the camera: applyView calls this)
+// centred over the hex (follows the camera: applyView calls this), but kept clear of the bars below
 function bfPlace() {
   const el = $('#battle'), svg = $('#map'), m = svg.getScreenCTM();
   if (!bf.k || el.hidden || !m) return;
   const [x, y] = pix(...bf.k.split(',').map(Number)), b = $('#board').getBoundingClientRect();
-  const p = new DOMPoint(x, y).matrixTransform(m), w = Math.sqrt(3) * HEX * m.a, h = 2 * HEX * m.a;
-  Object.assign(el.style, { left: `${p.x - b.left - w / 2}px`, top: `${p.y - b.top - h / 2}px`, width: `${w}px`, height: `${h}px` });
+  const p = new DOMPoint(x, y).matrixTransform(m), h = el.offsetHeight, gap = 8;
+  const floor = Math.min($('#pack').getBoundingClientRect().top, $('#dock').getBoundingClientRect().top) - b.top - gap;
+  const top = Math.max(gap, Math.min(p.y - b.top - h / 2, floor - h));
+  Object.assign(el.style, { left: `${p.x - b.left}px`, top: `${top}px` });
 }
 const bfZed = '<i class="z">🧟</i>';
 function bfDraw(safety, zombies, info = '') {
-  $('#battle').innerHTML = `<div class="bf-in"><div class="bf-msg"></div><div class="bf-horde">${bfZed.repeat(zombies)}</div>
-    <div class="bf-die slot"></div><div class="bf-safe">${'<i></i>'.repeat(safety)}</div><div class="bf-info">${info}</div></div>`;
+  const t = bf.k && G.tiles[bf.k];
+  $('#battle').innerHTML = `<div class="ptitle"><small>🧟 ${t ? esc(t.def.name) : ''}</small><h2 class="bf-msg"></h2></div>
+    <div class="bf-horde">${bfZed.repeat(zombies)}</div>
+    <div class="bf-mid"><div class="bf-die slot"></div><div class="bf-info">${info}</div></div>
+    <div class="bf-safe">${'<i></i>'.repeat(safety)}</div>`;
+  bfPlace();
 }
 async function bfSay(text, cls = '', ms = 0) {
   const m = $('#battle .bf-msg');
@@ -806,7 +813,7 @@ function renderBattle() {
   if (G.over || !t.zombies || !(fightMode() || mode === 'flee')) { if (!busy) bfClose(); return; }
   bfOpen(k);
   bfDraw(t.safety, t.zombies, bfInfo(p, t));
-  bfSay(`🧟 ${t.zombies} on the ${esc(t.def.name)}`, 'bad');
+  bfSay(`${t.zombies} zombie${t.zombies > 1 ? 's' : ''}`, 'bad');
 }
 // zombies arrive: the die says how many, and in they come, one by one
 async function bfArrive(k, c, title) {
