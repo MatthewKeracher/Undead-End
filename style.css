@@ -455,8 +455,8 @@ body.battling :is(header, #map, #clock, #notes > *, #hint, #stats, #leadmarks, #
 body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (its shadow kept, so it eases in) */
 #battle::before { content: ''; position: absolute; inset: 1.4cqw; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
   background: radial-gradient(circle at 50% 45%, #22301f, #121a10 75%); }
-.bf-in { position: absolute; inset: 9% 10% calc(50% + 12cqw); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; text-align: center; }   /* (the horde: above the die, growing up from it) */
-.bf-horde { --zs: 13cqw; font-size: var(--zs); display: flex; flex-wrap: wrap; justify-content: center; gap: .1em .2em; max-width: 4em; min-height: 1.2em; }   /* (three to a row) */
+.bf-in { position: absolute; inset: 9% 10% calc(50% + 12cqw); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }   /* (the horde: centred in the space above the die) */
+.bf-horde { --zs: 11cqw; font-size: var(--zs); display: flex; flex-wrap: wrap; justify-content: center; gap: .1em .2em; max-width: 4em; min-height: 1.2em; }   /* (three to a row) */
 .bf-horde .z { position: relative; font-style: normal; width: 1.2em; line-height: 1.15; display: inline-block; text-align: center; transition: transform .38s ease-in, opacity .38s ease-in; }
 .bf-horde .z.pop { animation: zpop .3s cubic-bezier(.2, 1.8, .5, 1); }
 .bf-horde .z.shot::after { content: '💥'; position: absolute; left: 50%; top: 45%; translate: -50% -50%; font-size: 1.2em; animation: bang .3s ease-out both; }

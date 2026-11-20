@@ -826,7 +826,7 @@ function bfPlace() {
 const ZEDS = ['🧟', '🧟‍♂️', '🧟‍♀️'], ZED_ORDER = [1, 2, 0, 2, 1, 1, 0, 2, 0, 1, 2, 2, 0, 1, 0];
 const bfZed = (i, cls = 'z') => `<i class="${cls}">${ZEDS[ZED_ORDER[i % ZED_ORDER.length]]}</i>`;
 // in rows of three, smaller once there are more than two rows so a big horde still fits the hex
-const bfHordeSize = (n) => { const rows = Math.ceil(n / 3); $('#battle .bf-horde')?.style.setProperty('--zs', `${Math.min(13, 28 / rows)}cqw`); };
+const bfHordeSize = (n) => { const rows = Math.ceil(n / 3); $('#battle .bf-horde')?.style.setProperty('--zs', `${Math.min(11, 26 / rows)}cqw`); };
 function bfDraw(safety, zombies) {
   $('#battle').innerHTML = `<div class="bf-in"><div class="bf-horde">${Array.from({ length: zombies }, (_, i) => bfZed(i)).join('')}</div></div>
     <div class="bf-mid"><div class="bf-die slot"></div></div>
