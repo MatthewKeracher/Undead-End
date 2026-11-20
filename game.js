@@ -1662,3 +1662,6 @@ let lastTick = performance.now();
 setInterval(() => { const now = performance.now(); tickTimer(now - lastTick); lastTick = now; }, 100);
 
 newGame(['Survivor']);
+
+// Installable as an app (manifest.json + sw.js) — only when served over http(s), not opened as a local file.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
