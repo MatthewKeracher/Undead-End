@@ -667,18 +667,19 @@ async function hexHold(ms) {
   dismissPopup = null;
 }
 
-// Fortifying: the tile comes forward — 🔨 up top, the die in the middle, and its Safety (hollow where there's room)
-// filling a pip at a time.
+// Fortifying: the tile comes forward — you up top with your 🔨; across the middle its Safety, the focus (hollow where
+// there's room), filling a pip at a time; and the die down where the Safety pips sit on the board (as in scavenging).
 async function fortifyShow({ k, r, before, after, max }) {
   skipAnim = false;
   k ??= key(cur().q, cur().r);
   bfOpen(k);
-  bfStage('fortify', `<div class="bf-in"><div class="bf-icon">🔨</div></div><div class="bf-mid"><div class="bf-die slot"></div></div>
-    ${bfSafeHtml(before, max)}${bfYouHtml()}`);
+  bfStage('fortify', `<div class="bf-sleeper">🧔‍♂️<span class="hm">🔨</span></div>
+    <div class="bf-safe line" style="--pd:${Math.min(11, 80 / max - 2.4).toFixed(2)}cqw">${[...Array(max)].map((_, i) => `<i class="${i < before ? '' : 'off'}"></i>`).join('')}</div>
+    <div class="bf-top"><div class="bf-die slot"></div></div>`);
   await wait(150);
   await rollDie($('#battle .bf-die'), r, 900);
   await wait(300);
-  const pips = [...$('#battle .bf-safe').children], hammer = $('#battle .bf-icon');
+  const pips = [...$('#battle .bf-safe').children], hammer = $('#battle .hm');
   for (let i = before; i < after; i++) {
     pips[i].className = 'fill';
     hammer.classList.remove('hit'); void hammer.offsetWidth; hammer.classList.add('hit');

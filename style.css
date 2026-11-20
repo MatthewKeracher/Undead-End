@@ -483,7 +483,6 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
 .bf-safe i.fill { animation: fillpop .35s cubic-bezier(.2, 1.8, .5, 1); }
 .bf-safe i.count { animation: pipcount .3s ease-out; }
 @keyframes pipcount { 50% { scale: 1.45; box-shadow: 0 0 3cqw #f2c94c; } }
-.bf-icon { font-size: 15cqw; line-height: 1; }
 /* sleep: you up top with 💤 drifting off you; the die + your Safety as a die face in the middle; the AP in the bottom third */
 .bf-sleeper { position: absolute; left: 50%; top: 23%; translate: -50% -50%; font-size: 13cqw; line-height: 1; }
 .bf-sleeper .zz { position: absolute; left: 85%; bottom: 60%; font-size: 8cqw; animation: drift 2.4s ease-in-out infinite; }
@@ -496,7 +495,12 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
 .bf-face i.on { background: #f2c94c; box-shadow: 0 0 1.4cqw #f2c94c88; }
 .bf-face i.count { animation: pipcount .3s ease-out; }
 #battle[data-stage="sleep"] .bf-word { top: 80%; }
-#battle[data-stage="fortify"] .bf-icon.hit { animation: hammer .3s ease-out; }
+/* fortify: you up top with the 🔨 beside you; the Safety a line of big pips across the middle; the die low down */
+.bf-sleeper .hm { position: absolute; left: 92%; top: 5%; font-size: 10cqw; transform-origin: 20% 80%; }
+.bf-sleeper .hm.hit { animation: hammer .3s ease-out; }
+.bf-safe.line { top: 50%; gap: 2.4cqw; }
+.bf-safe.line i { width: var(--pd); height: var(--pd); border-width: .7cqw; box-shadow: 0 0 2cqw #f2c94c88; }
+.bf-safe.line i.off { box-shadow: none; }
 @keyframes hammer { 40% { rotate: -35deg; } 70% { rotate: 12deg; } }
 /* scavenging: the tile as it is on the board (an SVG drawn the same way), the die (or the amount / condition dice)
    where its Safety pips sit; what you found over the faded table */
