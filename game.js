@@ -190,8 +190,8 @@ async function roundBannerShow({ day, round }) {
   const el = $('#roundbanner'), night = isNight(round), attack = E.attackDue(G, round), check = G.checksOff ? '' : upkeepText(round);
   const omen = round === 1 && G.badNight ? ' · <b class="omen">🌘 bad night coming</b>' : '';
   el.className = night ? 'night' : 'day';
-  el.innerHTML = `<div class="rb-title">Day ${day} · Round ${round}</div>
-    <div class="rb-sub">${night ? '🌙 Night' : '☀️ Day'}${attack ? ' · night attack' : ''}${check ? ` · check ${check}` : ''}${omen}</div>`;
+  el.innerHTML = `<div class="rb-sky">${night ? '🌙' : '☀️'}</div><div class="rb-title">Day ${day} · Round ${round}</div>
+    <div class="rb-sub">${night ? 'Night' : 'Day'}${attack ? ' · night attack' : ''}${check ? ` · check ${check}` : ''}${omen}</div>`;
   el.hidden = false;
   if (night) tone(110, 0.9, 'sine', 0.1, -30); else [392, 523].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.06), i * 120));
   await new Promise((res) => { const tm = setTimeout(res, skipAnim ? 0 : 1700); dismissPopup = () => { clearTimeout(tm); res(); }; });

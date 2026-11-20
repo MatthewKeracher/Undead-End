@@ -264,6 +264,12 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 #roundbanner.day .rb-title { color: var(--accent); }
 #roundbanner.night .rb-title { color: #b9c6ff; }
 .rb-sub .omen { color: var(--bad); }
+/* the sun or moon, big, in the sky above the middle of the band — rising into place */
+.rb-sky { position: absolute; left: 50%; bottom: calc(100% + 10px); translate: -50% 0; font-size: clamp(48px, 9vw, 84px); line-height: 1;
+  animation: rbsky 1.7s cubic-bezier(.2, .8, .3, 1) both; }
+#roundbanner.day .rb-sky { filter: drop-shadow(0 0 22px #ffcf5acc); }
+#roundbanner.night .rb-sky { filter: drop-shadow(0 0 22px #b9c6ffaa); }
+@keyframes rbsky { 0% { opacity: 0; transform: translateY(24px) scale(.8); } 25% { opacity: 1; transform: none; } 82% { opacity: 1; } 100% { opacity: 0; } }
 .rb-sub { margin-top: 2px; font-size: clamp(13px, 2.4vw, 17px); color: var(--text); opacity: .85; }
 @keyframes rbsweep { 0% { opacity: 0; transform: translate(-30%, -50%); } 18% { opacity: 1; transform: translate(0, -50%); } 82% { opacity: 1; transform: translate(0, -50%); } 100% { opacity: 0; transform: translate(30%, -50%); } }
 #popup { position: absolute; inset: 0; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; background: #0009; backdrop-filter: blur(3px); animation: fade .2s; cursor: pointer; z-index: 5; padding: 16px; }
