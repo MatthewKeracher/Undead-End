@@ -1425,7 +1425,7 @@ const HOTKEYS = { r: 'sleep', s: 'scout', w: 'move', a: 'scavenge', f: 'fortify'
 const DRIVE_KEY = { fuel: 'driveFuel', ap: 'driveAP', water: 'driveWater' };
 const isDriveKey = (name) => Object.values(DRIVE_KEY).includes(name);
 const keyedVehicle = (p, key) => vehiclesHere(p).find((x) => DRIVE_KEY[ITEMS[x.id].uses] === key)?.id;
-const THREAT_KEYS = { e: 'flee', h: 'hide' };   // weapons: 1–6 picks the slot, Enter swings it
+const THREAT_KEYS = { e: 'flee', r: 'hide' };   // weapons: 1–6 picks the slot, Enter swings it
 // Backspace cancels / goes back (Esc still works too, but full-screen Chrome can take it for itself).
 const isBack = (e) => e.key === 'Backspace' || e.key === 'Escape';
 // ---------------------------------------------------------------- cheats (testing)
