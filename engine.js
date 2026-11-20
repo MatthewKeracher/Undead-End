@@ -545,7 +545,8 @@ const Engine = (() => {
   // Zombies on your tile: choose Fight (free to start; gun: 1 ammo/shot, melee: 1 AP/swing) or Flee (1 AP, roll 1d6 > zombies).
   // Repeats until the tile is clear, you escape, or you die.
   // ---------------------------------------------------------------- hope
-  // The night asks for hope: pick a hope item you carry and spend a pip of it. Nothing to hope for: max AP drops.
+  // The night asks for hope: a Note, if you carry one, is leaned on first — no choice (the first in the backpack).
+  // Without one, pick a hope item you carry (Booze, Pills: emergency hope) and spend a pip of it. None: max AP drops.
   const hopeItems = (p) => p.items.filter((it) => ITEMS[it.id].hope && it.cond > 0);
   function trackMaxAP(S, p, res, paid) {
     const oldMax = p.maxAP, oldAp = p.ap;
@@ -608,6 +609,8 @@ const Engine = (() => {
   const STEPS = {
     upkeep,
     hope(S, p) {
+      const note = hopeItems(p).find((it) => ITEMS[it.id].leads);
+      if (note) return spendHope(S, p, note);
       if (hopeItems(p).length) { p.pending = { kind: 'hope' }; return; }
       const oldMax = trackMaxAP(S, p, 'hope', false);
       log(S, `${p.name} has nothing left to hope for. Max AP ${oldMax} → ${p.maxAP}.`, 'bad');

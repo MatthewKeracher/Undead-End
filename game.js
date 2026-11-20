@@ -172,7 +172,7 @@ async function show(ev) {
     case 'repair': return sfx.repair();
     case 'boost': return sfx.win(false);
     case 'hide': await hideShow(ev); return renderMap();
-    case 'hope': return sfx.hope();
+    case 'hope': toast(`${ITEMS[ev.item].icon} You find hope in the ${ev.item}.`); return sfx.hope();
     case 'lead': return leadShow(ev);
     case 'driveStep': sfx.drive(ev.fuel); return render();
     case 'move': renderMap(); return wait(450);   // arrive (the camera glides over) before the round can move on

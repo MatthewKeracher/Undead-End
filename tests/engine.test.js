@@ -834,6 +834,18 @@ test('round 6 asks for hope: you pick a hope item and spend a pip of it', () => 
   assert.equal(p.pending, null);
 });
 
+test('with a Note in the backpack, hope comes from the Note — no choice; Booze and Pills are kept for emergencies', () => {
+  const { S, p } = game({ checksOff: false });
+  p.items.push({ id: 'Booze', cond: 3 }, { id: 'Note', cond: 1, to: '9,9', by: 'Mara' }, { id: 'Pills', cond: 2 });
+  p.maxAP = 8; p.ap = 4;
+  S.round = 5; S.badNight = false;
+  S.forced = [1]; act(S, { type: 'sleep' });
+  assert.equal(S.round, 6);
+  assert.equal(p.pending, null);        // not asked
+  assert.equal(p.items.map((x) => x.id).join(), 'Booze,Pills');   // the Note's last pip: gone
+  assert.equal(p.maxAP, 10);
+});
+
 test('nothing to hope for: max AP −2 (and at 0, you give up)', () => {
   const { S, p } = game({ checksOff: false });
   p.items.push({ id: 'Axe', cond: 3 });
