@@ -334,7 +334,7 @@ async function fleeShow(ev) {
 }
 
 // One round of fighting (the engine has already taken 1 weapon condition). Each attack (Enter) costs 1 ammo (gun),
-// 1 AP (melee) or 1 fuel (chainsaw) and kills 1 zombie (the chainsaw: up to 3). The popup stays open for the whole fight round.
+// 1 AP (melee) or 1 fuel (chainsaw) and kills 1 zombie (the chainsaw: up to 6 — the whole tile). The popup stays open for the whole fight round.
 async function fightPopup(p) {
   const d = p.pending, t = tileOf(p), w = p.items[d.weapon], def = ITEMS[w.id], melee = def.uses === 'ap';
   const left = () => (melee ? p.ap : p.res[def.uses]);

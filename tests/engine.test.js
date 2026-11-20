@@ -449,23 +449,20 @@ test('fight with the weapon you pick from the backpack — if you have what it t
   assert.equal(p.items[2].cond, 4);            // −1 condition for the fight round
 });
 
-test('chainsaw: each rev burns 1 fuel and kills up to 3 zombies; −1 condition per fight round', () => {
+test('chainsaw: one rev burns 1 fuel and clears the tile (up to 6); −1 condition per fight round', () => {
   const { S, p } = game();
   p.items.push({ id: 'Chainsaw', cond: 3 });
   p.res.fuel = 5;
   tile(S, 1, 0, 'Forest');
-  S.forced = [1, 5];           // scavenge: 5 zombies, no Safety → all 5 through
+  S.forced = [1, 6];           // scavenge: 6 zombies, no Safety → all 6 through (the most a tile holds)
   act(S, { type: 'scavenge' });
   assert.equal(p.pending.kind, 'threat');
   assert.ok(E.canSaw(p));
   decide(S, 'saw');
   assert.equal(p.items[0].cond, 2);
-  decide(S, 'attack');
-  assert.equal(E.tileOf(S, p).zombies, 2);
-  assert.equal(p.res.fuel, 4);
-  decide(S, 'attack');   // only 2 left: the rev takes both
+  decide(S, 'attack');   // one rev: all six
   assert.equal(E.tileOf(S, p).zombies, 0);
-  assert.equal(p.res.fuel, 3);
+  assert.equal(p.res.fuel, 4);
   assert.equal(p.pending, null);
 });
 

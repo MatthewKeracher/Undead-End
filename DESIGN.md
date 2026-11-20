@@ -87,7 +87,7 @@ Repeat until the tile is clear, you escape, or you die.
 - **Fight:** pick the weapon **in your backpack** — the ones you can use right now (with the ammo, fuel or AP they take) light up; everything else greys out, and **Flee** is the one button in the middle. **Using an item costs no AP**; the weapon loses **1 condition per fight round** (not per attack). Attack one at a time (**Enter** each): each attack kills 1 zombie. Stop any time (Esc).
   - **Gun (Pistol):** each shot costs **1 ammo** (no AP).
   - **Melee (Axe):** each swing costs **1 AP** — so swinging eats the AP you'd need to flee.
-  - **Chainsaw:** each rev costs **1 fuel** and kills **up to 3 zombies**.
+  - **Chainsaw:** each rev costs **1 fuel** and kills **up to 6 zombies** — a tile holds at most 6, so one rev always clears it.
 - **Flee:** 1 AP. Roll 1d6 — must roll **higher than the number of zombies** (so 6 zombies can't be outrun).
   On success, move to an adjacent **already-scouted** tile with no zombies.
   **On failure:** only **armor** allows a reroll (−1 armor condition, 1 AP). Otherwise you're **caught**: you can't flee again this encounter and must fight —
