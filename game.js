@@ -796,33 +796,38 @@ async function contestAnim(c) {
   $('#popup').classList.add('zombie'); sfx.zombie();
 }
 
-// Hiding: the zombies march left into the 🟡 Safety — the one in front meets the last yellow pip and both go,
-// then the rest march on into the next, until one side runs out. Any left stand where the Safety was.
+// Hiding: the 🟡 Safety and the 🧟 zombies push into each other — the front zombie and the last yellow pip meet in
+// the middle and both go, then the row closes up, centred, and the next pair meet, until one side runs out.
 async function hideShow({ name, c }) {
   const pop = $('#popup');
   skipAnim = false;
   pop.className = '';
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>🛡️ Hiding</small><h2>${esc(name)}</h2></div>
-    <div class="presult" id="pres"><div class="cpips ${c.slots > 8 ? 'many' : ''}">${[...Array(c.slots)].map((_, i) =>
-      `<i class="${i < c.before.safety ? 'on' : i < c.before.safety + c.before.zombies ? 'zed' : ''}"></i>`).join('')}</div><div id="ctext"></div></div>
+    <div class="presult" id="pres"><div class="cpips ${c.before.safety + c.before.zombies > 8 ? 'many' : ''}">${'<i class="on"></i>'.repeat(c.before.safety)}${'<i class="zed"></i>'.repeat(c.before.zombies)}</div><div id="ctext"></div></div>
     <small class="pskip">click or press any key</small></div>`;
   pop.hidden = false;
-  const pips = [...pop.querySelectorAll('.cpips i')];
-  const yellow = pips.slice(0, c.before.safety), zeds = pips.slice(c.before.safety, c.before.safety + c.before.zombies);
-  const slot = pips.length > 1 ? pips[1].offsetLeft - pips[0].offsetLeft : 36;   // one circle's step along the row
-  for (const z of zeds) z.classList.add('march');
+  const row = pop.querySelector('.cpips'), pips = [...row.children];
+  const yellow = pips.slice(0, c.before.safety), zeds = pips.slice(c.before.safety);
+  const slide = (els, ease) => els.forEach((e) => (e.style.transition = `transform .26s ${ease}`));
   await wait(350);
   for (let i = 0; i < c.absorbed; i++) {
-    // the i-th zombie leads now: march everyone still standing until it's on the last yellow pip left
-    const shift = -(2 * i + 1) * slot;
-    for (const z of zeds.slice(i)) z.style.transform = `translateX(${shift}px)`;
-    tone(70 + i * 6, 0.12, 'square', 0.05, -10);   // footsteps
+    const y = yellow.pop(), z = zeds.shift(), half = (z.offsetLeft - y.offsetLeft) / 2;
+    slide([y, z], 'ease-in');
+    y.style.transform = `translateX(${half}px)`; z.style.transform = `translateX(${-half}px)`;   // they meet in the middle…
+    tone(70 + i * 6, 0.12, 'square', 0.05, -10);
     await wait(260);
-    yellow[c.before.safety - 1 - i].className = 'burst';
-    zeds[i].classList.add('gone');
+    y.classList.add('gone'); z.classList.add('gone');   // …and both go
     tone(220 - i * 15, 0.12, 'triangle', 0.1, -80);
-    await wait(180);
+    await wait(220);
+    // the row closes up, centred: slide everyone left from where they were to where they now are
+    const rest = [...yellow, ...zeds], was = rest.map((e) => e.getBoundingClientRect().left);
+    y.remove(); z.remove();
+    rest.forEach((e, j) => { e.style.transition = 'none'; e.style.transform = `translateX(${was[j] - e.getBoundingClientRect().left}px)`; });
+    void row.offsetWidth;
+    slide(rest, 'ease-out');
+    rest.forEach((e) => (e.style.transform = ''));
+    await wait(260);
   }
   $('#ctext').innerHTML = c.left
     ? `<div class="big bad">🧟 ${c.left} still here!</div><small class="muted">🟡 ${c.before.safety} → 0</small>`
