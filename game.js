@@ -667,13 +667,13 @@ async function hexHold(ms) {
   dismissPopup = null;
 }
 
-// Fortifying: the tile comes forward — you up top with your 🔨; across the middle its Safety, the focus (hollow where
+// Fortifying: the tile comes forward — your 🔨 up top, you beside it; across the middle its Safety, the focus (hollow where
 // there's room), filling a pip at a time; and the die down where the Safety pips sit on the board (as in scavenging).
 async function fortifyShow({ k, r, before, after, max }) {
   skipAnim = false;
   k ??= key(cur().q, cur().r);
   bfOpen(k);
-  bfStage('fortify', `<div class="bf-sleeper">🧔‍♂️<span class="hm">🔨</span></div>
+  bfStage('fortify', `<div class="bf-fort"><span class="hm">🔨</span><span class="man">🧔‍♂️</span></div>
     <div class="bf-safe line" style="--pd:${Math.min(11, 80 / max - 2.4).toFixed(2)}cqw">${[...Array(max)].map((_, i) => `<i class="${i < before ? '' : 'off'}"></i>`).join('')}</div>
     <div class="bf-top"><div class="bf-die slot"></div></div>`);
   await wait(150);
