@@ -353,7 +353,8 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 /* Fight or Flee: the choice moves to the middle of the board, bigger, with a red vignette behind it */
 #board.threat::after { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(ellipse at center, #4a000033 0%, #3a000099 100%); animation: fade .3s; }
 #board.threat #notes .note { font-size: 15px; padding: 8px 14px; }
-/* in a fight, Flee and Hide take over the action bar — like the other actions, their odds are in the tooltip */
+/* in a fight, Flee and Hide stand in for Move and Fortify — lit red, the rest greyed; their odds are in the tooltip */
+.ribbon.main.threat .act:not(:disabled) { border-color: var(--bad); background: #3a1a18; box-shadow: 0 0 12px #e86a5a55; }
 
 /* backpack */
 /* right column runs down the board; --dockh (set in game.js) lifts its bottom clear of the action dock when they'd overlap */

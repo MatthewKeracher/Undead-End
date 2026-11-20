@@ -1356,28 +1356,19 @@ function renderActions() {
   const p = cur(), t = tileOf(p);
   const noAP = p.ap < 1;
   $('#board').classList.toggle('threat', mode === 'threat');   // a fight: the board darkens red round the edges
-  // the action bar never goes away: while something else is being decided (hope, where to run) it's just greyed out
-  const waiting = mode === 'hope' || mode === 'flee';
+  // the action bar never goes away: while something else is being decided (hope, where to run, a fight) it's greyed
+  // out — in a fight, Flee and Hide stand in for Move and Fortify, on their keys
+  const fight = mode === 'threat', waiting = mode === 'hope' || mode === 'flee' || fight;
   const btn = (id, label, sub, dis) => {
-    dis ||= waiting;
-    const keys = mode === 'threat' ? THREAT_KEYS : HOTKEYS;
-    const hk = Object.keys(keys).find((k) => keys[k] === id || (ITEMS[id]?.vehicle && keys[k] === DRIVE_KEY[ITEMS[id].uses]));
+    dis ||= waiting && !THREAT_KEYS_ID.has(id);
+    const hk = Object.keys(THREAT_KEYS).find((k) => THREAT_KEYS[k] === id)
+      ?? Object.keys(HOTKEYS).find((k) => HOTKEYS[k] === id || (ITEMS[id]?.vehicle && HOTKEYS[k] === DRIVE_KEY[ITEMS[id].uses]));
     if (dis && selected === id) selected = null;
     // the emoji and the words are separate, so phones and upright tablets can show the emoji alone (title has the rest)
     const [, icon, rest] = label.match(/^(<img[^>]*>|\S+) (.*)$/), words = [rest];   // the emoji (or item picture), then the words
     return `<button class="act ${mode === id ? 'on' : ''} ${selected === id ? 'sel' : ''}" data-act="${id}" title="${esc(`${words.join(' ')} — ${sub}`)}" ${dis ? 'disabled' : ''}><b><span class="ai">${icon}</span><span class="al"> ${words.join(' ')}</span>${hk ? `<kbd>${hk.toUpperCase()}</kbd>` : ''}</b><small>${sub}</small></button>`;
   };
 
-  if (mode === 'threat') {   // fight with a weapon picked in the backpack (renderPack) — or Flee / Hide, which take over the action bar
-    $('#actions').innerHTML = `
-      <div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} on the ${esc(t.def.name)}! ${p.caught ? 'Caught — fight with a weapon from your backpack!' : canFight(p) ? `Pick a weapon from your backpack, flee${t.safety ? ' or hide' : ''}.` : 'Nothing to fight with — if you fail to flee, you die.'}</div>
-      <div class="ribbon main threat">
-        ${btn('flee', '🏃 Flee', p.caught ? 'Caught — must fight' : !fleeAdj(p).length ? 'Nowhere to run' : t.zombies >= 6 ? 'Too many to outrun' : p.ap < 1 ? 'No AP' : `1 AP · roll > ${t.zombies}`, !canFlee(p, t))}
-        ${t.safety ? btn('hide', '🟡 Hide', p.caught ? 'Caught — must fight' : `Free · 🟡 ${t.safety} stops ${Math.min(t.safety, t.zombies)}`, !E.canHide(p, t)) : ''}
-      </div>`;
-    renderLog();
-    return;
-  }
   if (mode === 'drive') {
     const { v, steps, flee } = driving(), uses = vehicleFuel(v);
     $('#actions').innerHTML = `
@@ -1397,16 +1388,19 @@ function renderActions() {
     warn = `<div class="note ${isNight(G.round) ? 'bad' : ''}">🌙 Next round starts with a night attack — 1d6 🧟 vs your 🟡 ${t.safety}${nextUp ? `, then a ${nextUp} check` : ''}.${apWarn}</div>`;
   }
   if (mode === 'hope') warn = `<div class="note hope">🌙 What hope is there? Pick it from your backpack.</div>`;   // (renderPack)
+  if (fight) warn = `<div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} on the ${esc(t.def.name)}! ${p.caught ? 'Caught — fight with a weapon from your backpack!' : canFight(p) ? `Pick a weapon from your backpack, flee${t.safety ? ' or hide' : ''}.` : 'Nothing to fight with — if you fail to flee, you die.'}</div>`;
   if (mode === 'flee') warn = `<div class="note good">🏃 You got away! Press A Q E D X Z or click a highlighted hex to run to.</div>`;
 
   $('#actions').innerHTML = `
     ${warn}
     ${noAP && !waiting ? `<div class="note bad">Out of AP — you must sleep.</div>` : ''}
-    <div class="ribbon main">${byKeyboard([
+    <div class="ribbon main ${fight ? 'threat' : ''}">${byKeyboard([
       ['pause', btn('pause', '⏸ Pause', 'Stop the clock', false)],
       ['sleep', btn('sleep', '😴 Sleep', t.safety ? `Gain 1d6 + ${t.safety} AP (🟡)` : 'Gain 1d6 AP · no 🟡', false)],
       ['scout', btn('scout', '🗺️ Scout', scoutTargets(p).length ? `1 AP · reveal ${E.binocularsOf(p) ? 'up to ' : ''}${scoutTargets(p).length} hex${scoutTargets(p).length === 1 ? '' : 'es'}${E.binocularsOf(p) ? ' (binoculars)' : ''}` : 'All explored', noAP || !scoutTargets(p).length)],
-      ['move', btn('move', '🚶 Move', p.freeMoved ? '1 AP · uses your action' : 'Free move · needs 1 AP', noAP || !moveAdj(p).length)],
+      ['move', fight   // in a fight, Flee stands in for Move (and Hide for Fortify), on the same key
+        ? btn('flee', '🏃 Flee', p.caught ? 'Caught — must fight' : !fleeAdj(p).length ? 'Nowhere to run' : t.zombies >= 6 ? 'Too many to outrun' : p.ap < 1 ? 'No AP' : `1 AP · roll > ${t.zombies}`, !canFlee(p, t))
+        : btn('move', '🚶 Move', p.freeMoved ? '1 AP · uses your action' : 'Free move · needs 1 AP', noAP || !moveAdj(p).length)],
       ['scavenge', btn('scavenge', '🔍 Scavenge', !canScavengeHere(t) ? (t.def.table.length ? 'Picked clean' : 'Nothing to find') : t.zombies ? 'Blocked by zombies' : lootLeft(t) ? `1 AP · ${lootLeft(t)} of 5 left` : '1 AP · only zombies left', noAP || !canScavengeHere(t) || t.zombies > 0)],
       ...Object.keys(ITEMS).filter((id) => ITEMS[id].vehicle && vehiclesHere(p).some((v) => v.id === id)).map((id) => {
         const v = vehicleOf(p, id);
@@ -1415,7 +1409,9 @@ function renderActions() {
         return [DRIVE_KEY[uses], btn(id, `${itemIcon(id)} ${ITEMS[id].verb}`, !driveAdj(p).length ? 'Nowhere to go' : vehicleLeft(p, v) < 1 ? `No ${uses === 'ap' ? 'AP' : uses}` : !E.vehicleFed(p, v) ? `No ${eats}`
           : `1 ${ICON[uses]}/tile · ${eats ? `1 ${ICON[eats]}/trip` : `cond ${v.cond}`}`, !canDrive(p, id))];
       }),
-      ['fortify', btn('fortify', '🔨 Fortify', !canFortifyHere(t) ? "Can't be fortified" : t.zombies ? 'Blocked by zombies' : t.safety >= E.maxSafetyOf(t) ? `Safety full (${E.maxSafetyOf(t)})` : `1 AP · +1d6 🟡 (max ${E.maxSafetyOf(t)})`, noAP || !canFortifyHere(t) || t.zombies > 0 || t.safety >= E.maxSafetyOf(t))],
+      ['fortify', fight
+        ? btn('hide', '🟡 Hide', !t.safety ? 'No 🟡 Safety to hide behind' : p.caught ? 'Caught — must fight' : `Free · 🟡 ${t.safety} stops ${Math.min(t.safety, t.zombies)}`, !E.canHide(p, t))
+        : btn('fortify', '🔨 Fortify', !canFortifyHere(t) ? "Can't be fortified" : t.zombies ? 'Blocked by zombies' : t.safety >= E.maxSafetyOf(t) ? `Safety full (${E.maxSafetyOf(t)})` : `1 AP · +1d6 🟡 (max ${E.maxSafetyOf(t)})`, noAP || !canFortifyHere(t) || t.zombies > 0 || t.safety >= E.maxSafetyOf(t))],
     ])}
     </div>`;
 
@@ -1461,7 +1457,8 @@ const keyX = (action) => KEY_X[Object.keys(HOTKEYS).find((k) => HOTKEYS[k] === a
 const byKeyboard = (pairs) => pairs.sort((a, b) => keyX(a[0]) - keyX(b[0])).map(([, html]) => html).join('');
 const isDriveKey = (name) => Object.values(DRIVE_KEY).includes(name);
 const keyedVehicle = (p, key) => vehiclesHere(p).find((x) => DRIVE_KEY[ITEMS[x.id].uses] === key)?.id;
-const THREAT_KEYS = { e: 'flee', r: 'hide' };   // weapons: 1–6 picks the slot, Enter swings it
+const THREAT_KEYS = { w: 'flee', f: 'hide' };   // in Move's and Fortify's places, on their keys; weapons: 1–6 picks the slot, Enter swings it
+const THREAT_KEYS_ID = new Set(Object.values(THREAT_KEYS));
 // Backspace cancels / goes back (Esc still works too, but full-screen Chrome can take it for itself).
 const isBack = (e) => e.key === 'Backspace' || e.key === 'Escape';
 // ---------------------------------------------------------------- cheats (testing)
