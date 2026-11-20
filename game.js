@@ -824,12 +824,15 @@ function bfPlace() {
 // same ones stay put as others arrive or fall from the end)
 const ZEDS = ['🧟', '🧟‍♂️', '🧟‍♀️'], ZED_ORDER = [1, 2, 0, 2, 1, 1, 0, 2, 0, 1, 2, 2, 0, 1, 0];
 const bfZed = (i, cls = 'z') => `<i class="${cls}">${ZEDS[ZED_ORDER[i % ZED_ORDER.length]]}</i>`;
+// in rows of three, smaller once there are more than two rows so a big horde still fits the hex
+const bfHordeSize = (n) => { const rows = Math.ceil(n / 3); $('#battle .bf-horde')?.style.setProperty('--zs', `${Math.min(11, 28 / rows)}cqw`); };
 function bfDraw(safety, zombies) {
   const t = bf.k && G.tiles[bf.k];
   $('#battle').innerHTML = `<div class="bf-in"><div class="bf-place">${t ? esc(t.def.name) : ''}</div><div class="bf-msg"></div>
     <div class="bf-horde">${Array.from({ length: zombies }, (_, i) => bfZed(i)).join('')}</div>
     <div class="bf-mid"><div class="bf-die slot"></div></div>
     <div class="bf-safe">${'<i></i>'.repeat(safety)}</div></div>`;
+  bfHordeSize(zombies);
   bfPlace();
 }
 async function bfSay(text, cls = '', ms = 0) {
@@ -856,13 +859,14 @@ async function bfArrive(k, c, title) {
   const horde = $('#battle .bf-horde');
   for (let j = 0; j < c.after.zombies - c.before.zombies; j++) {
     horde.insertAdjacentHTML('beforeend', bfZed(horde.children.length, 'z pop'));
+    bfHordeSize(horde.children.length);
     tone(80 + Math.random() * 30, 0.25, 'sawtooth', 0.09, -20);
     await wait(220);
   }
   sfx.zombie();
   await bfSay(`🧟 ${c.after.zombies} ${c.after.safety ? 'at the door!' : 'broke through!'}`, 'bad', 500);
 }
-// one attack: 💥 on each zombie it kills, and down they go
+// one attack: on each zombie it kills, 💥 from a gun or 🩸 from a blade (or a chainsaw), and down they go
 async function bfHit(ev) {
   skipAnim = false;
   const p = cur(), t = tileOf(p), def = ITEMS[ev.weapon];
@@ -870,7 +874,7 @@ async function bfHit(ev) {
   if (!$('#battle .bf-horde')) bfDraw(t.safety, ev.zombies + ev.kills);
   (sfx[def.sound] ?? { ap: sfx.axe, ammo: sfx.gun, fuel: sfx.saw }[ev.uses])();
   const zeds = [...$('#battle .bf-horde').children].slice(-ev.kills);
-  for (const z of zeds) z.classList.add('shot');
+  for (const z of zeds) z.classList.add(def.uses === 'ammo' ? 'shot' : 'cut');
   await wait(260);
   for (const z of zeds) z.classList.add('fall');
   await wait(380);
