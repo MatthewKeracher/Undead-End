@@ -168,11 +168,11 @@ async function show(ev) {
     case 'scavenge': return scavengeShow(ev);
     case 'scout': return revealShow(ev);
     case 'reveal': return revealShow(ev, 900);   // stepped into the unknown
-    case 'night': await bfArrive(ev.k, ev.c, '🌙 Night attack'); delete held[ev.k]; return renderMap();
+    case 'night': await bfArrive(ev.k, ev.c); delete held[ev.k]; return renderMap();
     case 'checks': return renderStats(ev.stats[cur().id]);   // the check's effect (after any night attack)
     case 'maxApLoss': return maxApLossShow(ev);
     case 'flee': return bfFlee(ev);
-    case 'armor': sfx.armor(); return bfSay(`${ITEMS[ev.item].icon} It takes the hit — reroll!`, 'good', 700);
+    case 'armor': sfx.armor(); return wait(700);
     case 'hit': return bfHit(ev);
     case 'repair': return sfx.repair();
     case 'boost': return sfx.win(false);
@@ -621,7 +621,7 @@ async function scavengeShow({ name, rows: table, tries, r, hit, amt, amts, dice,
     $('#pres').innerHTML = `<div class="big bad">🧟 Zombies!</div>`;
     sfx.zombie();
     await popupHold(900);
-    return bfArrive(key(cur().q, cur().r), c, '🧟 Zombies!');
+    return bfArrive(key(cur().q, cur().r), c);
   } else {
     // one die per part of the row (a mix like Food + Water or Truck + Fuel has two)
     const parts = e.parts ?? [e];
@@ -762,8 +762,8 @@ async function sleepShow({ dice, bonus = 0, from, to, max }) {
 }
 
 // ---------------------------------------------------------------- the battlefield
-// An encounter plays out in a card over your hex (the bars stay clear): the horde (🧟) above your 🟡 Safety, the dice,
-// and what Flee and Hide would do.
+// An encounter plays out in a card over your hex (the bars stay clear): the horde (🧟) above your 🟡 Safety, and the
+// dice — no words, it's all shown.
 // It opens as zombies arrive (or you walk in on them) and stays as long as they're there and you're dealing with
 // them — it can't be put away. Every choice is made in the bars: weapons in the backpack (each click, one attack),
 // Flee / Hide in the action bar (and armor, or a ride, when those come up).
@@ -825,34 +825,28 @@ function bfPlace() {
 const ZEDS = ['🧟', '🧟‍♂️', '🧟‍♀️'], ZED_ORDER = [1, 2, 0, 2, 1, 1, 0, 2, 0, 1, 2, 2, 0, 1, 0];
 const bfZed = (i, cls = 'z') => `<i class="${cls}">${ZEDS[ZED_ORDER[i % ZED_ORDER.length]]}</i>`;
 // in rows of three, smaller once there are more than two rows so a big horde still fits the hex
-const bfHordeSize = (n) => { const rows = Math.ceil(n / 3); $('#battle .bf-horde')?.style.setProperty('--zs', `${Math.min(11, 28 / rows)}cqw`); };
+const bfHordeSize = (n) => { const rows = Math.ceil(n / 3); $('#battle .bf-horde')?.style.setProperty('--zs', `${Math.min(13, 36 / rows)}cqw`); };
 function bfDraw(safety, zombies) {
-  const t = bf.k && G.tiles[bf.k];
-  $('#battle').innerHTML = `<div class="bf-in"><div class="bf-place">${t ? esc(t.def.name) : ''}</div><div class="bf-msg"></div>
+  $('#battle').innerHTML = `<div class="bf-in">
     <div class="bf-horde">${Array.from({ length: zombies }, (_, i) => bfZed(i)).join('')}</div>
     <div class="bf-mid"><div class="bf-die slot"></div></div>
     <div class="bf-safe">${'<i></i>'.repeat(safety)}</div></div>`;
   bfHordeSize(zombies);
   bfPlace();
 }
-async function bfSay(text, cls = '', ms = 0) {
-  const m = $('#battle .bf-msg');
-  if (m) { m.className = `bf-msg ${cls}`; m.innerHTML = text; }
-  if (ms) await wait(ms);
-}
 // drawn from the game as it stands — between animations
 function renderBattle() {
   const p = cur(), t = tileOf(p), k = key(p.q, p.r);
   if (G.over || !t.zombies || !(fightMode() || mode === 'flee')) { if (!busy) bfClose(); return; }
   bfOpen(k);
-  bfDraw(t.safety, t.zombies);   // (the heading's only for what's happening: a roll, a hit, an escape)
+  bfDraw(t.safety, t.zombies);
 }
 // zombies arrive: the die says how many, and in they come, one by one
-async function bfArrive(k, c, title) {
+async function bfArrive(k, c) {
   skipAnim = false;
   bfOpen(k);
   bfDraw(c.before.safety, c.before.zombies);
-  await bfSay(title, 'bad', 200);
+  await wait(200);
   await rollDie($('#battle .bf-die'), c.n, 900);
   await wait(250);
   $('#battle .bf-die').innerHTML = '';
@@ -864,7 +858,7 @@ async function bfArrive(k, c, title) {
     await wait(220);
   }
   sfx.zombie();
-  await bfSay(`🧟 ${c.after.zombies} ${c.after.safety ? 'at the door!' : 'broke through!'}`, 'bad', 500);
+  await wait(500);
 }
 // one attack: on each zombie it kills, 💥 from a gun or 🩸 from a blade (or a chainsaw), and down they go
 async function bfHit(ev) {
@@ -880,7 +874,7 @@ async function bfHit(ev) {
   await wait(380);
   zeds.forEach((z) => z.remove());
   renderStats();
-  await bfSay(ev.zombies ? `💥 ${ev.kills} down — ${ev.zombies} left` : '💥 Cleared!', ev.zombies ? '' : 'good', ev.zombies ? 0 : 700);
+  if (!ev.zombies) await wait(700);
 }
 // the flee roll: beat the number of zombies
 async function bfFlee(ev) {
@@ -888,18 +882,18 @@ async function bfFlee(ev) {
   const p = cur(), t = tileOf(p);
   bfOpen(key(p.q, p.r));
   if (!$('#battle .bf-die')) bfDraw(t.safety, ev.zombies);
-  await bfSay(`🏃 Roll more than ${ev.zombies}`, '', 100);
+  await wait(100);
   await rollDie($('#battle .bf-die'), ev.r, 900);
   if (ev.ok) sfx.win(false); else sfx.zombie();
-  await bfSay(ev.ok ? '🏃 Escaped!' : '🧟 Caught!', ev.ok ? 'good' : 'bad', 900);
+  await wait(900);
   $('#battle .bf-die').innerHTML = '';
 }
 // hiding: each zombie drops onto a 🟡 Safety pip and both go, until one side runs out
-async function bfHide({ k, c, auto }) {
+async function bfHide({ k, c }) {
   skipAnim = false;
   bfOpen(k);
   bfDraw(c.before.safety, c.before.zombies);
-  await bfSay(auto ? 'Nothing to fight with — 🟡 hide!' : '🟡 Hiding', '', 300);
+  await wait(300);
   const zeds = [...$('#battle .bf-horde').children], pips = [...$('#battle .bf-safe').children];
   for (let i = 0; i < c.absorbed; i++) {
     const z = zeds[zeds.length - 1 - i], y = pips[pips.length - 1 - i], a = z.getBoundingClientRect(), b = y.getBoundingClientRect();
@@ -912,7 +906,7 @@ async function bfHide({ k, c, auto }) {
     await wait(200);
   }
   if (c.left) sfx.zombie(); else sfx.win(false);
-  await bfSay(c.left ? `🧟 ${c.left} still here!` : '🟡 Safety held!', c.left ? 'bad' : 'good', 900);
+  await wait(900);
 }
 
 function popupInput() {

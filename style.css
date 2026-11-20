@@ -447,7 +447,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 @keyframes leadglow { 50% { filter: drop-shadow(0 0 3px #c084ff55); } }
 #leadmarks { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
 /* the battlefield: the tile come forward — hex-shaped, grown from the tile to fill the open space above the bars
-   (which stay clear). The place, what's happening, the horde, the die, your Safety. Sized off its width (cqw). */
+   (which stay clear). No words: just the horde, the die and your Safety. Sized off its width (cqw). */
 #battle { position: absolute; z-index: 4; pointer-events: none; container-type: size;
   clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: #e86a5a; }   /* (the red: its edge) */
 /* while it's open everything else goes out of focus but the bars (and a toast, if one comes up) */
@@ -457,10 +457,7 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
 #battle::before { content: ''; position: absolute; inset: 1.4cqw; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
   background: radial-gradient(circle at 50% 45%, #22301f, #121a10 75%); }
 .bf-in { position: absolute; inset: 15% 10%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-.bf-place { font-size: 3.6cqw; text-transform: uppercase; letter-spacing: .15em; color: var(--muted); }
-.bf-msg { font-size: 6.5cqw; font-weight: 800; line-height: 1.2; min-height: 1.2em; margin: 1.5cqw 0 3cqw; color: var(--text); }
-.bf-msg.bad { color: #ff8a7a; } .bf-msg.good { color: var(--good); }
-.bf-horde { --zs: 11cqw; font-size: var(--zs); display: flex; flex-wrap: wrap; justify-content: center; gap: .1em .2em; max-width: 4em; min-height: 1.2em; }   /* (three to a row) */
+.bf-horde { --zs: 13cqw; font-size: var(--zs); display: flex; flex-wrap: wrap; justify-content: center; gap: .1em .2em; max-width: 4em; min-height: 1.2em; }   /* (three to a row) */
 .bf-horde .z { position: relative; font-style: normal; width: 1.2em; line-height: 1.15; display: inline-block; text-align: center; transition: transform .38s ease-in, opacity .38s ease-in; }
 .bf-horde .z.pop { animation: zpop .3s cubic-bezier(.2, 1.8, .5, 1); }
 .bf-horde .z.shot::after { content: '💥'; position: absolute; left: 50%; top: 45%; translate: -50% -50%; font-size: 1.2em; animation: bang .3s ease-out both; }
