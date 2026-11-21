@@ -533,16 +533,16 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
 .bf-top .mult { font-size: 6cqw; }
 /* what scavenging found: big, filling the middle of the hex (between the name and the die) — an icon, what it is or
    how many under it, its condition; a mix (Food + Water) side by side, a little smaller */
-.bf-res { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: 84cqw; display: flex; justify-content: center; align-items: center; gap: 6cqw;
+.bf-res { position: absolute; left: 50%; top: 31.7%; translate: -50% 0; width: 84cqw; display: flex; justify-content: center; align-items: flex-start; gap: 6cqw;   /* (the icon's top held in place) */
   text-align: center; font-weight: 900; line-height: 1.15; text-shadow: 0 .5cqw 0 #000, 0 0 3cqw #000; }
 .bf-res:empty { display: none; }
 .bf-res > * { animation: popin .35s cubic-bezier(.2, 1.8, .5, 1); }
 .bf-res .fd { display: flex; flex-direction: column; align-items: center; gap: 1.5cqw; min-width: 0; }
-.bf-res .fi { font-size: 30cqw; line-height: 1; }
+.bf-res .fi { font-size: 30cqw; line-height: 1; margin-bottom: 3.5cqw; }   /* what it is / how many: halfway down to the die */
 .bf-res .fi:empty { display: none; }
 .bf-res .fn { font-size: 9cqw; }
 .bf-res.two .fi { font-size: 20cqw; } .bf-res.two .fn { font-size: 7cqw; }
-.bf-res.bad .fn { font-size: 13cqw; }
+.bf-res.bad { top: 50%; translate: -50% -50%; } .bf-res.bad .fn { font-size: 13cqw; }   /* Nothing: in the middle */
 .bf-res.good { color: #5ee87a; } .bf-res.bad { color: #ff5a4a; } .bf-res.jackpot { color: var(--accent); }
 .bf-res small { display: block; font-size: 5cqw; font-weight: 600; color: var(--text); }
 .bf-res .cond { gap: 1.2cqw; } .bf-res .cond i { width: 5cqw; height: 5cqw; }
