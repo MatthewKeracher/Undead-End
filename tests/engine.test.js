@@ -1439,7 +1439,7 @@ test('milieus: suburbs wreath towns and cities; industry by the mountains and wa
 });
 
 test('item(chopper) parks a Helicopter: it flies on fuel like a vehicle, and reveals all within 2 as it goes', () => {
-  assert.ok(!TILES.some((t) => t.table.some((e) => e.item === 'Helicopter' || e.parts?.some((x) => x.item === 'Helicopter'))));   // cheat only
+  assert.deepEqual(TILES.filter((t) => t.table.some((e) => e.item === 'Helicopter' || e.parts?.some((x) => x.item === 'Helicopter'))).map((t) => t.name).join(), 'Helipad');   // only on a Helipad
   const { S, p } = game();
   E.cheat(S, 0, 'item', ['chopper']);
   const heli = E.tileOf(S, p).vehicles.find((v) => v.id === 'Helicopter');
@@ -1447,7 +1447,9 @@ test('item(chopper) parks a Helicopter: it flies on fuel like a vehicle, and rev
   assert.equal(ITEMS.Helicopter.uses, 'fuel');
   tile(S, 1, 0, 'Forest');
   p.res.fuel = 5;
-  act(S, { type: 'drive', vehicle: 'Helicopter' });
+  const off = act(S, { type: 'drive', vehicle: 'Helicopter' }).events.find((e) => e.type === 'reveal');
+  assert.ok(off && off.tiles.length > 0 && S.tiles['0,2'] && S.tiles['-2,0'], 'taking off: all within 2 seen');
+  assert.equal(p.res.fuel, 5);          // (no fuel till it moves)
   const { events } = decide(S, { q: 1, r: 0 });
   assert.equal(p.res.fuel, 4);          // 1 fuel per hex
   const seen = events.find((e) => e.type === 'reveal');
@@ -1457,4 +1459,63 @@ test('item(chopper) parks a Helicopter: it flies on fuel like a vehicle, and rev
   }
   decide(S, 'stop');
   assert.equal(E.tileOf(S, p).vehicles[0].cond, 5);   // −1 a trip
+});
+
+test('a Helicopter flies over Mountains — but can\'t land on one, or fly onto one without the fuel to get off it', () => {
+  const { S, p } = game();
+  tile(S, 1, 0, 'Mountain'); tile(S, 2, 0, 'Forest');
+  const t = E.tileOf(S, p);
+  t.vehicles.push({ id: 'Truck', cond: 6 }, { id: 'Helicopter', cond: 6 });
+  p.res.fuel = 5;
+  act(S, { type: 'drive', vehicle: 'Truck' });
+  assert.match(decide(S, { q: 1, r: 0 }).error, /Can't drive/);   // a Truck can't
+  decide(S, 'stop');
+  act(S, { type: 'drive', vehicle: 'Helicopter' });
+  assert.ok(!decide(S, { q: 1, r: 0 }).error);
+  assert.deepEqual([p.q, p.r], [1, 0]);   // over the Mountain
+  assert.match(decide(S, 'stop').error, /can't land/);
+  E.timeUp(S);
+  assert.equal(p.pending?.kind, 'drive');   // time up in the air: on till it lands
+  decide(S, { q: 2, r: 0 });
+  assert.equal(p.pending, null);          // …and landed, the time up has its say
+  assert.deepEqual([p.q, p.r], [2, 0]);
+  // with 1 fuel, it won't fly onto a Mountain
+  const { S: S2, p: p2 } = game();
+  tile(S2, 1, 0, 'Mountain');
+  E.tileOf(S2, p2).vehicles.push({ id: 'Helicopter', cond: 6 });
+  p2.res.fuel = 1;
+  E.act(S2, 0, { type: 'drive', vehicle: 'Helicopter' });
+  assert.match(E.act(S2, 0, { type: 'decide', choice: { q: 1, r: 0 } }).error, /Not enough fuel/);
+});
+
+test('pilot(): a Helicopter parked on your tile (full condition), and full fuel', () => {
+  const { S, p } = game();
+  p.res.fuel = 2;
+  assert.match(E.cheat(S, 0, 'pilot', []).say, /Helicopter/);
+  assert.ok(E.tileOf(S, p).vehicles.some((v) => v.id === 'Helicopter' && v.cond === 6));
+  assert.equal(p.res.fuel, 18);
+});
+
+test('a Helipad (Helicopter, Tool, Fuel, Ammo) is only ever beside a Fuel Depot or a Hospital — and not often', () => {
+  const pad = def('Helipad');
+  assert.equal(pad.count, 0);
+  assert.equal(pad.table.map((e) => (e.random ? 'Random' : E.cellText(e))).join(), 'Zombies,Helicopter,Random,Tool,Fuel,Ammo');
+  let pads = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    CONFIG.testStartPlace = 'Fuel Depot';
+    const S = E.createGame({ seed });
+    CONFIG.testStartPlace = '';
+    const n = E.neighbors(0, 0).filter(([q, r]) => S.planned[`${q},${r}`] === 'Helipad').length;
+    assert.ok(n <= 1);
+    pads += n;
+  }
+  assert.ok(pads > 5 && pads < 30, `${pads} of 60 Fuel Depots have a Helipad`);   // about 1 in 4
+  for (let seed = 1; seed <= 30; seed++) {
+    const S = explore(seed, 7);
+    for (const [k, t] of Object.entries(S.tiles)) {
+      if (t.def.name !== 'Helipad') continue;
+      const [q, r] = k.split(',').map(Number);
+      assert.ok(E.neighbors(q, r).some(([a, b]) => ['Fuel Depot', 'Hospital'].includes(S.tiles[`${a},${b}`]?.def.name ?? S.planned[`${a},${b}`])), `Helipad at ${k} alone`);
+    }
+  }
 });

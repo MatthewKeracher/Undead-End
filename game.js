@@ -135,7 +135,7 @@ async function send(action) {
   mode = null;
   const was = !!driving();
   const res = E.act(G, cur().id, action);
-  if (!was && carTrip()) carStart();   // a trip in a car begins (to go, or to escape): it starts up
+  if (!was && tripSounds()) engineStart();   // a trip in a car or Helicopter begins (to go, or to escape): it starts up
   if (driving()) mode = 'drive';   // a trip still under way keeps its bar (Stop here) up while the step plays — a town banner and all
   if (res.error) { toast(res.error); return render(); }
   await play(res.events);
@@ -187,7 +187,7 @@ async function show(ev) {
     case 'lead': return leadShow(ev);
     case 'driveStep': sfx.drive(ev.fuel, ev.vehicle); hushRes = ev.fuel; render(); setTimeout(() => (hushRes = null)); return;   // (its own sound, not the fuel's too)
     case 'move': renderMap(); return wait(450);   // arrive (the camera glides over) before the round can move on
-    case 'outOfFuel': if (ev.fuel === 'fuel') clip('carNoGas');
+    case 'outOfFuel': if (ITEMS[ev.vehicle].tripSounds?.out) clip(ITEMS[ev.vehicle].tripSounds.out);
       return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'ap' ? 'AP' : ev.fuel} — stopping here.`);
     case 'die': tone(200, 1.4, 'sawtooth', 0.12, -170); await bfRush(); return bfClose();
     case 'round': if (noteBatch >= 0 && noteBatch !== batchNo) noteCardOff(); return roundBannerShow(ev);
@@ -508,7 +508,7 @@ function clickHex(q, r) {
   // unexplored hexes (no tile yet) are fair game: they're revealed as you arrive
   if (mode === 'move' && (!t || canEnter(p, t))) send({ type: 'move', q, r });
   else if (mode === 'flee' && (!t || (passable(t) && !t.zombies))) send({ type: 'decide', choice: { q, r } });
-  else if (mode === 'drive' && (!t || passable(t))) send({ type: 'decide', choice: { q, r } });
+  else if (mode === 'drive' && (!t || passable(t) || E.flying(p))) send({ type: 'decide', choice: { q, r } });   // (a Helicopter: over Mountains too)
 }
 
 // New locations: they appear one after another around you, then pause so the player can take them in.
@@ -565,7 +565,7 @@ function tone(freq, dur = 0.05, type = 'square', vol = 0.04, slide = 0) {
 // Recorded sounds (assets/), restarted rather than stacked when played again quickly.
 const CLIPS = { axe: 'assets/axe.mp3', chainsaw: 'assets/chainsaw.mp3', groan: 'assets/groan.mp3', pistol: 'assets/pistol.mp3', shotgun: 'assets/shotgun.mp3',
   carstart: 'assets/carstart.mp3', carDriving: 'assets/carDriving.mp3', carNoGas: 'assets/carNoGas.mp3',
-  helicopter: 'assets/helicopter.mp3', horse: 'assets/horse.mp3' }, clipEls = {};
+  helicopter: 'assets/helicopter.mp3', helicopterStarting: 'assets/helicopterStarting.mp3', horse: 'assets/horse.mp3' }, clipEls = {};
 function clip(name, volume = 0.7) {
   if (muted) return;
   try {
@@ -597,9 +597,10 @@ const sfx = {
   hope: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.5, 'sine', 0.05), i * 160)),   // a music-box rise
   repair: () => [0, 110, 220].forEach((d, i) => setTimeout(() => { noise(0.05, 0.2, 3000); tone(900 + i * 200, 0.05, 'square', 0.03); }, d)),
   armor: () => { noise(0.12, 0.35, 900); tone(180, 0.2, 'square', 0.1, -60); setTimeout(() => tone(1200, 0.25, 'triangle', 0.04, -300), 60); },
-  // one light sound a step, so a trip runs on: two hoof-clops, a freewheel's ticks (a car's engine is running already:
-  // syncCar), a helicopter's rotor whup-whup
-  drive: (kind, vehicle) => ITEMS[vehicle]?.moveSound ? moving(ITEMS[vehicle].moveSound)   // its own recording (the Helicopter, the Horse)
+  // one sound a step, so a trip runs on: the Horse's hooves, a freewheel's ticks (a car's or the Helicopter's engine
+  // runs the whole trip: syncCar)
+  drive: (kind, vehicle) => ITEMS[vehicle]?.moveSound ? moving(ITEMS[vehicle].moveSound)   // its own recording (the Horse)
+    : ITEMS[vehicle]?.tripSounds ? undefined   // (a car's or the Helicopter's engine is running already: syncCar)
     : kind === 'fuel' ? undefined
     : kind === 'water'
       ? [0, 140].forEach((d, i) => setTimeout(() => { noise(0.04, 0.07, 1800); tone(i ? 520 : 680, 0.04, 'square', 0.025); }, d))
@@ -610,25 +611,36 @@ const sfx = {
   groan: () => {},   // the start of every zombie encounter — silenced for now (assets/groan.mp3: clip('groan', 0.8)) till a better sound's found
 };
 
-// A car (any fuel vehicle): it starts up as the trip begins, its engine runs on a loop while the trip lasts (hushed while
-// muted or paused), and it fades out as you stop — or splutters, out of fuel (carNoGas, with the outOfFuel event).
-const carTrip = () => !!driving() && vehicleFuel(driving().v) === 'fuel' && !ITEMS[driving().v.id].flies;   // (not the Helicopter)
-let engineOn = false, carTimer = null, carFade = null;
-function carStart() {
+// A car or the Helicopter (tripSounds in ITEMS): it starts up as the trip begins; a second before the start-up ends
+// its engine fades in underneath and runs on a loop while the trip lasts (hushed while muted or paused); it fades out
+// as you stop — or splutters, out of fuel (tripSounds.out, with the outOfFuel event).
+const tripSounds = () => (driving() ? ITEMS[driving().v.id].tripSounds : null);
+const ENGINE_VOL = 0.5, BLEND = 1;   // the loop's volume; seconds of overlap as the start-up hands over to it
+let engineOn = false, engineName = null, carTimer = null, carFade = null;
+function engineStart() {
+  const s = tripSounds();
   clearTimeout(carTimer);
   engineOn = false;
-  clip('carstart');
-  carTimer = setTimeout(() => { engineOn = true; syncCar(); }, 4300);   // the engine takes over just before the start-up ends
+  if (engineName && engineName !== s.loop) syncCar();   // (another vehicle's engine still running: it goes)
+  engineName = s.loop;
+  clip(s.start);
+  const a = clipEls[s.start], left = () => (a && isFinite(a.duration) ? a.duration - a.currentTime : 5) - BLEND;
+  const handOver = () => { carTimer = setTimeout(() => { engineOn = true; syncCar(); }, Math.max(0, left()) * 1000); };
+  if (a && !isFinite(a.duration)) a.addEventListener('loadedmetadata', () => { clearTimeout(carTimer); handOver(); }, { once: true });
+  handOver();
 }
 function syncCar() {
-  if (!carTrip()) engineOn = false;
-  if (!engineOn && !clipEls.carDriving) return;   // (not loaded till a car first runs)
-  const a = (clipEls.carDriving ??= Object.assign(new Audio(CLIPS.carDriving), { preload: 'auto', loop: true }));
-  if (engineOn && !muted && !paused) {
-    if (carFade) { clearInterval(carFade); carFade = null; }
-    if (a.paused) { a.volume = 0.5; a.play().catch(() => { /* not allowed yet, or unavailable */ }); }
-    else a.volume = 0.5;
-  } else if (!a.paused && !carFade) {
+  if (!tripSounds()) engineOn = false;
+  if (!engineName || (!engineOn && !clipEls[engineName])) return;   // (not loaded till one first runs)
+  const a = (clipEls[engineName] ??= Object.assign(new Audio(CLIPS[engineName]), { preload: 'auto', loop: true }));
+  clearInterval(carFade); carFade = null;
+  if (engineOn && !muted && !paused) {   // fade in (over BLEND), or up again
+    if (a.paused) { a.volume = 0; a.play().catch(() => { /* not allowed yet, or unavailable */ }); }
+    carFade = setInterval(() => {
+      a.volume = Math.min(ENGINE_VOL, a.volume + ENGINE_VOL / (BLEND * 1000 / 30));
+      if (a.volume >= ENGINE_VOL) { clearInterval(carFade); carFade = null; }
+    }, 30);
+  } else if (!a.paused) {
     carFade = setInterval(() => {   // ~0.3 s fade, then stop
       a.volume = Math.max(0, a.volume - 0.05);
       if (!a.volume) { clearInterval(carFade); carFade = null; a.pause(); }
@@ -1308,7 +1320,7 @@ function renderMap() {
     const danger = t.def.table.filter((e) => e.zombies).length;
     const isHere = q === p.q && r === p.r;
     const town = G.towns?.[t.town], townLabel = town ? `${town.name} (${town.kind})` : '';
-    const target = adj.has(k) && ((mode === 'move' && canEnter(p, t)) || (mode === 'flee' && passable(t) && !t.zombies) || (mode === 'drive' && passable(t)));
+    const target = adj.has(k) && ((mode === 'move' && canEnter(p, t)) || (mode === 'flee' && passable(t) && !t.zombies) || (mode === 'drive' && (passable(t) || E.flying(p))));
     const g = `<g class="hex tile d${Math.min(danger, 4)} ${t.def.table.length ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${justRevealed.includes(k) ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''} ${town ? 'town' : ''} ${E.leadOpen(t) ? 'lead' : ''}" data-k="${k}" ${justRevealed.includes(k) ? `style="--i:${justRevealed.indexOf(k)}"` : ''}>
       <polygon points="${hexPoints(x, y, HEX - (isHere ? 4 : 2))}" ${isHere ? `style="stroke:${p.color}"` : ''}/>
       ${isHere ? `${town ? `<text x="${x}" y="${y - HEX * 0.72}" class="townname">${esc(town.name)}</text>` : ''}<text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>${tableSvg(x, y + 4, t)}`
@@ -1481,7 +1493,7 @@ function renderActions() {
     const { v, steps, flee } = driving();
     $('#actions').innerHTML = `
       ${t.zombies ? `<div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} here — stopping on this tile triggers them!</div>` : ''}
-      <div class="ribbon">${btn('stopdrive', '⏹ Stop here', flee && !steps ? 'Pick a hex first' : 'Enter / Backspace', flee && !steps)
+      <div class="ribbon">${btn('stopdrive', '⏹ Stop here', flee && !steps ? 'Pick a hex first' : !passable(t) ? "Can't land here" : 'Enter / Backspace', (flee && !steps) || !passable(t))
         .replace('</button>', `<span class="vehtag">${itemIcon(v.id)}${ITEMS[v.id].animal ? '' : condPips(v.cond, v.id)}</span></button>`)}</div>`;   // what you're in, on the right (an animal has no condition)
     renderLog();
     return;
@@ -1576,6 +1588,7 @@ const CHEATS = {
   'zombies(n)': 'set zombies on your tile (fight/flee if > 0)',
   'safety(n)': 'set your tile\'s Safety',
   'item(name[,cond])': 'add an item (vehicles park on your tile; item(chopper): a Helicopter)',
+  'pilot()': 'a Helicopter parked on your tile, and full fuel (18)',
   'Bubba()': '+25 of each resource (up to 18; the rest is left on your tile), a Shotgun and an Axe, and a Truck parked on your tile',
   'ap(n) maxap(n) food(n) water(n) fuel(n) ammo(n)': 'set a value',
   'round(n) day(n)': 'jump the clock (no checks run)',

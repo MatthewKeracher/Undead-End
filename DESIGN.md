@@ -141,7 +141,7 @@ Repeat until the tile is clear, you escape, or you die. The whole **encounter pl
     | 🚒 Fire Engine | fuel | Fire Station |
     | 🚲 Bike | pedal (AP) | Campsite, Post Office |
     | 🐎 Horse | animal (water + food) | Barn (on a farm) |
-    | 🚁 Helicopter | fuel — and flies: each hex you fly into reveals all within 2, as Binoculars see (Mountains still block the view — and, for now, it can't fly over them either) | nowhere yet — the cheat `item(chopper)` |
+    | 🚁 Helicopter | fuel — and flies: taking off, and each hex you fly into, reveals all within 2, as Binoculars see (Mountains still block the view). It **flies over Mountains** but can't land on one: no stopping there, no flying onto one without fuel to get off it, and time up in the air waits till it lands | the **Helipad** (rare) — or the cheats `item(chopper)`, `pilot()` |
   - Keys: **E** drives the fuel vehicle parked here, **B** rides the pedal one, **H** the animal.
 - **Radio** *(multiplayer, planned)*: talk to players **not on your tile** (same-tile voice is the default). Details in `MULTIPLAYER.md`.
 - **Tools** (e.g. the **Tool**): have a condition like any item. Can be used **at any time, for free**, to transfer any amount of their condition to another item (max 6 condition). At 0 condition the tool is destroyed. Tool found at the Hardware Store, Garage, Quarry, Fuel Depot, Graveyard and Post Office *(placeholder)*.
@@ -192,6 +192,7 @@ Repeat until the tile is clear, you escape, or you die. The whole **encounter pl
     - **Towns and cities: the suburbs** (`group: 'suburbs'`) — 🏡 **Cottages**, 🏪 **Corner Shops** and ⛳ **Golf Courses**, mixed together in the same stretches, wreathing it (about 2–3 stretches round a town, 4–5 round a city).
 - **Milieus — places come together, not alone** (see `QUESTIONS.md`, Placement). Besides farms, castles, suburbs and village edges:
   - **Industry:** a **Quarry** comes beside a Mountain range (60% of them), a **Fuel Depot** beside a Wasteland belt (50%) — `with:` in `locations.js`. Neither is found anywhere else.
+  - **Helipad** 🛬 (Helicopter, Tool, Fuel, Ammo): now and then beside a **Fuel Depot** (25%) or a city's **Hospital** (30%, where there's room) — never alone. A settlement's places get their surroundings planned as it's founded, before its edge land.
   - **Orchards** only by farms, castles and villages. **Fields** only round farms. **Graveyards** are built in villages, towns and cities (with the Church), never alone.
   - The **Bank** has nothing to scavenge — just the strongest walls in the city. The **Castle** has almost nothing — and walls to match.
 - **Mountain** tiles are **impassable wasteland**: nobody can move, flee or drive onto or through them. Scouting still reveals them, so they shape the map. They come in **ranges**: a fresh one runs 1–3 more hexes off each way in a rough line (bending now and then), with about a quarter of those left as **passes** — ordinary places to get through (`spread: 'range'`, `CONFIG.rangeArm`, `rangeGap`, `rangeTurn`). About 10% of the land. Belts and ranges don't merge: a hex next to one can't start another of the same kind.

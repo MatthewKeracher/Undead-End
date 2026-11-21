@@ -69,7 +69,9 @@ const Engine = (() => {
   // Impassable tiles (e.g. Mountain) can't be moved, fled or driven onto.
   const passable = (t) => !!t && t.def.passable;
   // Moving, driving and fleeing can head into unexplored hexes too: they're revealed as you enter (see enterHex).
-  const driveAdj = (S, p) => neighbors(p.q, p.r).filter(([q, r]) => { const t = S.tiles[key(q, r)]; return !t || passable(t); });
+  // A Helicopter flies over anything — a Mountain too — though it can't land on one (see driveStep, DECISIONS.drive).
+  const driveAdj = (S, p, v = p.pending?.v) => neighbors(p.q, p.r).filter(([q, r]) => { const t = S.tiles[key(q, r)]; return !t || passable(t) || !!(v && ITEMS[v.id].flies); });
+  const flying = (p) => p.pending?.kind === 'drive' && !!ITEMS[p.pending.v.id].flies;
   // A weapon's `uses` says what each attack spends: 'ammo' (gun: 1 ammo per shot) or 'ap' (melee: 1 AP per swing).
   // With several of the same kind, the one with the lowest condition is used first.
   const weaponOf = (p, uses) => p.items
@@ -136,7 +138,7 @@ const Engine = (() => {
   const vehicleFed = (p, v) => !ITEMS[v.id].eats || p.res[ITEMS[v.id].eats] >= 1;   // an animal won't set off hungry
   const runs = (v) => ITEMS[v.id].animal || v.cond > 0;
   const vehicleOf = (S, p, id) => (tileOf(S, p).vehicles || []).filter((v) => v.id === id && runs(v)).sort((a, b) => (a.cond ?? 0) - (b.cond ?? 0))[0];
-  const canRide = (S, p, v) => vehicleLeft(p, v) > 0 && vehicleFed(p, v) && driveAdj(S, p).length > 0;
+  const canRide = (S, p, v) => vehicleLeft(p, v) > 0 && vehicleFed(p, v) && driveAdj(S, p, v).length > 0;
   const canDrive = (S, p, id) => { const v = vehicleOf(S, p, id); return !!v && canRide(S, p, v); };
   const parked = (id, cond) => (ITEMS[id].animal ? { id } : { id, cond });
 
@@ -193,7 +195,7 @@ const Engine = (() => {
     S.tiles[k] = newTile(S, def);
     if (S.townOf[k] !== undefined) S.tiles[k].town = S.townOf[k];
     if (!plan && def.spread) spread(S, q, r, def);   // a fresh Wasteland or Mountain grows its shape
-    if (def.around.length) surround(S, q, r, def);   // a Farmhouse: its Barn and Fields
+    if (def.around.length && !founded) surround(S, q, r, def);   // a Farmhouse: its Barn and Fields (a new settlement's: done as it was founded)
     const town = S.towns[S.townOf[k]];
     if (founded) log(S, `🏘️ ${def.icon} ${def.name}: the edge of ${town.kind === 'village' ? 'the village' : town.kind === 'town' ? 'the town' : 'the city'} of ${town.name}.`, 'phase');
     return { k, name: def.name, icon: def.icon, ...(town && { town: town.name, kind: town.kind }) };
@@ -241,6 +243,8 @@ const Engine = (() => {
       S.townOf[key(a, b)] = id;
       if (i) S.planned[key(a, b)] = places[i % places.length].name;
     });
+    // what comes with its places (around: — a Hospital's Helipad) is planned now, before the edge land claims the room
+    hexes.forEach(([a, b], i) => { const d = places[i % places.length]; if (d.around.length) surround(S, a, b, d); });
     edges(S, hexes, kind);
     return { id, first: places[0] };
   }
@@ -279,8 +283,8 @@ const Engine = (() => {
   function surround(S, q, r, def) {
     const around = neighbors(q, r), from = Math.floor(rand(S) * 6);
     const open = [0, 1, 2, 3, 4, 5].map((i) => around[(from + i) % 6]).filter(([a, b]) => !S.tiles[key(a, b)] && !S.planned[key(a, b)]);
-    for (const { name, lo, hi } of def.around) {
-      for (let n = lo + Math.floor(rand(S) * (hi - lo + 1)); n > 0 && open.length; n--) S.planned[key(...open.shift())] = name;
+    for (const { name, lo, hi, extra } of def.around) {
+      for (let n = lo + Math.floor(rand(S) * (hi - lo + 1)) + (extra && rand(S) < extra ? 1 : 0); n > 0 && open.length; n--) S.planned[key(...open.shift())] = name;
     }
   }
   // Room for a shape to start here? A belt needs two touching unexplored neighbours (a triangle at least);
@@ -340,14 +344,15 @@ const Engine = (() => {
   }
   // Stepping into a hex (on foot, by vehicle or fleeing): an unexplored one is revealed as you arrive.
   // Returns its tile — or null if it turned out to be impassable (you stay put).
-  function enterHex(S, p, q, r) {
+  // (over: flying — a Mountain doesn't block the way)
+  function enterHex(S, p, q, r, over = false) {
     let t = S.tiles[key(q, r)];
     if (!t) {
       const found = reveal(S, q, r);
       t = S.tiles[found.k];
       log(S, `${p.name} heads into the unknown and finds ${/^[aeiou]/i.test(found.name) ? 'an' : 'a'} ${found.icon} ${found.name}.`);
       emit(S, { type: 'reveal', player: p.id, tiles: [found] });
-      if (!passable(t)) { log(S, `${found.icon} The ${found.name} blocks the way.`, 'bad'); return null; }
+      if (!passable(t) && !over) { log(S, `${found.icon} The ${found.name} blocks the way.`, 'bad'); return null; }
     }
     return t;
   }
@@ -433,7 +438,7 @@ const Engine = (() => {
       if (S.timesUp) {
         for (const p of S.players) {
           const d = p.pending;
-          if (!p.dead && d?.kind === 'drive' && !(d.flee && !d.steps)) {
+          if (!p.dead && d?.kind === 'drive' && !(d.flee && !d.steps) && passable(tileOf(S, p))) {   // (not in the air over a Mountain: on till it lands)
             log(S, `⏱️ Time's up — ${p.name} stops the ${ITEMS[d.v.id].icon} ${d.v.id} here.`, 'bad');
             endDrive(S, p);
             progressed = true;
@@ -740,21 +745,28 @@ const Engine = (() => {
     const t = tileOf(S, p), v = vehicleOf(S, p, id);
     t.vehicles.splice(t.vehicles.indexOf(v), 1);   // the vehicle travels with you
     p.pending = { kind: 'drive', v, steps: 0, flee: fleeing };
+    if (ITEMS[id].flies) liftView(S, p);   // up in the air: you see around you straight away
+  }
+  // From a Helicopter: all within 2 (as Binoculars see), revealed — as it takes off, and as it flies over.
+  function liftView(S, p) {
+    const seen = scoutTargets(S, p, true).map(([a, b]) => reveal(S, a, b));
+    if (seen.length) emit(S, { type: 'reveal', player: p.id, tiles: seen });
   }
   function driveStep(S, p, q, r) {
     const d = p.pending;
     if (!isAdjacent(p, q, r) || vehicleLeft(p, d.v) < 1) return "Can't drive there.";
-    const t = enterHex(S, p, q, r);
+    const fly = !!ITEMS[d.v.id].flies, there = S.tiles[key(q, r)];
+    // flying over a Mountain needs fuel to get off it again: you can't land on one
+    if (fly && there && !passable(there) && vehicleLeft(p, d.v) < 2) return `Not enough ${vehicleFuel(d.v)} to get over the ${there.def.name} — you can't land on it.`;
+    const t = enterHex(S, p, q, r, fly);
     if (!t) return;   // blocked by a Mountain: pick another way
-    if (!passable(t)) return "Can't drive there.";
+    if (!passable(t) && !fly) return "Can't drive there.";
+    if (!passable(t) && vehicleLeft(p, d.v) < 2) return `Not enough ${vehicleFuel(d.v)} to get over the ${t.def.name} — you can't land on it.`;   // (just found)
     if (vehicleFuel(d.v) === 'ap') p.ap--; else p.res[vehicleFuel(d.v)]--;
     p.q = q; p.r = r;
     d.steps++;
     emit(S, { type: 'driveStep', player: p.id, vehicle: d.v.id, fuel: vehicleFuel(d.v), q, r });
-    if (ITEMS[d.v.id].flies) {   // from the air: all within 2 (as Binoculars see), revealed as you fly over
-      const seen = scoutTargets(S, p, true).map(([a, b]) => reveal(S, a, b));
-      if (seen.length) emit(S, { type: 'reveal', player: p.id, tiles: seen });
-    }
+    if (fly) liftView(S, p);
     if (vehicleLeft(p, d.v) < 1) { emit(S, { type: 'outOfFuel', player: p.id, vehicle: d.v.id, fuel: vehicleFuel(d.v) }); endDrive(S, p); }
   }
   function endDrive(S, p) {
@@ -1083,6 +1095,7 @@ const Engine = (() => {
     drive(S, p, choice) {
       if (choice === 'stop') {
         if (p.pending.flee && !p.pending.steps) return 'Pick at least one hex to escape to.';
+        if (!passable(tileOf(S, p))) return `You can't land on the ${tileOf(S, p).def.name}.`;
         return endDrive(S, p);
       }
       return driveStep(S, p, choice?.q, choice?.r);
@@ -1189,6 +1202,10 @@ const Engine = (() => {
           for (const id of ['Shotgun', 'Axe']) gainItem(S, p, { id, cond: CONFIG.maxCondition });   // (a full backpack asks what to leave)
           t.vehicles.push(parked('Truck', CONFIG.maxCondition));
           say = `Bubba: +25 of each resource (up to ${CONFIG.maxRes}: the rest is left here), a Shotgun, an Axe, and a Truck parked here`; break;
+        case 'pilot':   // a Helicopter parked here (full condition), and as much fuel as you can carry
+          t.vehicles.push(parked('Helicopter', CONFIG.maxCondition));
+          p.res.fuel = CONFIG.maxRes;
+          say = `Pilot: a Helicopter parked here, and ${CONFIG.maxRes} fuel`; break;
         case 'ap': p.ap = Math.max(0, Math.min(p.maxAP, n[0] ?? 0)); say = `AP: ${p.ap}`; break;
         case 'maxap': p.maxAP = Math.max(1, Math.min(CONFIG.maxAP, n[0] ?? CONFIG.maxAP)); p.ap = Math.min(p.ap, p.maxAP); say = `Max AP: ${p.maxAP}`; break;
         case 'food': case 'water': case 'fuel': case 'ammo': p.res[cmd] = Math.max(0, Math.min(CONFIG.maxRes, n[0] ?? 0)); say = `${cmd}: ${p.res[cmd]}`; break;
@@ -1212,7 +1229,7 @@ const Engine = (() => {
 
   return {
     ICON, RES_LABEL, key, neighbors, isNight, isAttack, attackDue, cellText, upkeepText, roundBanner,
-    tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText, loneItem, hopeItems, leadOpen, anyResult, addToStash,
+    tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, flying, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText, loneItem, hopeItems, leadOpen, anyResult, addToStash,
     fleeAdj, canShoot, canMelee, canSaw, canFight, canFlee, canWield, canHide, vehicleFuel, vehicleLeft, vehicleFed, vehicleOf, canDrive,
     createGame, start, act, timeUp, cheat,
   };

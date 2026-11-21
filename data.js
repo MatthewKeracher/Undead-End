@@ -27,7 +27,7 @@ const CONFIG = {
   testStartItems: [],
   testStartVehicles: [],   // parked on the start tile
   testStartRes: {},        // added to the starting rolls
-  testStartPlace: 'Castle',      // the place you start on (its name in locations.js); '' for anywhere, as normal
+  testStartPlace: 'Farmhouse',   // the place you start on (its name in locations.js); '' for anywhere, as normal
   nightRounds: [5, 6],    // dark on the clock
   attackRounds: [5],      // rounds that start with a night attack
   badNightOn: 2,          // as round 1 starts, a secret 1d6: this or less means a bad night — round 6 attacks too
@@ -64,7 +64,8 @@ const CONFIG = {
 // Vehicles come in two kinds, each in many looks (same rules, new name and icon): fuel ones (1 🟠 per tile)
 // and pedal ones (1 AP per tile). Animals are a third kind: no condition (they never break down, and a Tool
 // can't help them) — they drink 1 🔵 water per tile and eat 1 🔴 food per trip instead.
-const fuelVehicle = (icon) => ({ icon, vehicle: true, uses: 'fuel', verb: 'Drive', desc: 'Parked on a tile. Drive through scouted tiles: 1 🟠 fuel per tile, −1 condition per trip.' });
+// tripSounds: recordings for a trip (game.js CLIPS) — a start-up, the engine running on a loop while it lasts, and out of fuel
+const fuelVehicle = (icon) => ({ icon, vehicle: true, uses: 'fuel', verb: 'Drive', tripSounds: { start: 'carstart', loop: 'carDriving', out: 'carNoGas' }, desc: 'Parked on a tile. Drive through scouted tiles: 1 🟠 fuel per tile, −1 condition per trip.' });
 const pedalVehicle = (icon) => ({ icon, vehicle: true, uses: 'ap', verb: 'Ride', desc: 'Parked on a tile. Ride through scouted tiles: 1 AP per tile, −1 condition per trip.' });
 const animal = (icon) => ({ icon, vehicle: true, animal: true, uses: 'water', eats: 'food', verb: 'Ride', desc: 'Waits on a tile. Ride through scouted tiles: 1 🔵 water per tile and 1 🔴 food per trip. Never breaks down.' });
 
@@ -104,7 +105,7 @@ const ITEMS = {
   'Fire Engine': fuelVehicle('🚒'),
   // Flies: from up there you see what Binoculars would — each hex you fly into reveals all within 2. In no table
   // for now: the cheat item(chopper) (its alias) parks one.
-  Helicopter: { ...fuelVehicle('🚁'), verb: 'Fly', flies: true, alias: 'chopper', moveSound: 'helicopter', desc: 'Parked on a tile. Fly: 1 🟠 fuel per tile, −1 condition per trip — and as you go you see all within 2 hexes, like Binoculars.' },
+  Helicopter: { ...fuelVehicle('🚁'), verb: 'Fly', flies: true, alias: 'chopper', tripSounds: { start: 'helicopterStarting', loop: 'helicopter' }, desc: 'Parked on a tile. Fly: 1 🟠 fuel per tile, −1 condition per trip — and as you go you see all within 2 hexes, like Binoculars.' },
   Bike: pedalVehicle('🚲'),
   Horse: { ...animal('🐎'), moveSound: 'horse' },   // (moveSound: a recording that plays as it moves — game.js CLIPS)
   // Multiplayer (planned — see MULTIPLAYER.md): talk to players on other tiles. No effect in single player; not in any loot table yet.
@@ -230,11 +231,11 @@ function loadLocations(list) {
       if (!list.some((o) => o.name === name)) errors.push(`${where}: around names "${name}", which isn't a location.`);
       if (n === 'rest') {   // every neighbour still free
         if (i !== all.length - 1) errors.push(`${where}: around: { ${name}: 'rest' } must come last.`);
-        return { name, lo: 6, hi: 6 };
+        return { name, lo: 6, hi: 6, extra: 0 };
       }
-      const [lo, hi] = Array.isArray(n) ? n : [n, n];
-      if (!(Number.isInteger(lo) && Number.isInteger(hi) && lo >= 0 && hi >= lo && hi <= 6)) errors.push(`${where}: around: { ${name}: … } must be a number 0–6, [min, max], or 'rest'.`);
-      return { name, lo, hi };
+      const [lo, hi] = Array.isArray(n) ? n : [Math.floor(n), Math.floor(n)], extra = Array.isArray(n) ? 0 : n % 1;   // (a fraction: a chance of one more)
+      if (!(Number.isInteger(lo) && Number.isInteger(hi) && lo >= 0 && hi >= lo && hi <= 6)) errors.push(`${where}: around: { ${name}: … } must be a number 0–6 (a fraction is a chance), [min, max], or 'rest'.`);
+      return { name, lo, hi, extra };
     });
     if (loc.spread && settlements.length) errors.push(`${where}: a belt or range can't also be built in settlements.`);
     if (loc.spread && !['belt', 'range'].includes(loc.spread)) errors.push(`${where}: spread must be 'belt' or 'range'.`);

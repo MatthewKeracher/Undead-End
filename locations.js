@@ -35,7 +35,8 @@
 //             { Quarry: 0.6 } — how many (a fraction is a chance of one more). Industry by the mountains.
 //    around — (optional) the places that come with it, planned on its unexplored neighbours as it's revealed,
 //             running round it side by side: { Barn: 1, Fields: [2, 4] } — how many of each (a [min, max] is a
-//             random number between; 'rest', last, for every neighbour still free). Where there's no room,
+//             random number between; a fraction, a chance of one more; 'rest', last, for every neighbour still
+//             free). A place in a settlement gets its own planned as the settlement is founded. Where there's no room,
 //             fewer. A place that's only ever found around another can have count: 0.
 //
 //  Results you can write in a table (capitals don't matter):
@@ -91,7 +92,8 @@ const LOCATIONS = [
     table: ['Zombies',       'Fuel',          'Random',        'Fuel + Water',  'Food + Booze',  'Truck + Fuel'] },
   { name: 'Army Checkpoint', icon: '🪖', safety: 6, count: 0.4, table: ['Zombies',       'Pistol',        'Random',        'Ammo + Water',  'Binoculars',    'Jeep'] },
   { name: 'Diner',          icon: '🍔', safety: 3, count: 0.5, table: ['Zombies',       'Water',         'Random',        'Double Food',   'Food + Water',  'Frying Pan'] },
-  { name: 'Fuel Depot',     icon: '🛢️', safety: 3, count: 0, table: ['Zombies',       'Fuel',          'Random',        'Double Fuel',   'Tool + Fuel',   'Truck + Fuel'] },
+  // (now and then a Helipad beside it — and beside a city's Hospital)
+  { name: 'Fuel Depot',     icon: '🛢️', safety: 3, count: 0, around: { Helipad: 0.25 }, table: ['Zombies',       'Fuel',          'Random',        'Double Fuel',   'Tool + Fuel',   'Truck + Fuel'] },
 
   // ---- villages (and bigger)
   { name: 'Church',         icon: '⛪', safety: 6, in: ['village', 'town', 'city'],
@@ -129,7 +131,7 @@ const LOCATIONS = [
     table: ['Zombies',       'Pistol',        'Random',        'Shotgun',       'Body Armor',    'Police Car'] },
 
   // ---- cities only
-  { name: 'Hospital',       icon: '🏥', safety: 5, in: ['city'],
+  { name: 'Hospital',       icon: '🏥', safety: 5, in: ['city'], around: { Helipad: 0.3 },
     table: ['Zombies',       'Pills',         'Random',        'Pills',         'Food + Water',  'Ambulance'] },
   { name: 'Police Station', icon: '👮', safety: 6, in: ['city'],
     table: ['Zombies',       'Shotgun',       'Random',        'Ammo',          'Body Armor',    'Police Car'] },
@@ -146,6 +148,8 @@ const LOCATIONS = [
 
   // ---- settlement edges: open land planned around the outside of a settlement as it's founded, in short chains
   // along its edge or on their own (edge: how many per settlement of each kind — 1.5 = one, and half the time two)
+  // a landing pad, only ever beside a Fuel Depot or a Hospital (and not often): a Helicopter on it, maybe
+  { name: 'Helipad',        icon: '🛬', safety: 0, count: 0, table: ['Zombies',       'Helicopter',    'Random',        'Tool',          'Fuel',          'Ammo'] },
   { name: 'Fields',         icon: '🌾', safety: 0, count: 0 },   // only ever round a farm
   { name: 'Golf Course',    icon: '⛳', safety: 0, edge: { town: 0.4, city: 0.8 }, group: 'suburbs' },
 
