@@ -27,6 +27,7 @@ const CONFIG = {
   testStartItems: [],
   testStartVehicles: [],   // parked on the start tile
   testStartRes: {},        // added to the starting rolls
+  testStartPlace: 'Castle',      // the place you start on (its name in locations.js); '' for anywhere, as normal
   nightRounds: [5, 6],    // dark on the clock
   attackRounds: [5],      // rounds that start with a night attack
   badNightOn: 2,          // as round 1 starts, a secret 1d6: this or less means a bad night — round 6 attacks too
@@ -43,7 +44,7 @@ const CONFIG = {
     city: { size: 12, count: 0.15 },
   },
   townGap: 2,             // at least this many hexes of countryside between two settlements
-  edgeChain: [1, 3],      // a stretch of edge land (Fields, Golf Course: edge: in locations.js) is 1–3 hexes long
+  edgeChain: [1, 3],      // a stretch of edge land (suburbs, a village's woods: edge: in locations.js) is 1–3 hexes long
   roundSeconds: 60,       // round timer: act within this or lose 1 AP (online always; single player: on by default)
   leadDistance: 6,        // a Note reveals a place this many hexes away (or as near to it as there's room), with a stash
   randomNote: 0,          // chance a Random row is a Note (only while no place a Note named is still unreached) — 0: the one
@@ -101,8 +102,11 @@ const ITEMS = {
   Bus: fuelVehicle('🚌'),
   Campervan: fuelVehicle('🚐'),
   'Fire Engine': fuelVehicle('🚒'),
+  // Flies: from up there you see what Binoculars would — each hex you fly into reveals all within 2. In no table
+  // for now: the cheat item(chopper) (its alias) parks one.
+  Helicopter: { ...fuelVehicle('🚁'), verb: 'Fly', flies: true, alias: 'chopper', moveSound: 'helicopter', desc: 'Parked on a tile. Fly: 1 🟠 fuel per tile, −1 condition per trip — and as you go you see all within 2 hexes, like Binoculars.' },
   Bike: pedalVehicle('🚲'),
-  Horse: animal('🐎'),
+  Horse: { ...animal('🐎'), moveSound: 'horse' },   // (moveSound: a recording that plays as it moves — game.js CLIPS)
   // Multiplayer (planned — see MULTIPLAYER.md): talk to players on other tiles. No effect in single player; not in any loot table yet.
   Radio:   { icon: '📻', radio: true, desc: 'Multiplayer: lets you talk to players on other tiles who also carry a radio. −1 condition per round used.' },
   Tool: { icon: '🧰', tool: true, desc: 'Use any time (free): transfer some of its condition to another item. Destroyed at 0.' },
@@ -208,6 +212,7 @@ function parseResult(text, where) {
 }
 function loadLocations(list) {
   const errors = [];
+  const aroundOthers = new Set(list.flatMap((loc) => [...Object.keys(loc.around ?? {}), ...Object.keys(loc.with ?? {})]));   // found round another (a farm's Barn), or by a belt or range (a Quarry)
   const tiles = list.map((loc, i) => {
     const where = `Location ${i + 1}${loc.name ? ` (${loc.name})` : ''}`;
     if (!loc.name) errors.push(`${where}: missing a name.`);
@@ -217,9 +222,20 @@ function loadLocations(list) {
     if (!Array.isArray(settlements) || settlements.some((x) => !CONFIG.settlements[x])) errors.push(`${where}: in must be a list of ${Object.keys(CONFIG.settlements).map((x) => `'${x}'`).join(', ')}.`);
     const edge = loc.edge ?? {};
     if (typeof edge !== 'object' || Object.entries(edge).some(([k, n]) => !CONFIG.settlements[k] || !(typeof n === 'number' && n >= 0))) errors.push(`${where}: edge must look like { village: 1, town: 1.5 } — settlement kinds and how many stretches each.`);
-    const placed = settlements.length > 0 || Object.keys(edge).length > 0;   // built in settlements, or laid around them
-    const count = loc.count ?? (placed ? 0 : 1);   // …isn't found alone, unless given a count
-    if (!(typeof count === 'number' && count >= 0) || (!count && !placed)) errors.push(`${where}: count must be a number above 0 (e.g. 1, 3 or 0.5) — or 0 for a place found only in or around settlements (in: […] or edge: {…}).`);
+    const inTowns = settlements.length > 0 || Object.keys(edge).length > 0;   // built in settlements, or laid around them…
+    const placed = inTowns || aroundOthers.has(loc.name);   // …or around another place
+    const count = loc.count ?? (inTowns ? 0 : 1);   // a settlement's isn't found alone unless given a count (around another: only if count: 0)
+    if (!(typeof count === 'number' && count >= 0) || (!count && !placed)) errors.push(`${where}: count must be a number above 0 (e.g. 1, 3 or 0.5) — or 0 for a place found only in or around settlements (in: […] or edge: {…}), or around another place (around: {…}).`);
+    const around = Object.entries(loc.around ?? {}).map(([name, n], i, all) => {
+      if (!list.some((o) => o.name === name)) errors.push(`${where}: around names "${name}", which isn't a location.`);
+      if (n === 'rest') {   // every neighbour still free
+        if (i !== all.length - 1) errors.push(`${where}: around: { ${name}: 'rest' } must come last.`);
+        return { name, lo: 6, hi: 6 };
+      }
+      const [lo, hi] = Array.isArray(n) ? n : [n, n];
+      if (!(Number.isInteger(lo) && Number.isInteger(hi) && lo >= 0 && hi >= lo && hi <= 6)) errors.push(`${where}: around: { ${name}: … } must be a number 0–6, [min, max], or 'rest'.`);
+      return { name, lo, hi };
+    });
     if (loc.spread && settlements.length) errors.push(`${where}: a belt or range can't also be built in settlements.`);
     if (loc.spread && !['belt', 'range'].includes(loc.spread)) errors.push(`${where}: spread must be 'belt' or 'range'.`);
     const table = raw.map((x, r) => { try { return parseResult(x, `${where}, roll ${r + 1}`); } catch (e) { errors.push(e.message); return null; } });
@@ -227,7 +243,13 @@ function loadLocations(list) {
     // most Safety it can be fortified to: safety: N, or 0 (also fortify: false) for outdoors
     const safety = loc.fortify === false ? 0 : loc.safety ?? CONFIG.maxSafety;
     if (!(safety === 0 || (Number.isInteger(safety) && safety >= 3 && safety <= 6))) errors.push(`${where}: safety must be 0 (outdoors), or a whole number from 3 to 6.`);
-    return { name: loc.name, icon: loc.icon || '', safety, fortify: safety > 0, passable: loc.passable !== false, count, in: settlements, edge, spread: loc.spread || null, table };
+    const withs = Object.entries(loc.with ?? {}).map(([name, n]) => {
+      if (!list.some((o) => o.name === name)) errors.push(`${where}: with names "${name}", which isn't a location.`);
+      if (!(typeof n === 'number' && n >= 0)) errors.push(`${where}: with: { ${name}: … } must be a number (a fraction is a chance).`);
+      return { name, n };
+    });
+    if (withs.length && !loc.spread) errors.push(`${where}: with is for a belt or range (spread).`);
+    return { name: loc.name, icon: loc.icon || '', img: loc.img || null, safety, fortify: safety > 0, passable: loc.passable !== false, count, in: settlements, edge, group: loc.group || null, spread: loc.spread || null, with: withs, around, table };
   });
   if (tiles.filter((t) => t && t.count > 0).length < 1) errors.push('Add at least one location with a count above 0, for scouting.');
   for (const [kind, { size }] of Object.entries(CONFIG.settlements)) {

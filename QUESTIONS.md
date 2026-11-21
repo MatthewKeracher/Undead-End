@@ -5,76 +5,77 @@ Current behaviour is noted in *italics* where the game already does something as
 
 ---
 
-## Playtest notes (2026-11-18)
+## Campaign (single player)
 
-Logged from a playtest. Tick when handled.
+A start, middle and end for a run. *Now: endless survival, scored by days survived; nothing escalates; the Note trail (one Note to start, each stash holding the next) is the only thread.* Nothing here is built yet — think it through first.
 
-- [x] **Bug: on mobile there's no button to stop driving** — stopping is only Enter / Backspace, so touch players can't end a trip. *(Fixed: ⏹ Stop here button while driving.)*
-- [x] **Zombies don't need to be on the tile loot list** — row 1 is always Zombies, so it needn't be shown. *(Fixed: tiles list rows 2–6, in bigger text.)*
-- [x] **Clock numbers should shift one to the right**, so the game and each day start on 1 (today the game starts on round 2, and round 1 is the late night). *(Done: round 1 is the first morning, 5 and 6 the night; a new day starts each morning.)*
-- [x] **Starting AP could be lower** — maybe 75% (9 of 12). *(Done: 8 AP, max AP still 12.)*
-- [ ] **Mobile UI is broken.** *(Touch layout for phones and tablets, either way up: full-screen draggable map, clock and AP dial around it, resource and backpack bars, emoji action tray — needs a playtest.)*
-- [ ] **Resources could look like the inventory on mobile** (same treatment as the backpack). *(Now a tray of big coloured numbers, matching the backpack bar — needs a playtest.)*
-- [x] **Free movement should need AP banked** — you must have AP left to take the free move (it still doesn't spend it?). *(Done: needs at least 1 AP, spends none.)*
-- [ ] **Feels too easy** with 2d6 resources and a starting weapon. *(Resources back to 1d6, with one Double per place and more mixes like Pistol + Ammo, Fuel + Ammo; no starting Axe — needs a playtest.)*
+### Decided
+- [x] **The endgame is rescue.**
+  > Answer: Yes — a run ends in rescue (or death). Rescue counts as a win; days survived stays the score either way.
+- [x] **Two dimensions:** **time passing** (days, nights, things wearing down) and **scale** — the **countryside → town → city** (more to find, more danger, as you go in).
+  > Answer: Yes — the arc moves along both.
 
-## Core rules (single player)
+### The arc (a first sketch)
+- **Start (~days 1–2): get your bearings.** The countryside. The starting Note gives a direction; reach the first stronghold. Learn scout / scavenge / sleep / fortify; first night attack with only Safety and hiding. *(Mostly built: needs tuning.)*
+- **Middle (~days 3–7): expand and gear up.** Towns. The trail grows longer (a vehicle earns its keep); local tables run dry and the 18 cap stops hoarding, so you move on; Notes wear down each night, so time presses.
+- **End (~days 8–10+): rescue.** The city? The trail's last Note names where rescue comes, and you have to *do* something there, not just arrive — e.g. hold out a night, spend fuel on a generator, signal with a Firecracker (ties into Fuel and Bomb & Firecracker, above).
 
-### Clock & checks
-- [x] **Round 5 check (the first night round): water or booze?**
-  *Now: 1 water.*
-  > Answer: Water. Booze is now a hope item; round 6 asks for hope (see DESIGN.md, Hope).
+### Open
+- [ ] **How do the two dimensions fit together?** Does the scale drive the arc (countryside → town → city as you go), time drive it (days in → harder), or both — and which leads?
   > Answer:
-
-### Zombies
-- [x] **Are scavenge zombies finite?**
-  > Answer: Yes — a Zombies row is crossed off once rolled, and comes back when the tile has no Safety and no survivor on it.
-- [ ] **When do cleared zombies come back?** *Now: at the start of the next round once the tile is empty with no Safety (placeholder).* Immediately, next round, next night, after 1d6 rounds…?
+- [ ] **What escalates with time?** e.g. night attacks (more dice, more bad nights), zombies coming back sooner, Notes wearing down faster, longer stretches between Notes.
   > Answer:
-- [x] **Night attacks are the main killer** (balance sim: ~80% of deaths happen at night — two attacks back to back in rounds 6 and 1). Soften them? e.g. one attack per night, 1d6 − 1, or Fortify +2d6.
-  > Answer: One attack per night, at the start of round 6. *(Now numbered round 5.)*
-- [ ] **Can you Fortify a tile that has zombies on it?**
-  *Now: no, blocked until cleared.*
+- [ ] **What changes with scale?** e.g. town and city tables richer but with more Zombies rows; more zombies on arrival; higher Safety to hole up in.
   > Answer:
-- [ ] **Should some tiles be more dangerous again (extra Zombies results on 2, 3…)?**
-  *Now: zombies only on a 1, on every tile.*
+- [ ] **What triggers rescue?** The trail's last Note (after N Notes)? A day count ("hold out 10 days")? Finding a working radio and calling it in? Some mix?
   > Answer:
-
-### Fight & flee
-- [ ] **Failed flee while carrying a usable weapon:** survive and must fight (now), or die anyway unless you have armor?
-  *Now: caught → must fight; only die if you have no usable weapon.*
+- [ ] **Where is rescue, and what does it ask of you?** e.g. an Army Checkpoint / Stadium / Hospital roof in the city; hold out a night there, power a signal with fuel, fire a flare. A countdown once called?
   > Answer:
-- [ ] **Axe condition:** −1 per fight round (like the gun), or −1 per swing?
-  *Now: per round.*
+- [ ] **How long is a run?** A day is 6 rounds of up to 1 min each — a 30–45 min session is roughly 8–12 days. Target?
   > Answer:
-- [ ] **Several weapons of the same kind:** which is used?
-  *Now: the one with the lowest condition.*
+- [x] **Who writes the Notes?** One survivor throughout (you catch up with them at the rescue), or a chain of different people?
+  > Answer: A single author. *(Already so within a run: the starting Note's writer is picked from `LEADS.names`, and every Note after carries the same name.)*
+- [ ] **The author: the same person every run, or a new one each run?** And do you meet them at the rescue, or only ever find their trail?
+  > Answer:
+- [ ] **Does the map know the arc?** e.g. a city guaranteed somewhere along the trail, at a set distance from the start — or left to chance?
   > Answer:
 
-### Vehicles
-- [ ] **How many trips per round?**
-  *Now: unlimited (each costs 1 condition).*
+---
+
+## Placement: milieus
+
+The direction: **places come in milieus, not alone** — so the map can be read (🌾 means a farm; ⛏️ means mountains near). Standalone tiles are to be replaced, one by one. *Built: farms (Farmhouse + Barn + 2–4 Fields + maybe an Orchard), castles (Mountains, Lake + Fishing Spot, an Orchard, Forest), village edges (Forest, Lake, Orchards, farms), suburbs (Cottages, Corner Shops, Golf Courses round towns and cities), industry (a Quarry by Mountains, a Fuel Depot by Wasteland); Graveyards in settlements.*
+
+### Decided
+- [x] **Industrial:** Quarries and Fuel Depots come with Mountain ranges and Wasteland belts — and only there.
+  > Answer: Yes.
+- [x] **Fields** only ever ring farms (not settlement edges) — so a Field always means a farm.
+  > Answer: Yes.
+- [x] **Village edges:** natural land (Forest, Lake…), Orchards, or a farm.
+  > Answer: Yes.
+- [x] **Suburbs** is a milieu, not a tile: **Cottages, Golf Courses and Corner Shops**, wreathing towns and cities, clumped together. (The Cottage keeps its name.)
+  > Answer: Yes.
+- [x] **Orchards** beside farms, castles and villages.
+  > Answer: Yes.
+- [x] **Places that go together:** a Church has a Graveyard beside it; a Car Park sits next to the stores.
+  > Answer: Yes — and more of these as standalone tiles are replaced.
+
+### Open
+- [ ] **How much wreath?** A town of 7 has ~12 hexes round it, a city ~18. A few stretches of suburb, or most of the way round? *Now: ~2–3 stretches of 1–3 hexes round a town, ~4–5 round a city — tune the `edge:` numbers on Cottage, Corner Shop, Golf Course.*
   > Answer:
-- [ ] **Vehicle locations** — Truck: Farmhouse, Petrol Station. Bike: School, Campsite. Keep?
+- [x] **Fixed positions inside settlements** (a Graveyard beside the Church, a Car Park by the stores)?
+  > Answer: No — settlements keep their lists of what can be built in them, placed at random. The Graveyard joins the village, town and city lists (and is no longer found alone); the Car Park stays in the city's.
+- [ ] **What's left standing alone**, and what milieu each could join: Forest, Lake, Campsite, Fishing Spot (a Lake's?), Diner, Petrol Station, Army Checkpoint (roadside — no roads yet), Farmhouse and Castle (the heads of their own milieus).
   > Answer:
+
+---
+
+## Single player
 
 ### Items
-- [x] **Tool name** — "Tool" OK?
-  > Answer: Renamed to "Tool" (so "Tool + Fuel" fits on a tile).
-- [ ] **Can a tool repair another tool?**
-  *Now: yes.*
-  > Answer:
-- [ ] **Armor name** — "Body Armor" OK?
-  > Answer:
-- [ ] **Item locations** (all placeholders — see the tables in `locations.js`): Pistol — Gun Shop, Sheriff's Office (towns), Army Checkpoint, Police Station (cities) · Chainsaw — Hardware Store, Fire Station, Quarry · Body Armor — Gun Shop, Sheriff's Office, Police Station, Fire Station, Castle. Keep / change?
 - [ ] **Bomb 💣 and Firecracker 🧨:** weapons with their own mechanics — to design (e.g. clear a whole tile at once; throw to draw zombies to another tile).
-- [ ] **Fields and Golf Courses:** pure wasteland for now — should Fields give a little food, or golf courses something odd?
-- [ ] **Settlement mix:** ~3–4 villages, 1–2 towns and a city in 1 of 3 solo maps (`CONFIG.settlements`). Right amount? Should a settlement be guaranteed near the start?
-- [ ] **New places' tables** (Orchard, Cottage, Fishing Spot, Stables, Quarry, Castle, Graveyard, Diner, Fuel Depot, Corner Shop, Post Office, Café, Hotel, Library, Garage, Fire Station, Sheriff's Office, Shopping Mall, Train Station, Stadium, Car Park, Bank) are first drafts.
   > Answer:
-- [ ] **More item cards** — what else is in the deck?
-  > Answer:
-- [ ] **Fuel** is only used by the Truck. Anything else use fuel (generator, Molotov, fire for booze…)?
+- [ ] **Fuel** is used by the cars (Truck, Jeep, Van, Bus…) and the Chainsaw. Anything else use fuel (generator, Molotov, fire…)?
   > Answer:
 
 ### Notes 📝
@@ -89,16 +90,6 @@ Logged from a playtest. Tick when handled.
   > Answer:
 - [ ] **The off-screen lead arrow's icon for a town:** the edge hex's own place (⛪, 🏪…) or 🏘️?
   > Answer:
-
-### Tiles
-- [ ] **The real tile list and their d6 tables** — the 14 tiles in `locations.js` are placeholders I invented. What tiles does your board game have?
-  > Answer:
-- [x] **Starting tile** — random: any countryside place or settlement hex (never Wasteland or Mountain).
-  > Answer:
-
-### Starting values
-- [x] **Starting max AP:** 12. *(AP starts at 8; food, water, booze are 1d6; fuel & ammo 0.)*
-  > Answer: 12
 
 ---
 

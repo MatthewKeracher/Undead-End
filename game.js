@@ -185,7 +185,7 @@ async function show(ev) {
     case 'hide': await bfHide(ev); return renderMap();
     case 'hope': toast(`${ITEMS[ev.item].icon} You find hope in the ${ev.item}.`); return sfx.hope();
     case 'lead': return leadShow(ev);
-    case 'driveStep': sfx.drive(ev.fuel); hushRes = ev.fuel; render(); setTimeout(() => (hushRes = null)); return;   // (its own sound, not the fuel's too)
+    case 'driveStep': sfx.drive(ev.fuel, ev.vehicle); hushRes = ev.fuel; render(); setTimeout(() => (hushRes = null)); return;   // (its own sound, not the fuel's too)
     case 'move': renderMap(); return wait(450);   // arrive (the camera glides over) before the round can move on
     case 'outOfFuel': if (ev.fuel === 'fuel') clip('carNoGas');
       return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'ap' ? 'AP' : ev.fuel} — stopping here.`);
@@ -314,6 +314,8 @@ function showGameOver() {
 
 // An item's picture for HTML: its own image if it has one (img: in data.js), otherwise its emoji.
 // (Plain text — toasts, the log — always uses the emoji.)
+// a place's picture where it has one (img: in locations.js), else its emoji
+const placeIcon = (def) => (def.img ? `<img class="iimg" src="${def.img}" alt="${def.icon}">` : def.icon);
 const itemIcon = (id) => ITEMS[id].img ? `<img class="iimg" src="${ITEMS[id].img}" alt="${ITEMS[id].icon}">` : ITEMS[id].icon;
 // condition pips — purple for a hope item (pass its id)
 const condPips = (n, id) => `<span class="cond ${ITEMS[id]?.hope ? 'hope' : ''}">${[...Array(6)].map((_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
@@ -562,7 +564,8 @@ function tone(freq, dur = 0.05, type = 'square', vol = 0.04, slide = 0) {
 }
 // Recorded sounds (assets/), restarted rather than stacked when played again quickly.
 const CLIPS = { axe: 'assets/axe.mp3', chainsaw: 'assets/chainsaw.mp3', groan: 'assets/groan.mp3', pistol: 'assets/pistol.mp3', shotgun: 'assets/shotgun.mp3',
-  carstart: 'assets/carstart.mp3', carDriving: 'assets/carDriving.mp3', carNoGas: 'assets/carNoGas.mp3' }, clipEls = {};
+  carstart: 'assets/carstart.mp3', carDriving: 'assets/carDriving.mp3', carNoGas: 'assets/carNoGas.mp3',
+  helicopter: 'assets/helicopter.mp3', horse: 'assets/horse.mp3' }, clipEls = {};
 function clip(name, volume = 0.7) {
   if (muted) return;
   try {
@@ -594,8 +597,10 @@ const sfx = {
   hope: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.5, 'sine', 0.05), i * 160)),   // a music-box rise
   repair: () => [0, 110, 220].forEach((d, i) => setTimeout(() => { noise(0.05, 0.2, 3000); tone(900 + i * 200, 0.05, 'square', 0.03); }, d)),
   armor: () => { noise(0.12, 0.35, 900); tone(180, 0.2, 'square', 0.1, -60); setTimeout(() => tone(1200, 0.25, 'triangle', 0.04, -300), 60); },
-  // one light sound a step, so a trip runs on: two hoof-clops, a freewheel's ticks (a car's engine is running already: syncCar)
-  drive: (kind) => kind === 'fuel' ? undefined
+  // one light sound a step, so a trip runs on: two hoof-clops, a freewheel's ticks (a car's engine is running already:
+  // syncCar), a helicopter's rotor whup-whup
+  drive: (kind, vehicle) => ITEMS[vehicle]?.moveSound ? moving(ITEMS[vehicle].moveSound)   // its own recording (the Helicopter, the Horse)
+    : kind === 'fuel' ? undefined
     : kind === 'water'
       ? [0, 140].forEach((d, i) => setTimeout(() => { noise(0.04, 0.07, 1800); tone(i ? 520 : 680, 0.04, 'square', 0.025); }, d))
       : [0, 60, 120].forEach((d) => setTimeout(() => tone(2200, 0.015, 'square', 0.012), d)),
@@ -607,7 +612,7 @@ const sfx = {
 
 // A car (any fuel vehicle): it starts up as the trip begins, its engine runs on a loop while the trip lasts (hushed while
 // muted or paused), and it fades out as you stop — or splutters, out of fuel (carNoGas, with the outOfFuel event).
-const carTrip = () => !!driving() && vehicleFuel(driving().v) === 'fuel';
+const carTrip = () => !!driving() && vehicleFuel(driving().v) === 'fuel' && !ITEMS[driving().v.id].flies;   // (not the Helicopter)
 let engineOn = false, carTimer = null, carFade = null;
 function carStart() {
   clearTimeout(carTimer);
@@ -629,6 +634,20 @@ function syncCar() {
       if (!a.volume) { clearInterval(carFade); carFade = null; a.pause(); }
     }, 30);
   }
+}
+
+// A vehicle's recording of moving (moveSound in ITEMS): each hex plays on from where it left off, and it fades away
+// once you've stopped picking hexes for a moment — sound while you move, quiet while you think.
+let moveQuiet = null;
+function moving(name) {
+  if (muted) return;
+  const a = (clipEls[name] ??= Object.assign(new Audio(CLIPS[name]), { preload: 'auto', loop: true }));
+  clearTimeout(moveQuiet); clearInterval(a.fade);
+  a.volume = 0.7;
+  if (a.paused) a.play().catch(() => { /* not allowed yet, or unavailable */ });
+  moveQuiet = setTimeout(() => {
+    a.fade = setInterval(() => { a.volume = Math.max(0, a.volume - 0.07); if (!a.volume) { clearInterval(a.fade); a.pause(); } }, 30);
+  }, 1400);
 }
 
 async function rollDie(slot, final, ms, onFace) {
@@ -1159,7 +1178,7 @@ function leadMarks(vx, vy, z, b, f) {
     const sx = b.left + (x - vx) * z, sy = b.top + (y - vy) * z;   // where it is on screen
     if (sx > f.left && sx < f.right && sy > f.top && sy < f.bottom) return '';   // in view: its border shows it
     const a = Math.atan2(sy - cy, sx - cx);
-    return `<div class="leadmark" style="left:${cx + ring * Math.cos(a) - board.left}px;top:${cy + ring * Math.sin(a) - board.top}px"><i style="transform:rotate(${a}rad)"></i><span>${t.def.icon}</span></div>`;
+    return `<div class="leadmark" style="left:${cx + ring * Math.cos(a) - board.left}px;top:${cy + ring * Math.sin(a) - board.top}px"><i style="transform:rotate(${a}rad)"></i><span>${placeIcon(t.def)}</span></div>`;
   }).join('');
 }
 window.addEventListener('resize', applyView);
@@ -1293,7 +1312,9 @@ function renderMap() {
     const g = `<g class="hex tile d${Math.min(danger, 4)} ${t.def.table.length ? '' : 'barren'} ${canFortifyHere(t) ? '' : 'nofort'} ${passable(t) ? '' : 'impassable'} ${justRevealed.includes(k) ? 'revealed' : ''} ${isHere ? 'here' : ''} ${target ? 'target' : ''} ${t.zombies ? 'infested' : ''} ${town ? 'town' : ''} ${E.leadOpen(t) ? 'lead' : ''}" data-k="${k}" ${justRevealed.includes(k) ? `style="--i:${justRevealed.indexOf(k)}"` : ''}>
       <polygon points="${hexPoints(x, y, HEX - (isHere ? 4 : 2))}" ${isHere ? `style="stroke:${p.color}"` : ''}/>
       ${isHere ? `${town ? `<text x="${x}" y="${y - HEX * 0.72}" class="townname">${esc(town.name)}</text>` : ''}<text x="${x}" y="${y - HEX * 0.56}" class="name">${esc(t.def.name)}</text>${tableSvg(x, y + 4, t)}`
-        : `<text x="${x}" y="${y - 10}" class="art"><title>${esc(t.def.name)}${town ? ` — ${esc(townLabel)}` : ''}</title>${t.def.icon}</text>`}
+        : t.def.img   // a picture, sized like the emoji (64px) — or the emoji
+          ? `<image href="${t.def.img}" x="${x - 38}" y="${y - 48}" width="76" height="76" class="art"><title>${esc(t.def.name)}${town ? ` — ${esc(townLabel)}` : ''}</title></image>`
+          : `<text x="${x}" y="${y - 10}" class="art"><title>${esc(t.def.name)}${town ? ` — ${esc(townLabel)}` : ''}</title>${t.def.icon}</text>`}
       ${passable(t) && (isHere || p.visited?.includes(k)) ? safetySvg(x, isHere ? y + HEX * 0.64 : y + 50, t) : ''}
       ${isHere || p.visited?.includes(k) ? vehicleSvg(x + HEX * 0.69, y + 4, [...(t.vehicles || []), ...(isHere && driving() ? [driving().v] : [])]) : ''}
       ${target ? pickBadge(x, y - HEX * 0.8, pickNumber(p, q, r)) : ''}</g>`;
@@ -1554,7 +1575,7 @@ const CHEATS = {
   'night(n)': 'night attack now with n zombies',
   'zombies(n)': 'set zombies on your tile (fight/flee if > 0)',
   'safety(n)': 'set your tile\'s Safety',
-  'item(name[,cond])': 'add an item (vehicles park on your tile)',
+  'item(name[,cond])': 'add an item (vehicles park on your tile; item(chopper): a Helicopter)',
   'Bubba()': '+25 of each resource (up to 18; the rest is left on your tile), a Shotgun and an Axe, and a Truck parked on your tile',
   'ap(n) maxap(n) food(n) water(n) fuel(n) ammo(n)': 'set a value',
   'round(n) day(n)': 'jump the clock (no checks run)',

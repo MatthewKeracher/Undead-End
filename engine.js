@@ -48,12 +48,12 @@ const Engine = (() => {
   // Binoculars double your scouting range: the hexes next to you, then the ones next to those —
   // but you can't see past a Mountain.
   const binocularsOf = (p) => p.items.filter((it) => ITEMS[it.id]?.binoculars && it.cond > 0).sort((a, b) => a.cond - b.cond)[0];
-  // What a scout could reveal: the unexplored hexes next to you, and with Binoculars the unexplored ones
-  // beyond them, seen through a hex next to you that isn't a Mountain (an unexplored one might turn out to be).
-  function scoutTargets(S, p) {
+  // What a scout could reveal: the unexplored hexes next to you, and with Binoculars (or from a Helicopter: far) the
+  // unexplored ones beyond them, seen through a hex next to you that isn't a Mountain (an unexplored one might turn out to be).
+  function scoutTargets(S, p, far = !!binocularsOf(p)) {
     const near = neighbors(p.q, p.r), nearKeys = new Set(near.map(([q, r]) => key(q, r))), out = new Map();
     for (const [q, r] of near) if (!S.tiles[key(q, r)]) out.set(key(q, r), [q, r]);
-    if (binocularsOf(p)) {
+    if (far) {
       for (const [q, r] of near) {
         const t = S.tiles[key(q, r)];
         if (t && !passable(t)) continue;   // a Mountain blocks the view
@@ -184,14 +184,16 @@ const Engine = (() => {
     delete S.planned[k];
     // next to a belt or range (seen or planned), it can't start another of the same kind: shapes stay apart
     const touches = (name) => neighbors(q, r).some(([a, b]) => (S.tiles[key(a, b)]?.def.name ?? S.planned[key(a, b)]) === name);
-    let def = plan === 'pass' ? drawTile(S, (t) => !t.spread && !t.settlement)   // a gap in a range: a place in open country
+    const forced = start && CONFIG.testStartPlace && TILES.find((t) => t.name === CONFIG.testStartPlace);   // (testing)
+    let def = forced ? forced : plan === 'pass' ? drawTile(S, (t) => !t.spread && !t.settlement)   // a gap in a range: a place in open country
       : (plan && TILES.find((t) => t.name === plan)) || drawTile(S, (t) => t.settlement ? roomForTown(S, q, r)
         : !(t.spread && (start || touches(t.name) || !roomFor(S, q, r, t))) && (!start || t.safety > 0));
     let founded = null;
-    if (def.settlement) { founded = foundTown(S, q, r, def.settlement); def = founded.first; }   // a new settlement: this is its first hex
+    if (def.settlement) { founded = foundTown(S, q, r, def.settlement, start); def = founded.first; }   // a new settlement: this is its first hex
     S.tiles[k] = newTile(S, def);
     if (S.townOf[k] !== undefined) S.tiles[k].town = S.townOf[k];
     if (!plan && def.spread) spread(S, q, r, def);   // a fresh Wasteland or Mountain grows its shape
+    if (def.around.length) surround(S, q, r, def);   // a Farmhouse: its Barn and Fields
     const town = S.towns[S.townOf[k]];
     if (founded) log(S, `🏘️ ${def.icon} ${def.name}: the edge of ${town.kind === 'village' ? 'the village' : town.kind === 'town' ? 'the town' : 'the city'} of ${town.name}.`, 'phase');
     return { k, name: def.name, icon: def.icon, ...(town && { town: town.name, kind: town.kind }) };
@@ -221,7 +223,7 @@ const Engine = (() => {
     }
     return `New ${TOWN_NAMES[0][S.towns.length % TOWN_NAMES[0].length]}`;
   }
-  function foundTown(S, q, r, kind) {
+  function foundTown(S, q, r, kind, start = false) {
     const id = S.towns.length, size = CONFIG.settlements[kind].size;
     S.towns.push({ name: townName(S), kind });
     const hexes = [[q, r]], inTown = ([a, b]) => hexes.some(([x, y]) => x === a && y === b);
@@ -234,6 +236,7 @@ const Engine = (() => {
       hexes.push(best[Math.floor(rand(S) * best.length)]);
     }
     const places = TILES.filter((t) => t.in.includes(kind)).map((t) => [rand(S), t]).sort((x, y) => x[0] - y[0]).map(([, t]) => t);
+    if (start) places.unshift(...places.splice(Math.max(0, places.findIndex((t) => t.safety > 0)), 1));   // you start somewhere you can fortify (not its Graveyard)
     hexes.forEach(([a, b], i) => {
       S.townOf[key(a, b)] = id;
       if (i) S.planned[key(a, b)] = places[i % places.length].name;
@@ -248,18 +251,36 @@ const Engine = (() => {
     const open = ([a, b]) => !S.tiles[key(a, b)] && !S.planned[key(a, b)] && !inTown([a, b]);
     const ring = [...new Map(hexes.flatMap(([a, b]) => neighbors(a, b)).filter((h) => !inTown(h)).map((h) => [key(...h), h])).values()];
     const touches = ([a, b], [c, d]) => hexDist(a, b, c, d) === 1;
+    // each place on its own — or a group (suburbs) laid together: its stretches add up, each hex one of its places
+    const units = [];
     for (const def of TILES.filter((t) => t.edge[kind])) {
-      const n = def.edge[kind], stretches = Math.floor(n) + (rand(S) < n % 1 ? 1 : 0), [lo, hi] = CONFIG.edgeChain;
+      const u = def.group && units.find((x) => x.group === def.group);
+      if (u) { u.defs.push(def); u.n += def.edge[kind]; } else units.push({ group: def.group, defs: [def], n: def.edge[kind] });
+    }
+    for (const { defs, n } of units) {
+      const stretches = Math.floor(n) + (rand(S) < n % 1 ? 1 : 0);
+      const [lo, hi] = defs.some((d) => d.around.length) ? [1, 1] : CONFIG.edgeChain;   // a farm comes one at a time
+      const which = () => { let x = rand(S) * n; return defs.find((d) => (x -= d.edge[kind]) < 0) ?? defs.at(-1); };
       for (let i = 0; i < stretches; i++) {
         let free = ring.filter(open);
         if (!free.length) return;
         let h = free[Math.floor(rand(S) * free.length)];
         for (let len = lo + Math.floor(rand(S) * (hi - lo + 1)); len > 0 && h; len--) {
-          S.planned[key(...h)] = def.name;
+          S.planned[key(...h)] = which().name;
           free = ring.filter((x) => open(x) && touches(x, h));   // carry on along the edge
           h = free.length ? free[Math.floor(rand(S) * free.length)] : null;
         }
       }
+    }
+  }
+  // The places that come with one (around: in locations.js — a farm's Barn and Fields, a castle's wilds), planned on
+  // its unexplored neighbours side by side, running round it from a random one: the first named first (the Barn by
+  // the house), then the next… ('rest': all still free). A neighbour already seen or claimed is skipped: less room, fewer.
+  function surround(S, q, r, def) {
+    const around = neighbors(q, r), from = Math.floor(rand(S) * 6);
+    const open = [0, 1, 2, 3, 4, 5].map((i) => around[(from + i) % 6]).filter(([a, b]) => !S.tiles[key(a, b)] && !S.planned[key(a, b)]);
+    for (const { name, lo, hi } of def.around) {
+      for (let n = lo + Math.floor(rand(S) * (hi - lo + 1)); n > 0 && open.length; n--) S.planned[key(...open.shift())] = name;
     }
   }
   // Room for a shape to start here? A belt needs two touching unexplored neighbours (a triangle at least);
@@ -272,9 +293,22 @@ const Engine = (() => {
   // a belt is a triangle of 3 (two neighbours that touch each other) or, CONFIG.beltBig of the time, a cluster
   // of 7 (a hex and all six around it — centred on it or a neighbour, wherever there's room); a range runs CONFIG.rangeArm hexes off each way in a rough line, bending 60°
   // CONFIG.rangeTurn of the time, with CONFIG.rangeGap of its hexes (never the first each way) left as passes.
+  // Then what comes with the shape (with: in locations.js — a Quarry by the Mountains, a Fuel Depot by the
+  // Wasteland), each on a free hex beside it.
   function spread(S, q, r, def) {
+    const shape = [[q, r]];
+    growShape(S, q, r, def, shape);
+    for (const { name, n } of def.with) {
+      for (let i = Math.floor(n) + (rand(S) < n % 1 ? 1 : 0); i > 0; i--) {
+        const beside = [...new Map(shape.flatMap(([a, b]) => neighbors(a, b)).filter(([a, b]) => !S.tiles[key(a, b)] && !S.planned[key(a, b)]).map((h) => [key(...h), h])).values()];
+        if (!beside.length) break;
+        S.planned[key(...beside[Math.floor(rand(S) * beside.length)])] = name;
+      }
+    }
+  }
+  function growShape(S, q, r, def, shape) {
     const open = ([a, b]) => !S.tiles[key(a, b)] && !S.planned[key(a, b)];
-    const plan = ([a, b], what) => { if (open([a, b])) S.planned[key(a, b)] = what; };
+    const plan = ([a, b], what) => { if (open([a, b])) { S.planned[key(a, b)] = what; if (what !== 'pass') shape.push([a, b]); } };
     const around = neighbors(q, r);
     if (def.spread === 'belt') {
       if (rand(S) < CONFIG.beltBig) {   // centred on whichever of it and its neighbours leaves the most room
@@ -597,6 +631,7 @@ const Engine = (() => {
       (S.leads ||= []).push({ k, pid });   // (before the tile's made: its Random row can't be another Note)
       const place = pick(LEADS.places), def = TILES.find((t) => t.name === place) ?? drawTile(S, (t) => !t.spread && !t.settlement && t.table.length > 0 && t.passable);   // (a name not in locations.js: anywhere)
       const t = S.tiles[k] = newTile(S, def), name = by ?? pick(LEADS.names);
+      if (def.around.length) surround(S, q, r, def);   // a castle's wilds round it, as if scouted
       const gun = rand(S) < 0.5, weapon = pick(Object.keys(ITEMS).filter((id) => ITEMS[id].weapon && ITEMS[id].uses === (gun ? 'ammo' : 'ap')));
       t.stashes.push({ owner: name, row: pick([2, 4, 5, 6]), lead: true,
         res: { food: die(CONFIG.lootMin), water: die(CONFIG.lootMin), ...(gun && { ammo: die(CONFIG.lootMin) }) },
@@ -716,6 +751,10 @@ const Engine = (() => {
     p.q = q; p.r = r;
     d.steps++;
     emit(S, { type: 'driveStep', player: p.id, vehicle: d.v.id, fuel: vehicleFuel(d.v), q, r });
+    if (ITEMS[d.v.id].flies) {   // from the air: all within 2 (as Binoculars see), revealed as you fly over
+      const seen = scoutTargets(S, p, true).map(([a, b]) => reveal(S, a, b));
+      if (seen.length) emit(S, { type: 'reveal', player: p.id, tiles: seen });
+    }
     if (vehicleLeft(p, d.v) < 1) { emit(S, { type: 'outOfFuel', player: p.id, vehicle: d.v.id, fuel: vehicleFuel(d.v) }); endDrive(S, p); }
   }
   function endDrive(S, p) {
@@ -1135,7 +1174,8 @@ const Engine = (() => {
           break;
         case 'safety': t.safety = Math.max(0, Math.min(maxSafetyOf(t), n[0] ?? 0)); say = `Safety here: ${t.safety}`; break;
         case 'item': {
-          const item = Object.keys(ITEMS).find((k) => k.toLowerCase().replace(/\s/g, '') === String(n[0] ?? '').toLowerCase().replace(/\s/g, ''));
+          const norm = (x) => String(x ?? '').toLowerCase().replace(/\s/g, '');
+          const item = Object.keys(ITEMS).find((k) => norm(k) === norm(n[0]) || (ITEMS[k].alias && norm(ITEMS[k].alias) === norm(n[0])));   // (or its alias: chopper)
           if (!item) { say = `Unknown item. Items: ${Object.keys(ITEMS).join(', ')}`; break; }
           const cond = Math.max(1, Math.min(CONFIG.maxCondition, n[1] ?? CONFIG.maxCondition));
           if (ITEMS[item].vehicle) { t.vehicles.push(parked(item, cond)); say = `${item}${ITEMS[item].animal ? '' : ` (${cond})`} parked here`; } else {

@@ -5,6 +5,7 @@
 //  Each location has:
 //    name   — shown on the hex
 //    icon   — an emoji
+//    img    — (optional) a picture to show instead, e.g. 'assets/barn.png' (the emoji stays for the log)
 //    table  — its d6 scavenge table: exactly 6 results, for rolls 1 to 6.
 //             Roll 1 is always 'Zombies', and roll 3 is always 'Random'. Every row is used up once found — zombies
 //             too, though they come back once a tile has no Safety and nobody on it.
@@ -20,12 +21,22 @@
 //             planned whole as you find them (CONFIG.settlements in data.js): a village of 3 hexes, a town
 //             of 7, a city of about 12, each a different place from its list. With count: 0 (the default
 //             when `in` is given) it's only ever found in one.
-//    edge   — (optional) open land planned along the outside of new settlements, e.g. { village: 1, town: 1.5 }:
+//    edge   — (optional) land planned along the outside of new settlements, e.g. { village: 1, town: 1.5 }:
 //             how many stretches (CONFIG.edgeChain hexes, running along the edge) each one of that kind gets —
-//             a fraction is a chance of one more. Not found anywhere else (unless it has a count too).
+//             a fraction is a chance of one more. Not found anywhere else (unless it has a count too). A place
+//             with `around` (a Farmhouse) comes one at a time, its own milieu round it.
+//    group  — (optional) edge places in the same group are laid together, mixed in the same stretches — e.g.
+//             'suburbs': Cottages, Corner Shops and Golf Courses clumped round towns and cities. Each group's
+//             stretches add up its places' edge numbers; each hex is one of them (the bigger number, the likelier).
 //    spread — (optional) 'belt' or 'range': a fresh one grows into a shape on the hexes around it
 //             as they're revealed — a belt is a triangle of 3 or a cluster of 7; a range is a
 //             chain running off both ways, with gaps (CONFIG.beltBig, rangeArm, rangeGap, rangeTurn).
+//    with   — (optional) for a belt or range: places that come with its shape, on a hex beside it, e.g.
+//             { Quarry: 0.6 } — how many (a fraction is a chance of one more). Industry by the mountains.
+//    around — (optional) the places that come with it, planned on its unexplored neighbours as it's revealed,
+//             running round it side by side: { Barn: 1, Fields: [2, 4] } — how many of each (a [min, max] is a
+//             random number between; 'rest', last, for every neighbour still free). Where there's no room,
+//             fewer. A place that's only ever found around another can have count: 0.
 //
 //  Results you can write in a table (capitals don't matter):
 //    'Zombies'                                   1d6 zombies arrive
@@ -55,36 +66,39 @@
 // Themed: rows 2, 4, 5 and 6 are what you'd really find at each place (row 1 is Zombies, row 3 is drawn at random
 // as the tile is placed). A resource row gives 1d6; a Double (where a place is richest) gives 1d6 × 2; a mix gives each part.
 const LOCATIONS = [
-  { name: 'Farmhouse',      icon: '🏚️', safety: 4,
+  // a farm: the Farmhouse, with its Barn, Fields and maybe an Orchard round it (its count is low: each farm covers 4–7
+  // hexes) — out in the country, or at a village's edge
+  { name: 'Farmhouse',      icon: '🏚️', safety: 4, count: 0.5, edge: { village: 0.5 }, around: { Barn: 1, Fields: [2, 4], Orchard: [0, 1] },
     table: ['Zombies',       'Food + Water',  'Random',        'Ammo',          'Axe',           'Tractor + Fuel'] },
 
   // ---- countryside: found alone, by count
-  { name: 'Forest',         icon: '🌲', safety: 0, table: ['Zombies',       'Food',          'Random',        'Double Food',   'Water',         'Axe'] },
-  { name: 'Lake',           icon: '🏞️', safety: 0, table: ['Zombies',       'Endless Water', 'Random',        'Double Water',  'Water',         'Food'] },
+  { name: 'Forest',         icon: '🌲', safety: 0, count: 1, edge: { village: 0.8 }, table: ['Zombies',       'Food',          'Random',        'Double Food',   'Water',         'Axe'] },
+  { name: 'Lake',           icon: '🏞️', safety: 0, count: 1, edge: { village: 0.4 }, table: ['Zombies',       'Endless Water', 'Random',        'Double Water',  'Water',         'Food'] },
   { name: 'Campsite',       icon: '⛺', safety: 0, table: ['Zombies',       'Food + Water',  'Random',        'Ammo',          'Campervan',     'Bike'] },
-  { name: 'Orchard',        icon: '🍎', safety: 0, table: ['Zombies',       'Food',          'Random',        'Double Food',   'Food + Booze',  'Booze'] },
-  { name: 'Cottage',        icon: '🏡', safety: 4, count: 0.6, in: ['village'],
+  { name: 'Orchard',        icon: '🍎', safety: 0, count: 0, edge: { village: 0.6 }, table: ['Zombies',       'Food',          'Random',        'Double Food',   'Food + Booze',  'Booze'] },
+  { name: 'Cottage',        icon: '🏡', safety: 4, edge: { town: 1.5, city: 2.5 }, group: 'suburbs',
     table: ['Zombies',       'Food',          'Random',        'Food + Water',  'Kitchen Knife', 'Booze'] },
   { name: 'Fishing Spot',   icon: '🎣', safety: 0, count: 0.7, table: ['Zombies',       'Food',          'Random',        'Double Food',   'Water',         'Food + Water'] },
-  { name: 'Stables',        icon: '🐎', safety: 3, count: 0.6, table: ['Zombies',       'Water',         'Random',        'Food + Water',  'Double Food',   'Horse'] },
-  { name: 'Quarry',         icon: '⛏️', safety: 0, count: 0.6, table: ['Zombies',       'Pickaxe',       'Random',        'Tool',          'Water',         'Tool + Fuel'] },
+  { name: 'Barn',           icon: '🛖', img: 'assets/barn.png', safety: 3, count: 0, table: ['Zombies',       'Water',         'Random',        'Food + Water',  'Double Food',   'Horse'] },
+  { name: 'Quarry',         icon: '⛏️', safety: 0, count: 0, table: ['Zombies',       'Pickaxe',       'Random',        'Tool',          'Water',         'Tool + Fuel'] },
   // the best walls around, and almost nothing to find: somewhere to reach before nightfall
-  { name: 'Castle',         icon: '🏰', safety: 6, count: 0.3, table: ['Zombies',       'Sword',         'Random',        'Ammo',          'Body Armor',    'Booze'] },
+  // a castle stands alone in the wilds: a Mountain or two, a Lake with a Fishing Spot on its shore, an Orchard, Forest all round
+  { name: 'Castle',         icon: '🏰', safety: 6, count: 0.3, around: { Mountain: [0, 2], Lake: [0, 1], 'Fishing Spot': [0, 1], Orchard: [0, 1], Forest: 'rest' }, table: ['Zombies',       'Sword',         'Random',        'Ammo',          'Body Armor',    'Booze'] },
   // mostly zombies
-  { name: 'Graveyard',      icon: '🪦', safety: 0, count: 0.5, table: ['Zombies',       'Zombies',       'Random',        'Pickaxe',       'Tool',          'Ammo'] },
+  { name: 'Graveyard',      icon: '🪦', safety: 0, in: ['village', 'town', 'city'], table: ['Zombies',       'Zombies',       'Random',        'Pickaxe',       'Tool',          'Ammo'] },
   // roadside: alone in the country (the Petrol Station is also built in towns)
   { name: 'Petrol Station', icon: '⛽', safety: 3, count: 0.5, in: ['town'],
     table: ['Zombies',       'Fuel',          'Random',        'Fuel + Water',  'Food + Booze',  'Truck + Fuel'] },
   { name: 'Army Checkpoint', icon: '🪖', safety: 6, count: 0.4, table: ['Zombies',       'Pistol',        'Random',        'Ammo + Water',  'Binoculars',    'Jeep'] },
   { name: 'Diner',          icon: '🍔', safety: 3, count: 0.5, table: ['Zombies',       'Water',         'Random',        'Double Food',   'Food + Water',  'Frying Pan'] },
-  { name: 'Fuel Depot',     icon: '🛢️', safety: 3, count: 0.3, table: ['Zombies',       'Fuel',          'Random',        'Double Fuel',   'Tool + Fuel',   'Truck + Fuel'] },
+  { name: 'Fuel Depot',     icon: '🛢️', safety: 3, count: 0, table: ['Zombies',       'Fuel',          'Random',        'Double Fuel',   'Tool + Fuel',   'Truck + Fuel'] },
 
   // ---- villages (and bigger)
   { name: 'Church',         icon: '⛪', safety: 6, in: ['village', 'town', 'city'],
     table: ['Zombies',       'Food',          'Random',        'Water',         'Food + Water',  'Ammo'] },
   { name: 'Pub',            icon: '🍺', safety: 4, in: ['village', 'town', 'city'],
     table: ['Zombies',       'Booze',         'Random',        'Food + Water',  'Food + Booze',  'Cricket Bat'] },
-  { name: 'Corner Shop',    icon: '🏪', safety: 3, in: ['village', 'town', 'city'],
+  { name: 'Corner Shop',    icon: '🏪', safety: 3, in: ['village', 'town', 'city'], edge: { town: 0.6, city: 1 }, group: 'suburbs',
     table: ['Zombies',       'Food',          'Random',        'Water',         'Booze',         'Food + Water'] },
   { name: 'Post Office',    icon: '🏤', safety: 4, in: ['village', 'town', 'city'],
     table: ['Zombies',       'Tool',          'Random',        'Ammo',          'Binoculars',    'Bike'] },
@@ -132,11 +146,11 @@ const LOCATIONS = [
 
   // ---- settlement edges: open land planned around the outside of a settlement as it's founded, in short chains
   // along its edge or on their own (edge: how many per settlement of each kind — 1.5 = one, and half the time two)
-  { name: 'Fields',         icon: '🌾', safety: 0, edge: { village: 1, town: 1.5 } },
-  { name: 'Golf Course',    icon: '⛳', safety: 0, edge: { town: 0.4, city: 0.8 } },
+  { name: 'Fields',         icon: '🌾', safety: 0, count: 0 },   // only ever round a farm
+  { name: 'Golf Course',    icon: '⛳', safety: 0, edge: { town: 0.4, city: 0.8 }, group: 'suburbs' },
 
   // Wasteland: nothing to find and nowhere to hide. Comes in belts (a triangle of 3 or a cluster of 7).
-  { name: 'Wasteland',      icon: '🏜️', safety: 0, count: 1.2, spread: 'belt' },
+  { name: 'Wasteland',      icon: '🏜️', safety: 0, count: 1.2, spread: 'belt', with: { 'Fuel Depot': 0.5 } },
   // Mountain: impassable wasteland — it blocks the way. Comes in ranges: chains with gaps to get through.
-  { name: 'Mountain',       icon: '⛰️', safety: 0, passable: false, count: 0.9, spread: 'range' },
+  { name: 'Mountain',       icon: '⛰️', safety: 0, passable: false, count: 0.9, spread: 'range', with: { Quarry: 0.6 } },
 ];
