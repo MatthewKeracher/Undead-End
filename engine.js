@@ -98,14 +98,17 @@ const Engine = (() => {
     const stash = stashAt(t, row);
     if (stash) return { kind: 'stash', stash };
     const e = rowEntry(t, row);
-    if (!e || (t.looted || []).includes(row)) return { kind: 'looted', e };
+    if (!e || e.empty || (t.looted || []).includes(row)) return { kind: 'looted', e };   // (an Empty row: as good as looted)
     if (e.zombies) return { kind: 'zombies', e };
     return { kind: e.item || e.parts?.some((x) => x.item) ? 'item' : 'res', e };
   }
   // A result picked at random from every place's table (each row of each place as likely) — zombies, Doubles and
   // mixes included. Endless is dropped: only the place it belongs to never runs out of it.
+  // Or a Note (CONFIG.randomNote) — the only way one's found — unless a place a Note named is still to be reached.
+  const leadWaiting = (S) => (S.leads || []).some(({ k, pid }) => S.players.some((p) => p.id === pid && !p.dead && !p.visited?.includes(k)));
   const anyResult = (S) => {
-    const pool = TILES.flatMap((t) => t.table).filter((e) => !e.random);
+    if (!leadWaiting(S) && rand(S) < CONFIG.randomNote) return { item: 'Note' };
+    const pool = TILES.flatMap((t) => t.table).filter((e) => !e.random && !e.empty);
     const { endless, ...e } = pool[Math.floor(rand(S) * pool.length)];
     return JSON.parse(JSON.stringify(e));
   };
@@ -139,6 +142,7 @@ const Engine = (() => {
 
   function cellText(e) {
     if (e.zombies) return e.zombies > 1 ? `Zombies ×${e.zombies}` : 'Zombies';
+    if (e.empty) return '';
     const forever = e.endless ? ' ∞' : '';   // an Endless row never runs out
     if (e.parts) return e.parts.map(cellText).join(' + ') + forever;
     if (e.item) return e.item + forever;
@@ -158,7 +162,7 @@ const Engine = (() => {
   // ---------------------------------------------------------------- setup
   // A Random row (row 3 in every table) is given its result as the tile is placed — anything from any place's table,
   // zombies included — and from then on it's an ordinary row (t.drawn: row → its result).
-  // A place is found with CONFIG.startSafety of its max Safety already up (rounded down): half, e.g. a Castle 4 of 8.
+  // A place is found with CONFIG.startSafety of its max Safety already up (rounded down): half, e.g. a Castle 3 of 6.
   function newTile(S, def) {
     const safety = Math.floor((def.safety ?? CONFIG.maxSafety) * CONFIG.startSafety);
     const t = { def, safety, zombies: 0, vehicles: [], looted: [], stashes: [] };
@@ -315,7 +319,7 @@ const Engine = (() => {
   }
 
   // autoEnd: the round ends as soon as every survivor has acted (single player).
-  // Without it, the host ends rounds with timeUp() (the 30 s timer).
+  // Without it, the host ends rounds with timeUp() (the round timer, CONFIG.roundSeconds).
   function createGame({ names = ['Survivor'], seed = (Math.random() * 2 ** 32) >>> 0, autoEnd = true, checksOff = false } = {}) {
     const S = {
       seed, rng: seed | 0, day: CONFIG.startDay, round: CONFIG.startRound, tiles: {}, planned: {}, towns: [], townOf: {}, players: [],
@@ -324,14 +328,14 @@ const Engine = (() => {
     const first = reveal(S, 0, 0, true);   // you start somewhere random: anywhere in the countryside, or in a settlement
     for (const id of CONFIG.testStartVehicles || []) S.tiles[key(0, 0)].vehicles.push({ id, cond: CONFIG.maxCondition });
     names.forEach((name, i) => {
-      // CONFIG.startAP (8 of 12), CONFIG.startRes (4 food, 6 water) and CONFIG.startItems (Booze, condition 3)
+      // CONFIG.startAP (8 of 12), CONFIG.startRes (4 food, 6 water) and CONFIG.startItems (a Note, condition 6)
       const p = {
         id: i, name, color: COLORS[i % COLORS.length], q: 0, r: 0, ap: Math.min(CONFIG.startAP, CONFIG.startMaxAP), maxAP: CONFIG.startMaxAP,
         res: { ...CONFIG.startRes }, items: [], dead: false, acted: false, freeMoved: false, caught: false, pending: null, queue: [], visited: ['0,0'],
       };
       for (const it of CONFIG.startItems || []) p.items.push({ ...it });
       for (const id of CONFIG.testStartItems || []) p.items.push({ id, cond: CONFIG.maxCondition });
-      for (const [k, n] of Object.entries(CONFIG.testStartRes || {})) p.res[k] += n;
+      for (const [k, n] of Object.entries(CONFIG.testStartRes || {})) p.res[k] = Math.min(CONFIG.maxRes, p.res[k] + n);
       S.players.push(p);
     });
     log(S, `Day ${S.day} begins. ${plural(names.length, 'survivor')} shelter at the ${first.icon} ${first.name}.`, 'phase');
@@ -357,16 +361,21 @@ const Engine = (() => {
   }
   // Each survivor remembers the tiles they've stood on (p.visited) — the UI shows their Safety there.
   // …and the settlements they've set foot in (p.towns): the first time, a 'town' event (the UI's banner).
-  // A Note whose place you've reached has done its job: it leaves the backpack.
+  // A Note whose place you've reached loses hope: down to 1 pip (it.reached — once). Driving, that waits till the trip
+  // ends — then any Note whose place you drove onto or through is reached.
   function markVisited(S) {
     for (const p of S.players) {
       if (p.dead) continue;
       const k = key(p.q, p.r), id = S.tiles[k]?.town;
       if (!(p.visited ||= []).includes(k)) p.visited.push(k);
-      for (const it of p.items.filter((x) => ITEMS[x.id].leads && x.to === k)) {
-        p.items.splice(p.items.indexOf(it), 1);
-        log(S, `📝 ${p.name} reaches the ${S.tiles[k].def.name} the Note named — and lets it go.`, 'good');
-        emit(S, { type: 'noteDone', player: p.id, name: S.tiles[k].def.name, by: it.by });
+      const done = p.pending?.kind === 'drive' ? [] : p.items.filter((x) => ITEMS[x.id].leads && x.to && !x.reached && p.visited.includes(x.to));
+      for (const it of done) {
+        const there = S.tiles[it.to].def.name;
+        const from = it.cond;
+        it.reached = true;
+        it.cond = Math.min(it.cond, 1);
+        log(S, `📝 ${p.name} reaches the ${there}. ${it.by || 'No one'} isn't here. Note loses hope.`);
+        emit(S, { type: 'noteDone', player: p.id, name: there, by: it.by, item: p.items.indexOf(it), from, to: it.cond });
       }
       if (id !== undefined && !(p.towns ||= []).includes(id)) {
         p.towns.push(id);
@@ -420,7 +429,7 @@ const Engine = (() => {
     startOfRound(S);
   }
 
-  // The 30 s timer ran out: anyone who hasn't acted loses 1 AP and the round ends. See settle().
+  // The round timer ran out: anyone who hasn't acted loses 1 AP and the round ends. See settle().
   const timeUp = (S) => run(S, () => { S.timesUp = true; });
 
   // Everything that happens at the START of a round, before anyone acts:
@@ -574,7 +583,7 @@ const Engine = (() => {
   // Note (so the trail goes on), food and water, a melee weapon or a gun and ammo, and pills or binoculars.
   // It's a stronghold (LEADS.places: a Castle, Army Checkpoint or Church), standing alone — never in a settlement's
   // room or next to a Mountain.
-  function makeLead(S, from, by) {
+  function makeLead(S, from, by, pid) {
     const [fq, fr] = from.split(',').map(Number), d0 = CONFIG.leadDistance;
     const ok = ([q, r]) => !S.tiles[key(q, r)] && !S.planned[key(q, r)] && !nearTown(S, q, r)
       && !neighbors(q, r).some(([a, b]) => (S.tiles[key(a, b)]?.def.name ?? S.planned[key(a, b)]) === 'Mountain');
@@ -585,25 +594,30 @@ const Engine = (() => {
       for (let q = fq - d; q <= fq + d; q++) for (let r = fr - d; r <= fr + d; r++) if (hexDist(fq, fr, q, r) === d && ok([q, r])) ring.push([q, r]);
       if (!ring.length) continue;
       const [q, r] = pick(ring), k = key(q, r);
+      (S.leads ||= []).push({ k, pid });   // (before the tile's made: its Random row can't be another Note)
       const place = pick(LEADS.places), def = TILES.find((t) => t.name === place) ?? drawTile(S, (t) => !t.spread && !t.settlement && t.table.length > 0 && t.passable);   // (a name not in locations.js: anywhere)
       const t = S.tiles[k] = newTile(S, def), name = by ?? pick(LEADS.names);
       const gun = rand(S) < 0.5, weapon = pick(Object.keys(ITEMS).filter((id) => ITEMS[id].weapon && ITEMS[id].uses === (gun ? 'ammo' : 'ap')));
       t.stashes.push({ owner: name, row: pick([2, 4, 5, 6]), lead: true,
         res: { food: die(CONFIG.lootMin), water: die(CONFIG.lootMin), ...(gun && { ammo: die(CONFIG.lootMin) }) },
-        items: [{ id: 'Note', cond: die(), by: name }, { id: weapon, cond: die() }, { id: pick(['Pills', 'Binoculars']), cond: die() }] });
+        items: [{ id: 'Note', cond: CONFIG.maxCondition, by: name }, { id: weapon, cond: die() }, { id: pick(['Pills', 'Binoculars']), cond: die() }] });
       return { to: k, by: name, text: pick(LEADS.notes).replace('{place}', def.name).replace('{name}', name) };
     }
     return null;   // nowhere to point (very unlikely): just a note
   }
-  // A Note read for the first time (found, or taken from a stash) points somewhere: the place it names appears.
+  // A Note is read when you choose to (the 'read' action, from the backpack — never on finding it). The first time,
+  // it points somewhere: the place it names appears. Read again, it shows you that place, and its words, again.
   function readNote(S, p, item) {
-    if (!ITEMS[item.id].leads || item.to) return;
-    const lead = makeLead(S, key(p.q, p.r), item.by);
-    if (!lead) return;
-    Object.assign(item, lead);
-    const there = S.tiles[lead.to];
-    log(S, `📝 “${lead.text}”`, 'good');
-    emit(S, { type: 'lead', player: p.id, k: lead.to, name: there.def.name, icon: there.def.icon, text: lead.text });
+    if (!ITEMS[item.id].leads) return;
+    const first = !item.to;
+    if (first) {
+      const lead = makeLead(S, key(p.q, p.r), item.by, p.id);
+      if (!lead) return void log(S, `📝 The Note's words are too faded to make out.`);
+      Object.assign(item, lead);
+      log(S, `📝 “${lead.text}”`, 'good');
+    }
+    const there = S.tiles[item.to];
+    emit(S, { type: 'lead', player: p.id, k: item.to, name: there.def.name, icon: there.def.icon, text: item.text, again: !first });
   }
   // a place a Note led to, while the stash it promised is still there (the UI borders it in purple)
   const leadOpen = (t) => !!t.stashes?.some((s) => s.lead);
@@ -737,6 +751,18 @@ const Engine = (() => {
     s.items.push(...items);
     return s;
   }
+  // Resources are capped (CONFIG.maxRes): you take what fits — gainRes says how much didn't. What doesn't stays on the
+  // tile, in your stash (on the row it came from, if that's free: `prefer`), to come back for.
+  function gainRes(p, k, n) {
+    const took = Math.max(0, Math.min(n, CONFIG.maxRes - p.res[k]));
+    p.res[k] += took;
+    return n - took;
+  }
+  function leaveRes(S, p, t, left, prefer) {
+    if (!Object.values(left).some((n) => n > 0)) return;
+    const s = addToStash(S, t, p.name, { res: left }, prefer);
+    log(S, `${p.name} can't carry more than ${CONFIG.maxRes} — ${stashText({ res: left, items: [] })} left ${whereLeft(p, t, s)}.`);
+  }
   // "at the Farmhouse (row 4)" for a lone item, "in their stash at the Farmhouse (row 4)" once there's more
   const whereLeft = (p, t, s) => `${loneItem(s) ? '' : `in ${s.owner === p.name ? 'their' : `${s.owner}'s`} stash `}at the ${t.def.name} (row ${s.row})`;
   // Rolling a stash: all its resources, and its items if they fit in your backpack. If they don't, you choose what to
@@ -748,14 +774,14 @@ const Engine = (() => {
     if (lone) {
       t.stashes.splice(t.stashes.indexOf(s), 1);   // picked up: the row underneath shows again
       logRoll(S, `${at}: ${ITEMS[lone.id].icon} ${lone.id}, condition ${lone.cond}!`, 'good');
-      readNote(S, p, lone);
       return gainItem(S, p, lone, s.row);
     }
-    const got = stashText({ res: s.res, items: [] });
-    for (const [k, n] of Object.entries(s.res)) p.res[k] += n;
-    s.res = {};
+    const took = {}, left = {};
+    for (const [k, n] of Object.entries(s.res)) { left[k] = gainRes(p, k, n); took[k] = n - left[k]; }   // (what you can't carry stays in it)
+    const got = stashText({ res: took, items: [] }), kept = stashText({ res: left, items: [] });
+    s.res = Object.fromEntries(Object.entries(left).filter(([, n]) => n > 0));
     s.lead = false;
-    logRoll(S, `${at}: 🎒 ${s.owner}'s stash${got ? ` — ${got}` : ''}!`, 'good');
+    logRoll(S, `${at}: 🎒 ${s.owner}'s stash${got ? ` — ${got}` : ''}!${kept ? ` (${kept} stay in it: you can't carry more than ${CONFIG.maxRes}.)` : ''}`, 'good');
     if (p.items.length + s.items.length <= CONFIG.maxItems) swapWithStash(S, p, t, s, [...p.items, ...s.items].map((_, i) => i));
     else p.pending = { kind: 'stash', k: key(p.q, p.r), row: s.row };
   }
@@ -765,7 +791,6 @@ const Engine = (() => {
     const carry = all.filter((_, i) => picks.includes(i)), stay = all.filter((_, i) => !picks.includes(i));
     const taken = carry.filter((it) => !mine.has(it)), left = stay.filter((it) => mine.has(it));
     p.items = carry; s.items = stay;
-    for (const it of taken) readNote(S, p, it);
     const names = (list) => list.map((it) => `${ITEMS[it.id].icon} ${it.id}`).join(', ');
     if (taken.length) log(S, `${p.name} takes ${names(taken)} from ${s.owner}'s stash.`, 'good');
     if (left.length) log(S, `${p.name} leaves ${names(left)} in ${s.owner}'s stash.`);
@@ -840,12 +865,13 @@ const Engine = (() => {
       const r = tries.at(-1), hit = rows[r - 1], e = hit.e;
       // then dice for each part: a resource rolls CONFIG.lootDice d6; zombies and an item's condition roll 1d6
       const parts = hit.kind === 'stash' || hit.kind === 'looted' ? [] : e.parts ?? [e];
-      const dice = parts.map((x) => Array.from({ length: x.res ? CONFIG.lootDice : ITEMS[x.item]?.map ? 0 : 1 }, () => roll(S, true, x.res ? CONFIG.lootMin : 1)));   // a Map has no condition
-      const amts = dice.map((d) => d.reduce((a, b) => a + b, 0)), amt = amts[0] ?? null;
+      const dice = parts.map((x) => Array.from({ length: x.res ? CONFIG.lootDice : ITEMS[x.item]?.map || ITEMS[x.item]?.full ? 0 : 1 }, () => roll(S, true, x.res ? CONFIG.lootMin : 1)));   // a Map has no condition
+      // (an item that's always found whole — a Note — rolls no condition: it's at full)
+      const amts = dice.map((d, i) => (ITEMS[parts[i].item]?.full ? CONFIG.maxCondition : d.reduce((a, b) => a + b, 0))), amt = amts[0] ?? null;
       const c = hit.kind === 'zombies' ? zombiesArrive(t, amt) : null;
       const snap = (x) => JSON.parse(JSON.stringify(x));   // events carry the table as it was when you rolled
       emit(S, { type: 'scavenge', player: p.id, k: key(p.q, p.r), name: t.def.name, rows: snap(rows), tries, r, hit: snap(hit), amt, amts, dice, c });
-      const at = `${p.name} scavenges the ${t.def.name} — rolls ${tries.length > 1 ? `${tries.slice(0, -1).map((x) => `${x} (looted)`).join(', ')}, then ${r}` : r}`;
+      const at = `${p.name} scavenges the ${t.def.name} — rolls ${tries.length > 1 ? `${tries.slice(0, -1).map((x) => `${x} (${rows[x - 1].e?.empty ? 'empty' : 'looted'})`).join(', ')}, then ${r}` : r}`;
       if (c) {
         (t.looted ||= []).push(r);   // these zombies have come; the row is clear until they drift back
         applyContest(t, c);
@@ -857,21 +883,21 @@ const Engine = (() => {
         claimStash(S, p, t, hit.stash, at);
       } else {
         if (!e.endless) (t.looted ||= []).push(r);   // found: crossed off for good (unless it's Endless)
+        const left = {};
         const found = parts.map((x, i) => {
           if (x.item) return ITEMS[x.item].map || ITEMS[x.item].animal ? `${ITEMS[x.item].icon} ${x.item}` : `${ITEMS[x.item].icon} ${x.item}, condition ${amts[i]}`;
-          p.res[x.res] += amts[i] * x.n;
+          left[x.res] = gainRes(p, x.res, amts[i] * x.n);
           return `${cellText(x)} → ${dice[i].join(' + ')}${x.n > 1 ? ` ×${x.n}` : ''} = ${amts[i] * x.n} ${ICON[x.res]} ${x.res}`;
         });
         logRoll(S, `${at}: ${found.join(' · ')}.`, 'good');
+        leaveRes(S, p, t, left, e.endless ? undefined : r);   // more than you can carry: the rest stays here
         parts.forEach((x, i) => {
           if (!x.item) return;
           if (ITEMS[x.item].vehicle) {
             t.vehicles.push(parked(x.item, amts[i]));
             log(S, `${ITEMS[x.item].icon} The ${x.item} ${ITEMS[x.item].animal ? 'waits' : 'is parked'} at the ${t.def.name}.`, 'good');
           } else {
-            const item = { id: x.item, cond: amts[i] };
-            readNote(S, p, item);   // a Note: the place it names appears
-            gainItem(S, p, item, r);
+            gainItem(S, p, { id: x.item, cond: amts[i] }, r);
           }
         });
       }
@@ -950,17 +976,17 @@ const Engine = (() => {
         log(S, `${ITEMS[it.id].icon} The ${it.id} ${it.id === 'Pills' ? 'are' : 'is'} all gone.`, 'bad');
       }
     },
-    // Dropping leaves the item in your stash on this tile — anyone who rolls that row can take it.
-    drop(S, p, { item: i }) {
-      const it = p.items[i], t = tileOf(S, p);
-      if (!it) return 'No such item.';
-      p.items.splice(i, 1);
-      const s = addToStash(S, t, p.name, { items: [it] });
-      log(S, `${p.name} leaves their ${ITEMS[it.id].icon} ${it.id} ${whereLeft(p, t, s)}.`);
+    // (Nothing is dropped at will: an item's only left behind when the backpack's full and something new is found.)
+    // Reading a Note: free, as often as you like (readNote).
+    read(S, p, { item: i }) {
+      const it = p.items[i];
+      if (!it || !ITEMS[it.id].leads) return 'Nothing to read.';
+      readNote(S, p, it);
     },
     give(S, p, { to, res }) {
       const o = S.players[to];
       if (!o || o === p || o.dead || o.q !== p.q || o.r !== p.r || !(p.res[res] >= 1)) return "Can't give that.";
+      if (o.res[res] >= CONFIG.maxRes) return `${o.name} can't carry any more ${res}.`;
       p.res[res]--; o.res[res]++;
       log(S, `${p.name} gives 1 ${ICON[res]} ${res} to ${o.name}.`);
     },
@@ -1113,15 +1139,19 @@ const Engine = (() => {
           if (!item) { say = `Unknown item. Items: ${Object.keys(ITEMS).join(', ')}`; break; }
           const cond = Math.max(1, Math.min(CONFIG.maxCondition, n[1] ?? CONFIG.maxCondition));
           if (ITEMS[item].vehicle) { t.vehicles.push(parked(item, cond)); say = `${item}${ITEMS[item].animal ? '' : ` (${cond})`} parked here`; } else {
-            const it = { id: item, cond };
-            readNote(S, p, it);
-            gainItem(S, p, it); say = `${item} (${cond}) added`;
+            gainItem(S, p, { id: item, cond }); say = `${item} (${cond}) added`;
           }
           break;
         }
+        case 'bubba':   // kitted out: 25 of each resource, a Shotgun and an Axe (full condition), a Truck parked here
+          if (busy) { say = 'Busy — deal with what is happening first.'; break; }
+          leaveRes(S, p, t, Object.fromEntries(Object.keys(p.res).map((k) => [k, gainRes(p, k, 25)])));   // (over the cap: left here)
+          for (const id of ['Shotgun', 'Axe']) gainItem(S, p, { id, cond: CONFIG.maxCondition });   // (a full backpack asks what to leave)
+          t.vehicles.push(parked('Truck', CONFIG.maxCondition));
+          say = `Bubba: +25 of each resource (up to ${CONFIG.maxRes}: the rest is left here), a Shotgun, an Axe, and a Truck parked here`; break;
         case 'ap': p.ap = Math.max(0, Math.min(p.maxAP, n[0] ?? 0)); say = `AP: ${p.ap}`; break;
         case 'maxap': p.maxAP = Math.max(1, Math.min(CONFIG.maxAP, n[0] ?? CONFIG.maxAP)); p.ap = Math.min(p.ap, p.maxAP); say = `Max AP: ${p.maxAP}`; break;
-        case 'food': case 'water': case 'fuel': case 'ammo': p.res[cmd] = Math.max(0, n[0] ?? 0); say = `${cmd}: ${p.res[cmd]}`; break;
+        case 'food': case 'water': case 'fuel': case 'ammo': p.res[cmd] = Math.max(0, Math.min(CONFIG.maxRes, n[0] ?? 0)); say = `${cmd}: ${p.res[cmd]}`; break;
         case 'checks': {
           const v = String(n[0] ?? '').toLowerCase();
           S.checksOff = v === 'off' ? true : v === 'on' ? false : !S.checksOff;
@@ -1142,7 +1172,7 @@ const Engine = (() => {
 
   return {
     ICON, RES_LABEL, key, neighbors, isNight, isAttack, attackDue, cellText, upkeepText, roundBanner,
-    tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText, loneItem, hopeItems, leadOpen,
+    tileOf, emptyAdj, scoutTargets, binocularsOf, tileAdj, passable, driveAdj, weaponOf, armorOf, canEnter, moveAdj, canScavengeHere, canFortifyHere, maxSafetyOf, tableView, stashText, loneItem, hopeItems, leadOpen, anyResult, addToStash,
     fleeAdj, canShoot, canMelee, canSaw, canFight, canFlee, canWield, canHide, vehicleFuel, vehicleLeft, vehicleFed, vehicleOf, canDrive,
     createGame, start, act, timeUp, cheat,
   };

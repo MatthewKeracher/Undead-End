@@ -25,12 +25,13 @@ function game(opts = {}) {
     Object.assign(S, { planned: {}, towns: [], townOf: {} });
     S.tiles['0,0'] = { def: def('Farmhouse'), safety: 0, zombies: 0, vehicles: [], looted: [], stashes: [], drawn: { 3: { res: 'water', n: 2 } } };
   }
+  for (const p of S.players) p.items = [];   // (before start: so no starting Note is read, and nothing's revealed)
   E.start(S);
-  for (const p of S.players) p.items = [];
   return { S, p: S.players[0] };
 }
 const act = (S, action) => E.act(S, 0, action);
 const decide = (S, choice) => E.act(S, 0, { type: 'decide', choice });
+const noteRow = (S) => (E.tileOf(S, S.players[0]).drawn[3] = { item: 'Note' });   // the Farmhouse's Random row: a Note
 const tile = (S, q, r, name, extra = {}) => (S.tiles[`${q},${r}`] = { def: def(name), safety: 0, zombies: 0, vehicles: [], ...extra });
 
 test('you start somewhere random that can be fortified — never outdoors — sometimes in a settlement', () => {
@@ -53,12 +54,37 @@ test('same seed, same game', () => {
   assert.equal(a.rng, b.rng);
 });
 
-test('every survivor starts with 8 of 12 AP, 4 food, 6 water, and a Booze (condition 3) — hope is carried, not counted', () => {
+test('every survivor starts with 8 of 12 AP, 4 food, 6 water, and a Note (condition 6) — hope is carried, not counted', () => {
   const S = E.createGame({ seed: 3 });
   assert.equal(S.players[0].ap, 8);
   assert.equal(S.players[0].maxAP, 12);
   assert.deepEqual({ ...S.players[0].res }, { food: 4, water: 6, fuel: 0, ammo: 0 });
-  assert.equal(JSON.stringify(S.players[0].items), JSON.stringify([{ id: 'Booze', cond: 3 }]));
+  assert.equal(JSON.stringify(S.players[0].items), JSON.stringify([{ id: 'Note', cond: 6 }]));
+});
+
+test('the starting Note waits to be read: reading it, the first place on the trail appears; no Random row is a Note', () => {
+  for (let seed = 1; seed <= 30; seed++) {
+    const S = E.createGame({ seed, checksOff: true });
+    const tiles = Object.keys(S.tiles).length;
+    assert.ok(!E.start(S).events.some((e) => e.type === 'lead'));
+    const note = S.players[0].items[0];
+    assert.equal(note.to, undefined);
+    assert.equal(Object.keys(S.tiles).length, tiles);
+    const { events } = E.act(S, 0, { type: 'read', item: 0 });
+    assert.ok(note.to && note.text, `seed ${seed}`);
+    assert.ok(E.leadOpen(S.tiles[note.to]));
+    assert.equal(events.find((e) => e.type === 'lead').k, note.to);
+    assert.equal(S.players[0].acted, false);   // free
+    assert.ok(!Object.values(S.tiles).some((t) => Object.values(t.drawn || {}).some((e) => e.item === 'Note')));
+  }
+});
+
+test('nothing is dropped at will: only a full backpack leaves something behind; only a Note can be read', () => {
+  const { S, p } = game();
+  p.items.push({ id: 'Axe', cond: 3 });
+  assert.match(act(S, { type: 'drop', item: 0 }).error, /Unknown action/);
+  assert.equal(p.items.length, 1);
+  assert.match(act(S, { type: 'read', item: 0 }).error, /Nothing to read/);
 });
 
 test('the first move each round is free (but needs 1 AP); the second costs 1 AP and is your action', () => {
@@ -444,9 +470,10 @@ test('Fields edge villages and towns, Golf Courses edge towns and cities — and
   assert.ok(seen.Fields > seen['Golf Course'] && seen['Golf Course'] > 0, JSON.stringify(seen));
 });
 
-test('weapon looks: melee ones cost AP, the Bow fires ammo like the Pistol', () => {
+test('weapon looks: melee ones cost AP; guns (Pistol, Shotgun) fire ammo', () => {
   for (const id of ['Axe', 'Sword', 'Kitchen Knife', 'Frying Pan', 'Cricket Bat', 'Hockey Stick', 'Pickaxe']) assert.equal(ITEMS[id].uses, 'ap', id);
-  for (const id of ['Pistol', 'Bow']) assert.equal(ITEMS[id].uses, 'ammo', id);
+  for (const id of ['Pistol', 'Shotgun']) assert.equal(ITEMS[id].uses, 'ammo', id);
+  assert.equal(ITEMS.Bow, undefined);   // (gone: the Castle has Ammo instead)
   const { S, p } = game();
   p.items.push({ id: 'Frying Pan', cond: 2 });
   tile(S, 1, 0, 'Forest');
@@ -910,11 +937,16 @@ test('hope is Booze, Pills and Notes: items on the tables, not a resource', () =
 
 test('finding a Note reveals a place 6 hexes away, where its writer left a stash', () => {
   const { S, p } = game();
-  S.forced = [4, 2];                    // Farmhouse 4 = Note, condition 2
-  const { events } = act(S, { type: 'scavenge' });
+  noteRow(S);
+  S.forced = [3];                       // Farmhouse 3 (Random) = Note — always found at full condition (no roll)
+  const tiles = Object.keys(S.tiles).length;
+  act(S, { type: 'scavenge' });
   const note = p.items[0];
+  assert.equal(note.to, undefined);     // found, not read: nothing appears yet
+  assert.equal(Object.keys(S.tiles).length, tiles);
+  const { events } = act(S, { type: 'read', item: 0 });   // reading it (free): the place it names appears
   assert.equal(note.id, 'Note');
-  assert.equal(note.cond, 2);
+  assert.equal(note.cond, 6);
   assert.ok(note.text.length <= 280 && note.text.includes(S.tiles[note.to].def.name) && note.text.includes(note.by), note.text);
   const [q, r] = note.to.split(',').map(Number);
   assert.equal((Math.abs(q) + Math.abs(r) + Math.abs(q + r)) / 2, 6);
@@ -934,19 +966,59 @@ test('finding a Note reveals a place 6 hexes away, where its writer left a stash
   assert.equal(E.tableView(there)[st.row - 1].kind, 'stash');
 });
 
-test('a Note leaves the backpack once you reach the place it names', () => {
+test('reaching the place a Note names: it loses hope — down to 1 pip, once', () => {
   const { S, p } = game();
-  S.forced = [4, 2];                    // Farmhouse 4 = Note
+  noteRow(S);
+  S.forced = [3];                       // Farmhouse 3 (Random) = Note (6 pips)
   act(S, { type: 'scavenge' });
+  act(S, { type: 'read', item: 0 });
   const note = p.items[0], [q, r] = note.to.split(',').map(Number);
   p.items.push({ id: 'Note', cond: 1, to: '9,9', by: 'Sam' });   // another Note, elsewhere: it stays
   tile(S, q - 1, r, 'Forest');
   p.q = q - 1; p.r = r; p.acted = false; p.freeMoved = false;
   const { events } = act(S, { type: 'move', q, r });
-  assert.ok(!p.items.some((x) => x === note));
-  assert.equal(p.items.filter((x) => x.id === 'Note').length, 1);
+  assert.ok(p.items.includes(note));    // still carried…
+  assert.equal(note.cond, 1);           // …at 1 pip (from 6)
+  const ev = events.find((e) => e.type === 'noteDone');
+  assert.deepEqual([ev.item, ev.from, ev.to], [0, 6, 1]);   // (for the UI: which slot, and the pips going out)
+  assert.equal(p.items.find((x) => x.by === 'Sam').cond, 1);   // the other Note: untouched
   assert.equal(events.find((e) => e.type === 'noteDone').name, S.tiles[note.to].def.name);
+  assert.match(S.log.find((l) => /isn't here/.test(l.msg)).msg, /isn't here\. Note loses hope\./);
   assert.ok(E.leadOpen(S.tiles[note.to]));   // the stash is still there to find
+  p.acted = false; p.freeMoved = false;
+  assert.ok(!act(S, { type: 'move', q: q - 1, r }).events.some((e) => e.type === 'noteDone'));   // once only
+});
+
+test('no table has a Note (the rows that did are Ammo now), and guns come without ammo', () => {
+  assert.ok(!TILES.some((t) => t.table.some((e) => e.item === 'Note' || e.parts?.some((x) => x.item === 'Note'))));
+  assert.ok(!TILES.some((t) => t.table.some((e) => e.parts?.some((x) => x.item && ITEMS[x.item].uses === 'ammo'))));
+  assert.deepEqual({ ...def('Farmhouse').table[3] }, { res: 'ammo', n: 1 });
+});
+
+test('an Empty row: shown blank, and rolled again like a looted one', () => {
+  const { S, p } = game();
+  const t = E.tileOf(S, p);
+  t.def = { ...t.def, table: t.def.table.map((e, i) => (i === 3 ? { empty: 1 } : e)) };   // Farmhouse 4: Empty
+  assert.equal(E.tableView(t)[3].kind, 'looted');
+  assert.equal(E.cellText({ empty: 1 }), '');
+  const food = p.res.food;
+  S.forced = [4, 2, 3, 5];
+  act(S, { type: 'scavenge' });
+  assert.equal(p.res.food, food + 3);   // rolled again: 2 = Food + Water (3 food, 5 water)
+  assert.ok(S.log.some((l) => /4 \(empty\), then 2/.test(l.msg)));
+});
+
+test('randomNote: a Random row is a Note that often — but never while a place a Note named is still to be reached', () => {
+  const { S, p } = game(), was = CONFIG.randomNote;
+  CONFIG.randomNote = 1 / 6;            // (0 in play: the starting Note's trail is the only one)
+  const notes = (n) => { let c = 0; for (let i = 0; i < n; i++) if (E.anyResult(S).item === 'Note') c++; return c; };
+  const c = notes(6000);
+  assert.ok(c > 850 && c < 1150, `${c} of 6000`);
+  S.leads = [{ k: '9,9', pid: p.id }];
+  assert.equal(notes(600), 0);          // a lead waiting: no Notes
+  p.visited.push('9,9');
+  assert.ok(notes(600) > 0);            // reached: Notes again
+  CONFIG.randomNote = was;
 });
 
 test('Notes only ever lead to strongholds: a Castle, Army Checkpoint or Church', () => {
@@ -954,33 +1026,39 @@ test('Notes only ever lead to strongholds: a Castle, Army Checkpoint or Church',
     const S = E.createGame({ seed, checksOff: true });
     E.start(S);
     E.cheat(S, 0, 'item', ['note', 3]);
-    const note = S.players[0].items.find((x) => x.id === 'Note');
+    const i = S.players[0].items.findLastIndex((x) => x.id === 'Note'), note = S.players[0].items[i];
+    E.act(S, 0, { type: 'read', item: i });
     assert.ok(['Castle', 'Army Checkpoint', 'Church'].includes(S.tiles[note.to].def.name), `seed ${seed}: ${S.tiles[note.to].def.name}`);
   }
 });
 
 test('taking the stash: everything, and its Note leads on — same writer — to the next one', () => {
   const { S, p } = game();
-  S.forced = [4, 2];
+  noteRow(S);
+  S.forced = [3];
   act(S, { type: 'scavenge' });
+  act(S, { type: 'read', item: 0 });
   const first = p.items[0], there = S.tiles[first.to], st = there.stashes[0];
   [p.q, p.r] = first.to.split(',').map(Number);
   const food = p.res.food + st.res.food;
   S.forced = [st.row];
   act(S, { type: 'scavenge' });
   assert.equal(p.res.food, food);
-  assert.equal(p.items.length, 3);      // the stash's three — the first Note, its place reached, is gone
-  assert.ok(!p.items.includes(first));
+  assert.equal(p.items.length, 4);      // the first Note (its place reached: 1 pip) and the stash's three
+  assert.equal(first.cond, 1);
   assert.equal(E.leadOpen(there), false);   // emptied: the border goes
-  const next = p.items[0];
+  const next = p.items[1];
   assert.equal(next.id, 'Note');
   assert.equal(next.by, first.by);
+  assert.equal(next.to, undefined);     // taken, not read
+  act(S, { type: 'read', item: 1 });
   assert.ok(E.leadOpen(S.tiles[next.to]));
-  const tiles = Object.keys(S.tiles).length;
-  act(S, { type: 'drop', item: 0 });    // a Note picked up again leads nowhere new
-  S.forced = [p.items.length && E.tileOf(S, p).stashes.find((x) => x.owner === 'Survivor').row];
-  act(S, { type: 'scavenge' });
+  const tiles = Object.keys(S.tiles).length, to = next.to;
+  const { events } = act(S, { type: 'read', item: 1 });   // read again: the same place, shown again — nothing new
   assert.equal(Object.keys(S.tiles).length, tiles);
+  assert.equal(next.to, to);
+  const ev = events.find((e) => e.type === 'lead');
+  assert.ok(ev.again && ev.k === to && ev.text === next.text);
 });
 
 test('every place is found with half its max Safety, rounded down — the starting one too', () => {
@@ -1004,30 +1082,30 @@ test('setting foot in a settlement for the first time announces it — once, whi
   assert.ok(!next.events.some((e) => e.type === 'town'));
 });
 
-test('Safety tops out at 5; a tile still holds up to 6 zombies', () => {
+test('Safety tops out at the max for the place (a Farmhouse: 4); a tile still holds up to 6 zombies', () => {
   const { S, p } = game();
   const t = E.tileOf(S, p);
   t.safety = 3;
   S.forced = [6];
   act(S, { type: 'fortify' });
-  assert.equal(t.safety, 5);
-  assert.match(act(S, { type: 'fortify' }).error, /full \(5\)/);
+  assert.equal(t.safety, 4);
+  assert.match(act(S, { type: 'fortify' }).error, /full \(4\)/);
   p.items.push({ id: 'Axe', cond: 3 });  // (so it's a choice, not an automatic hide)
   E.cheat(S, 0, 'zombies', [9]);
   assert.equal(t.zombies, 6);
 });
 
-test('each place has its own max Safety: outdoors 0, up to 8 for a stronghold', () => {
+test('each place has its own max Safety: outdoors 0, else 3 to 6 — 6 for a stronghold', () => {
+  assert.ok(TILES.every((t) => t.safety === 0 || (t.safety >= 3 && t.safety <= 6)), TILES.filter((t) => t.safety && (t.safety < 3 || t.safety > 6)).map((t) => t.name).join());
+  assert.deepEqual([...new Set(TILES.map((t) => t.safety))].sort().join(), '0,3,4,5,6');   // every level in use
   const { S, p } = game();
   assert.equal(E.maxSafetyOf(tile(S, 1, 0, 'Lake')), 0);
   assert.equal(E.canFortifyHere(S.tiles['1,0']), false);
   const police = tile(S, 0, 1, 'Police Station');
-  assert.equal(E.maxSafetyOf(police), 8);
+  assert.equal(E.maxSafetyOf(police), 6);
   act(S, { type: 'move', q: 0, r: 1 });
   S.forced = [6]; act(S, { type: 'fortify' });
-  p.acted = false;
-  S.forced = [6]; act(S, { type: 'fortify' });
-  assert.equal(police.safety, 8);
+  assert.equal(police.safety, 6);
   assert.equal(E.maxSafetyOf(tile(S, 2, 0, 'Pharmacy')), 3);
 });
 
@@ -1121,14 +1199,12 @@ test('zombies are crossed off once they come, and drift back when nobody is ther
   assert.equal(E.tableView(home)[0].kind, 'zombies');
 });
 
-test('dropping an item leaves it in your stash, on a looted row if there is one', () => {
+test('things left behind go in your stash on the tile, on a looted row if there is one', () => {
   const { S, p } = game();
   const t = E.tileOf(S, p);
   t.looted = [4];
-  p.items.push({ id: 'Axe', cond: 3 }, { id: 'Tool', cond: 2 });
-  act(S, { type: 'drop', item: 0 });
-  act(S, { type: 'drop', item: 0 });
-  assert.equal(p.items.length, 0);
+  E.addToStash(S, t, p.name, { items: [{ id: 'Axe', cond: 3 }] });
+  E.addToStash(S, t, p.name, { items: [{ id: 'Tool', cond: 2 }] });
   assert.equal(t.stashes.length, 1);    // one stash per owner per tile — it grows
   assert.equal(t.stashes[0].row, 4);
   assert.equal(t.stashes[0].owner, 'Survivor');
@@ -1180,7 +1256,7 @@ test('backpack full: swap with a stash — what you leave stays in it, condition
   decide(S, [2, 3, 4, 5, 6, 7]);        // leave the first two Tools; take the Note and the Axe
   assert.equal(p.items.map((x) => x.id).join(), 'Tool,Tool,Tool,Tool,Note,Axe');
   assert.equal(JSON.stringify(t.stashes[0].items), JSON.stringify([{ id: 'Tool', cond: 1 }, { id: 'Tool', cond: 2 }, { id: 'Pills', cond: 3 }]));
-  assert.equal(Object.keys(S.tiles).length, tiles + 1);   // the Note taken leads on
+  assert.equal(Object.keys(S.tiles).length, tiles);   // the Note taken isn't read yet: nothing new appears
 });
 
 test('death leaves everything in a stash on the tile', () => {
@@ -1204,8 +1280,7 @@ test('a stash on a Wasteland can be scavenged for; other rolls find nothing', ()
   const t = tile(S, 1, 0, 'Wasteland');
   act(S, { type: 'move', q: 1, r: 0 });
   assert.equal(E.canScavengeHere(t), false);
-  p.items.push({ id: 'Axe', cond: 3 });
-  act(S, { type: 'drop', item: 0 });
+  E.addToStash(S, t, p.name, { items: [{ id: 'Axe', cond: 3 }] });
   assert.equal(E.canScavengeHere(t), true);
   const row = t.stashes[0].row, other = [2, 3, 4, 5, 6].find((x) => x !== row);
   S.forced = [other, row];              // an empty row is rolled again — and lands on the stash
@@ -1219,8 +1294,64 @@ test('a tile holds 5 stashes at most; then things join the oldest', () => {
   const { S, p } = game();
   const t = E.tileOf(S, p);
   t.stashes = ['A', 'B', 'C', 'D', 'E'].map((owner, i) => ({ owner, row: i + 2, res: {}, items: [{ id: 'Tool', cond: 1 }] }));
-  p.items.push({ id: 'Axe', cond: 3 });
-  act(S, { type: 'drop', item: 0 });
+  E.addToStash(S, t, p.name, { items: [{ id: 'Axe', cond: 3 }] });
   assert.equal(t.stashes.length, 5);
   assert.equal(t.stashes[0].items.at(-1).id, 'Axe');
+});
+
+test('Bubba(): +25 of each resource, a Shotgun and an Axe at full condition, and a Truck parked on your tile', () => {
+  const { S, p } = game();
+  const res = { ...p.res };
+  const { say } = E.cheat(S, 0, 'bubba', []);
+  assert.match(say, /Bubba/);
+  for (const k of Object.keys(res)) assert.equal(p.res[k], 18);   // capped — the rest is left here, in your stash
+  const st = E.tileOf(S, p).stashes.find((x) => x.owner === p.name);
+  for (const k of Object.keys(res)) assert.equal(st.res[k], res[k] + 25 - 18);
+  assert.deepEqual(p.items.map((x) => [x.id, x.cond]), [['Shotgun', 6], ['Axe', 6]]);
+  assert.ok(E.tileOf(S, p).vehicles.some((v) => v.id === 'Truck' && v.cond === 6));
+});
+
+test('driving onto or through the place a Note names: nothing till the trip ends — then the Note loses hope', () => {
+  const { S, p } = game();
+  tile(S, 1, 0, 'Forest'); tile(S, 2, 0, 'Lake'); tile(S, 3, 0, 'Lake');
+  E.tileOf(S, p).vehicles.push({ id: 'Truck', cond: 3 });
+  p.res.fuel = 5;
+  p.items.push({ id: 'Note', cond: 2, to: '1,0', by: 'Mara' }, { id: 'Note', cond: 2, to: '3,0', by: 'Tom' });
+  act(S, { type: 'drive', vehicle: 'Truck' });
+  const through = decide(S, { q: 1, r: 0 }).events;   // through Mara's place…
+  decide(S, { q: 2, r: 0 });
+  const onto = decide(S, { q: 3, r: 0 }).events;      // …and onto Tom's
+  assert.ok(![...through, ...onto].some((e) => e.type === 'noteDone'));
+  assert.equal(p.items.length, 2);
+  const { events } = decide(S, 'stop');
+  assert.equal(events.filter((e) => e.type === 'noteDone').map((e) => e.by).join(), 'Mara,Tom');
+  assert.equal(p.items.map((x) => x.cond).join(), '1,1');   // both lose hope: 1 pip each
+});
+
+test('resources cap at 18: a find beyond it leaves the rest on the tile, in your stash on that row', () => {
+  const { S, p } = game();
+  p.res.food = 15;
+  S.forced = [2, 6, 3];                 // Farmhouse 2 = Food + Water: 6 food, 3 water
+  const water = p.res.water;
+  act(S, { type: 'scavenge' });
+  assert.equal(p.res.food, 18);
+  assert.equal(p.res.water, water + 3);
+  const st = E.tileOf(S, p).stashes[0];
+  assert.deepEqual([st.owner, st.row, st.res.food, st.res.water], ['Survivor', 2, 3, undefined]);   // the 3 that didn't fit
+  assert.equal(E.tableView(E.tileOf(S, p))[1].kind, 'stash');
+  assert.match(S.log.find((l) => /can't carry more than 18/.test(l.msg)).msg, /3 .* left in their stash at the Farmhouse \(row 2\)/);
+});
+
+test('rolling a stash over the cap: you take what fits, the rest stays in it', () => {
+  const { S, p } = game();
+  const t = E.tileOf(S, p);
+  t.stashes = [{ owner: 'Ana', row: 5, res: { food: 10, ammo: 2 }, items: [] }];
+  p.res.food = 12;
+  S.forced = [5];
+  act(S, { type: 'scavenge' });
+  assert.equal(p.res.food, 18);
+  assert.equal(p.res.ammo, 2);
+  assert.deepEqual({ ...t.stashes[0].res }, { food: 4 });   // still there, for later
+  p.res.food = 99; E.cheat(S, 0, 'food', [99]);
+  assert.equal(p.res.food, 18);         // food(n) caps too
 });

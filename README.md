@@ -44,4 +44,4 @@ The game opens on a small menu: **Play**, or **Tutorial**, which explains each a
 - `style.css`, `index.html` — layout and styling
 - `tools/stamp.js` — tags the files in `index.html` with a fingerprint (`game.js?v=…`) so browsers, phones included, pick up an update on a normal reload. `tools/pre-commit` runs it on every commit; install it once with `ln -s ../../tools/pre-commit .git/hooks/pre-commit`
 
-Testing cheats can be typed into the log's note box, e.g. `scavenge(1)`, `sleep(6)`, `item(axe)`, `checks()` (toggle resource checks), `timer(on)` / `timer(off)` (30 s round timer), `help()`.
+Testing cheats can be typed into the log's note box, e.g. `scavenge(1)`, `sleep(6)`, `item(axe)`, `checks()` (toggle resource checks), `timer(on)` / `timer(off)` (1 min round timer), `help()`.

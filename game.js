@@ -4,7 +4,7 @@
 // =====================================================================
 
 const E = Engine;
-const { ICON, RES_LABEL, key, neighbors, isNight, cellText, upkeepText, passable, canEnter, canScavengeHere, canFortifyHere,
+const { ICON, RES_LABEL, key, neighbors, isNight, cellText, passable, canEnter, canScavengeHere, canFortifyHere,
   canFight, vehicleFuel, vehicleLeft } = E;
 const HEX = 120;
 
@@ -51,6 +51,7 @@ const fightMode = () => FIGHT_MODES.includes(mode);
 function newGame(names = ['Survivor']) {
   G = E.createGame({ names, checksOff });
   $('#popup').hidden = true; busy = false;
+  noteCardOff();
   if (paused) togglePause();
   logSeen = 0; mode = null; modalKey = null; selected = null; justRevealed = []; camInit = false; logShown = Infinity; // forces log reset on next render
   prevStats = {};
@@ -143,6 +144,7 @@ async function send(action) {
 let held = {};   // tile key → { safety, zombies } to draw instead, while the event that changed them waits to play
 async function play(events) {
   busy = true;
+  batchNo++;
   // the round is over: grey out the action bar until the next one has started and you can act again
   const over = events.some((ev) => ev.type === 'round');
   for (const el of [$('#actions'), $('#pack')]) el.classList.toggle('roundover', over);   // the backpack greys out with the actions
@@ -161,8 +163,11 @@ async function play(events) {
   await ask();
 }
 
-// Animate one engine event.
+// Animate one engine event. The big hex (an action's, or a fight's) is always gone before anything that isn't part
+// of it plays — the round banner, a check on the clock, a toast…
+const HEX_EVENTS = new Set(['sleep', 'fortify', 'scavenge', 'night', 'flee', 'armor', 'hit', 'hide', 'die', 'driveStep', 'move']);
 async function show(ev) {
+  if (!HEX_EVENTS.has(ev.type)) await bfClose();
   switch (ev.type) {
     case 'sleep': return sleepShow(ev);
     case 'fortify': await fortifyShow(ev); return showSafety(ev.k, ev.after);
@@ -185,9 +190,9 @@ async function show(ev) {
     case 'outOfFuel': if (ev.fuel === 'fuel') clip('carNoGas');
       return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'ap' ? 'AP' : ev.fuel} — stopping here.`);
     case 'die': tone(200, 1.4, 'sawtooth', 0.12, -170); await bfRush(); return bfClose();
-    case 'round': return roundBannerShow(ev);
+    case 'round': if (noteBatch >= 0 && noteBatch !== batchNo) noteCardOff(); return roundBannerShow(ev);
     case 'town': return townBannerShow(ev);
-    case 'noteDone': return toast(`📝 You've reached the ${ev.name}${ev.by ? ` — ${ev.by}'s stash is here somewhere` : ''}.`);
+    case 'noteDone': return noteDoneShow(ev);
   }
 }
 
@@ -225,8 +230,9 @@ async function ask() {
 }
 
 // ---------------------------------------------------------------- round timer (optional in single player: cheat timer(on))
-// CONFIG.roundSeconds to act each round, or you lose 1 AP — as online. Paused while animations play.
-// Acting ends the round straight away (you're the only survivor), so the clock only bites if you hesitate.
+// CONFIG.roundSeconds to act each round, or you lose 1 AP — as online. Only Pause stops it: animations, popups and
+// decisions all run on the clock (but not the opening menu — the game hasn't started). Acting ends the round straight
+// away (you're the only survivor), so the clock only bites if you hesitate.
 let timerOn = true;   // on by default; timer(off) turns it off (remembered)
 try { timerOn = localStorage.getItem('roundTimer') !== '0'; } catch { /* storage unavailable */ }
 const timer = { game: null, day: 0, round: 0, left: 0, fired: false };
@@ -236,13 +242,13 @@ function tickTimer(dt) {
   if (timer.game !== G || timer.day !== G.day || timer.round !== G.round) {   // new game or new round: full time again
     Object.assign(timer, { game: G, day: G.day, round: G.round, left: fullTime(), fired: false });
   }
-  if (timerOn && !tutorial && !busy && !paused && !G.over && !timer.fired) {
+  if (timerOn && !tutorial && !paused && !menuUp() && !G.over && !timer.fired) {
     const before = Math.ceil(timer.left / 1000);
     timer.left = Math.max(0, timer.left - dt);
     const s = Math.ceil(timer.left / 1000);
     if (s < before && s > 0 && s <= 5) tone(880, 0.05, 'square', 0.04);   // tick tock
-    // out of time — but let any open popup (fight, armor, backpack…) be answered first
-    if (!timer.left && !modalKey) {
+    // out of time — but let an animation finish, and any open popup (backpack, stash, tool…) be answered, first
+    if (!timer.left && !modalKey && !busy) {
       timer.fired = true;
       if (!cur().pending) mode = null;   // stop picking a hex — but keep Fight or Flee etc. on screen
       const res = E.timeUp(G);
@@ -258,24 +264,28 @@ function renderTimer() {
   const el = $('#timer');
   if (!timerOn || tutorial || !G || G.over) { el.innerHTML = ''; el.className = ''; return; }
   const s = Math.ceil(timer.left / 1000);
-  el.className = `${s <= 10 ? 'low' : ''} ${busy || paused ? 'paused' : ''}`;
+  el.className = `${s <= 10 ? 'low' : ''} ${paused ? 'held' : ''}`;   // (held: Paused — white)
   el.innerHTML = `<i style="width:${(100 * timer.left / fullTime()).toFixed(1)}%"></i>`;   // a line draining along the header
 }
-// Pause (single player only — online the clock is shared): stops the round timer and covers the board.
+// Pause (single player only — online the clock is shared): stops the round timer.
+// Paused (single player), the clock stops and you can look around: drag and zoom the map (it stays where you leave it,
+// and springs back to your hex as you carry on). Everything else waits — but the Pause button, to carry on.
 let paused = false;
 function togglePause() {
   if (!G || G.over) return;
   paused = !paused;
   $('#pauseveil').hidden = !paused;
+  document.body.classList.toggle('paused', paused);
+  if (!paused && (drag.x || drag.y)) springBack();
   tone(paused ? 330 : 494, 0.12, 'triangle', 0.06);
   renderTimer();
   syncCar();
 }
 // Looking away pauses it: switching tab, minimising, another app or window taking focus. You come back to the
 // pause screen and carry on when ready. (Not while the opening menu is up — nothing's running yet.)
+const menuUp = () => !$('#popup').hidden && $('#popup').classList.contains('menu');
 function pauseWhileAway() {
-  const menuUp = !$('#popup').hidden && $('#popup').classList.contains('menu');
-  if (!paused && G && !G.over && !menuUp) togglePause();
+  if (!paused && G && !G.over && !menuUp()) togglePause();
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseWhileAway(); });
 window.addEventListener('blur', pauseWhileAway);
@@ -283,7 +293,7 @@ window.addEventListener('blur', pauseWhileAway);
 function setTimer(on) {
   timerOn = on;
   try { localStorage.setItem('roundTimer', on ? '1' : '0'); } catch { /* storage unavailable */ }
-  Object.assign(timer, { left: fullTime(), fired: false });   // a fresh 30 s when switched on
+  Object.assign(timer, { left: fullTime(), fired: false });   // a fresh round's time when switched on
   renderTimer();
 }
 
@@ -328,11 +338,31 @@ async function backpackPrompt(p, item) {
 }
 
 // A Note names a place: it appears on the map, purple-bordered, and the camera glides over to show it.
+// A Note's place reached, its writer not there: the Note lights up purple in the backpack and its pips go out, one
+// by one, down to the last.
+async function noteDoneShow(ev) {
+  noteCard(`📝 ${ev.by || 'No one'} isn't here. Note loses hope.`);
+  const els = [$(`#pack [data-slot="${ev.item}"]`), $('#pack').querySelectorAll('.pchip')[ev.item]].filter(Boolean);
+  for (const el of els) {
+    el.classList.add('losehope');
+    el.querySelector('.cond')?.replaceWith(Object.assign(document.createElement('span'), { innerHTML: condPips(ev.from, 'Note') }).firstChild);
+  }
+  tone(392, 0.4, 'sine', 0.06, -60);
+  await wait(500);
+  for (let c = ev.from; c > ev.to; c--) {
+    for (const el of els) el.querySelectorAll('.cond i')[c - 1]?.classList.add('going');
+    tone(300 + c * 60, 0.22, 'sine', 0.06, -90);   // each a little lower
+    await wait(280);
+  }
+  await wait(700);
+  for (const el of els) el.classList.remove('losehope');
+}
+
 async function leadShow(ev) {
   justRevealed = [ev.k];
   renderMap();
   cameraTo(...pix(...ev.k.split(',').map(Number)));
-  toast(`📝 “${ev.text}”`);
+  noteCard(`📝 “${ev.text}”`);
   sfx.hope();
   await new Promise((res) => { const tm = setTimeout(res, skipAnim ? 0 : 2400); dismissPopup = () => { clearTimeout(tm); res(); }; });
   dismissPopup = null;
@@ -377,6 +407,17 @@ async function stashPrompt(d) {
 
 // Short on-screen message above the action tray.
 let toastTimer = null;
+// A Note's words (what it says; that its writer isn't there) stay up — until a round ends in a later batch of events
+// than the one they came in (in single player, acting ends the round: so through your next turn).
+let noteBatch = -1, batchNo = 0;
+function noteCard(msg) {
+  const el = $('#notecard');
+  el.textContent = msg;
+  el.hidden = false;
+  noteBatch = batchNo;
+}
+const noteCardOff = () => { $('#notecard').hidden = true; noteBatch = -1; };
+
 function toast(msg) {
   const el = $('#toast');
   el.textContent = msg;
@@ -424,9 +465,10 @@ async function useTool(i) {
   send({ type: 'tool', tool: i, target: { from: target.from, index: target.index }, amount });
 }
 
-async function dropItem(i) {
-  if (!cur().items[i] || busy || modalKey) return;
-  if (await explain('drop')) send({ type: 'drop', item: i });
+// Reading a Note: the place it names (shown, and its words) — the first time, that place appears. Free, any time.
+function readItem(i) {
+  if (cur().pending || busy || modalKey) return;
+  send({ type: 'read', item: i });
 }
 async function takePills(i) {
   if (cur().pending || busy || modalKey) return;
@@ -458,7 +500,7 @@ async function act(name) {
 
 // A hex picked on the map (or with A Q E D X Z) while moving, fleeing or driving.
 function clickHex(q, r) {
-  if (busy || !mode) return;
+  if (busy || paused || !mode) return;
   const p = cur(), t = G.tiles[key(q, r)];
   if (!neighbors(p.q, p.r).some(([a, b]) => a === q && b === r)) return;
   // unexplored hexes (no tile yet) are fair game: they're revealed as you arrive
@@ -471,9 +513,7 @@ function clickHex(q, r) {
 // pause 0: no wait (driving) — the tile still ripples in, over the next renders
 async function revealShow(ev, pause = 2800) {
   const shown = justRevealed = ev.tiles.map((x) => x.k);
-  renderMap();
-  const towns = [...new Map(ev.tiles.filter((x) => x.town).map((x) => [x.town, x])).values()];   // the settlements they belong to
-  toast(`${ev.map ? '🗺️ The Map shows' : '🗺️ Discovered'}: ${ev.tiles.map((x) => `${x.icon} ${x.name}`).join(', ')}${towns.length ? ` · 🏘️ ${towns.map((x) => `${x.town} (${x.kind})`).join(', ')}` : ''}`);
+  renderMap();   // (no words: the places speak for themselves)
   ev.tiles.forEach((_, i) => setTimeout(() => tone(520 + i * 60, 0.15, 'triangle', 0.07), i * 120));
   if (!pause) return void setTimeout(() => { if (justRevealed === shown) justRevealed = []; }, 700);
   await new Promise((res) => { const tm = setTimeout(res, pause + ev.tiles.length * 120); dismissPopup = () => { clearTimeout(tm); res(); }; });
@@ -560,7 +600,6 @@ const sfx = {
       ? [0, 140].forEach((d, i) => setTimeout(() => { noise(0.04, 0.07, 1800); tone(i ? 520 : 680, 0.04, 'square', 0.025); }, d))
       : [0, 60, 120].forEach((d) => setTimeout(() => tone(2200, 0.015, 'square', 0.012), d)),
   axe: () => clip('axe'),   // every melee weapon but the Chainsaw
-  bow: () => { tone(220, 0.25, 'triangle', 0.12, -120); noise(0.12, 0.12, 4000); },   // twang and whoosh
   saw: () => clip('chainsaw'),
   zombie: () => { tone(95, 0.9, 'sawtooth', 0.12, -50); setTimeout(() => tone(70, 0.7, 'sawtooth', 0.1, -30), 150); },
   groan: () => {},   // the start of every zombie encounter — silenced for now (assets/groan.mp3: clip('groan', 0.8)) till a better sound's found
@@ -622,7 +661,9 @@ async function scavengeShow({ rows: table, tries, r, hit, amts, dice, c }) {
   const top = $('#battle .bf-top'), res = $('#battle .bf-res'), rows = [...$('#battle').querySelectorAll('.trow')];
   const row = (v) => rows.find((g) => +g.dataset.i === v);
   const mark = (v) => rows.forEach((g) => g.classList.toggle('hl', +g.dataset.i === v));
-  const found = (html, cls = 'good') => { $('#battle .tblrows').classList.add('done'); res.className = `bf-res ${cls}`; res.innerHTML = html; };
+  const found = (html, cls = 'good') => { $('#battle .tblrows').classList.add('done'); res.className = `bf-res ${cls} ${(e?.parts?.length ?? 1) > 1 ? 'two' : ''}`; res.innerHTML = html; };
+  // each thing found, big in the middle of the hex: its icon, what it is (or how many) under it, and its condition
+  const fd = (icon, label, more = '') => `<div class="fd"><span class="fi">${icon}</span><span class="fn">${label}</span>${more}</div>`;
   top.innerHTML = '<div class="slot"></div>';
   await wait(150);
   for (const [i, v] of tries.entries()) {
@@ -639,12 +680,12 @@ async function scavengeShow({ rows: table, tries, r, hit, amts, dice, c }) {
 
   if (hit.kind === 'looted') {   // out of rerolls
     row(r)?.classList.replace('picked', 'nope');
-    found('Nothing', 'bad');
+    found(fd('', 'Nothing'), 'bad');
     tone(300, 0.25, 'triangle', 0.07, -120); setTimeout(() => tone(200, 0.35, 'triangle', 0.07, -80), 160);
   } else if (hit.kind === 'stash') {
     const st = hit.stash, lone = E.loneItem(st);
-    found(lone ? `<div>${itemIcon(lone.id)} ${esc(lone.id)}</div>${condPips(lone.cond, lone.id)}`
-      : `<div>🎒 ${esc(shortName(st.owner))}'s stash</div><small>${E.stashText(st) || 'empty'}</small>`, 'jackpot');
+    found(lone ? fd(itemIcon(lone.id), esc(lone.id), condPips(lone.cond, lone.id))
+      : fd('🎒', `${esc(shortName(st.owner))}'s stash`, `<small>${E.stashText(st) || 'empty'}</small>`), 'jackpot');
     sfx.win(true);
   } else if (e.zombies) {   // the row says Zombies: the table goes, and it's a battlefield — which rolls how many
     await wait(600);
@@ -656,7 +697,7 @@ async function scavengeShow({ rows: table, tries, r, hit, amts, dice, c }) {
     for (const [i, x] of parts.entries()) {
       const a = amts[i];
       if (ITEMS[x.item]?.map || ITEMS[x.item]?.animal) {   // no condition to roll: a map, an animal
-        shown += `<div>${itemIcon(x.item)} ${esc(x.item)}</div>`;
+        shown += fd(itemIcon(x.item), esc(x.item));
         found(shown, 'jackpot');
         big = true;
         continue;
@@ -665,13 +706,13 @@ async function scavengeShow({ rows: table, tries, r, hit, amts, dice, c }) {
       await Promise.all(dice[i].map((v, j) => rollDie(top.children[j], v, 800 + j * 150)));
       await wait(250);
       if (x.item) {
-        shown += `<div>${itemIcon(x.item)} ${esc(x.item)}</div>${condPips(a, x.item)}`;
+        shown += fd(itemIcon(x.item), esc(x.item), condPips(a, x.item));
         found(shown, 'jackpot');
         big = true;
       } else {
         const total = a * x.n;
         big ||= total >= 8;
-        found(`${shown}<div>+<span class="count">0</span> ${ICON[x.res]}</div>`, big ? 'jackpot' : 'good');
+        found(`${shown}${fd(ICON[x.res], '+<span class="count">0</span>')}`, big ? 'jackpot' : 'good');
         const n = res.querySelector('.count');
         for (let m = 1; m <= total; m++) { n.textContent = m; sfx.count(); await wait(Math.min(70, 500 / total)); }
         shown = res.innerHTML.replace(' class="count"', '');
@@ -680,7 +721,7 @@ async function scavengeShow({ rows: table, tries, r, hit, amts, dice, c }) {
     sfx.win(big);
   }
   await hexHold(3000);
-  bfClose();
+  await bfClose();
 }
 
 // The tile-come-forward hex for something other than a fight: its own contents (the horde's place, the die's…).
@@ -720,7 +761,7 @@ async function fortifyShow({ k, r, before, after, max }) {
   }
   sfx.win(after === max);
   await hexHold(1800);
-  bfClose();
+  await bfClose();
 }
 
 // Fill a tile's Safety pips straight away. The map is only redrawn once the whole batch has played, and fortifying
@@ -778,7 +819,7 @@ async function sleepShow({ dice, bonus = 0, from, to, max }) {
   }
   bfWord(`+${r} AP`, 'good');
   await hexHold(1100);
-  bfClose();
+  await bfClose();
   await wait(250);
   renderApRing(from, '', max);
   await wait(200);
@@ -805,26 +846,32 @@ const bf = { k: null };
 function bfOpen(k) {
   const el = $('#battle');
   if (bf.k === k && !el.hidden && !bf.closing) { bfPlace(); return false; }
-  bf.k = k; bf.closing = false;
+  bf.k = k; bf.closing = null;
   el.getAnimations().forEach((a) => a.cancel());
   el.hidden = false;
   el.style.background = cur().color;   // its edge: your colour, as your hex is outlined on the map
+  const tile = $(`#map [data-k="${k}"] polygon`);   // inside: the place's own colour, as its hex is on the map
+  el.style.setProperty('--tilebg', tile ? getComputedStyle(tile).fill : '');
   document.body.classList.add('battling');   // the board goes out of focus but for the battlefield and the bars
   bfPlace();
   const from = bfFromHex();
   if (from) el.animate([{ transform: from, filter: 'brightness(1.4)' }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2, 1.1, .3, 1)' });
   return true;
 }
+// Resolves once it's gone (shrunk back onto its tile) — so whatever comes next waits for it.
 function bfClose() {
   const el = $('#battle');
-  if (el.hidden || bf.closing) { if (!bf.closing) bf.k = null; return; }
-  bf.closing = true;
+  if (bf.closing) return bf.closing;
+  if (el.hidden) { bf.k = null; return Promise.resolve(); }
   document.body.classList.remove('battling');
   const from = bfFromHex();
-  const done = () => { if (bf.closing) { bf.closing = false; bf.k = null; el.hidden = true; } };
-  if (!from) return done();
-  el.animate([{ transform: 'none', opacity: 1 }, { transform: from, opacity: 0.2 }], { duration: 300, easing: 'ease-in', fill: 'forwards' }).finished.then(done, done);
-  setTimeout(done, 400);   // (in case the animation never reports back)
+  if (!from) { bf.k = null; el.hidden = true; return Promise.resolve(); }
+  bf.closing = new Promise((res) => {
+    const done = () => { if (bf.closing) { bf.closing = null; bf.k = null; el.hidden = true; } res(); };   // (reopened meanwhile: left open)
+    el.animate([{ transform: 'none', opacity: 1 }, { transform: from, opacity: 0.2 }], { duration: 300, easing: 'ease-in', fill: 'forwards' }).finished.then(done, done);
+    setTimeout(done, 400);   // (in case the animation never reports back)
+  });
+  return bf.closing;
 }
 // where the tile is on screen: [centre x, centre y, width] in board pixels — or null if the map isn't laid out
 function bfHexRect() {
@@ -1184,7 +1231,7 @@ const dragEnd = (e) => {
     drag.justDragged = true;   // the click that follows letting go isn't a click on a tile
     setTimeout(() => { drag.justDragged = false; }, 0);
   }
-  if (drag.x || drag.y) springBack();
+  if ((drag.x || drag.y) && !paused) springBack();   // (paused: it stays where you leave it)
 };
 $('#map').addEventListener('pointerup', dragEnd);
 $('#map').addEventListener('pointercancel', dragEnd);
@@ -1281,11 +1328,20 @@ function renderApRing(ap, flash, max, gaining = -1, mark = null) {
   void clock.getBoundingClientRect();   // restart the pop animation
   clock.classList.add(apLevel(ap, max), ...(flash ? [flash] : []));
 }
-// Backpack: 6 slots in the top-right column of the board. ✕ arms, second click leaves it on this tile.
-// Keys 1–6 highlight a slot; Enter then presses its button (Use / Take, or else ✕).
+// Backpack: 6 slots in the top-right column of the board. Nothing's dropped at will — only when it's full and something
+// new is found (backpackPrompt). Keys 1–6 highlight a slot; Enter then presses its button (Use / Take / Read).
 // Some choices are made here (packPick): when the night asks for hope, hope items get a Hope button; when zombies
 // are on you, each weapon you can use gets its verb (Fire, Swing…) — everything else greys out.
-let dropArmed = -1, packSel = -1;
+let packSel = -1;
+// A Note, the round it first shows up in the backpack, glows purple till it's read — so it's noticed. (In single
+// player acting ends the round, so a Note found by scavenging glows through your next turn.)
+const noteSeen = new WeakMap();   // Note → the round it was first seen in
+const roundNo = () => G.day * 6 + G.round;
+const newNote = (it) => {
+  if (!ITEMS[it.id].leads) return false;
+  if (!noteSeen.has(it)) noteSeen.set(it, roundNo());
+  return !it.to && noteSeen.get(it) === roundNo();
+};
 const FIGHT_EXPLAIN = { ammo: 'shoot', ap: 'melee', fuel: 'saw' };   // the tutorial card for each kind of weapon
 function packPick(p, it, i) {
   if (mode === 'hope') return ITEMS[it.id].hope && { cls: 'hope', btn: `<button class="use hope" data-pick="${i}" title="Lean on it tonight (−1 condition)">Hope</button>` };
@@ -1320,7 +1376,7 @@ function renderPack() {
   // the header folds the backpack away on small screens (see style.css)
   let h = `<button type="button" class="packhead" data-packtoggle><span class="packname"><span class="word">Backpack</span><span class="bag">🎒</span> ${p.items.length}/${CONFIG.maxItems}</span>`
     // folded, it shows each item in brief: icon, name and condition (just icon and condition once there are more than 3)
-    + `<span class="packicons ${p.items.length > 3 ? 'many' : ''}">${p.items.map((it) => `<span class="pchip"><span class="ic">${itemIcon(it.id)}</span><span class="pinfo"><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</span></span>`).join('')}</span><span class="caret"></span></button>`;
+    + `<span class="packicons ${p.items.length > 3 ? 'many' : ''}">${p.items.map((it) => `<span class="pchip ${newNote(it) ? 'newnote' : ''}"><span class="ic">${itemIcon(it.id)}</span><span class="pinfo"><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</span></span>`).join('')}</span><span class="caret"></span></button>`;
   for (let i = 0; i < CONFIG.maxItems; i++) {
     const it = p.items[i];
     const pick = it && choosing && packPick(p, it, i);
@@ -1328,10 +1384,10 @@ function renderPack() {
       ? `<div class="slot-item ${pick ? `pickable ${pick.cls}` : 'greyed'} ${packSel === i ? 'sel' : ''}" data-slot="${i}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</div>
           ${pick ? pick.btn : ''}</div>`
       : it
-      ? `<div class="slot-item ${ITEMS[it.id].tool || ITEMS[it.id].boost ? 'usable' : ''} ${packSel === i ? 'sel' : ''}" data-slot="${i}" title="${esc(it.text ? `“${it.text}”` : `${it.id} — ${ITEMS[it.id].desc}`)}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</div>
+      ? `<div class="slot-item ${ITEMS[it.id].tool || ITEMS[it.id].boost ? 'usable' : ''} ${newNote(it) ? 'newnote' : ''} ${packSel === i ? 'sel' : ''}" data-slot="${i}" title="${esc(it.text ? `“${it.text}”` : `${it.id} — ${ITEMS[it.id].desc}`)}"><kbd class="slotkey">${i + 1}</kbd><span class="ic">${itemIcon(it.id)}</span><div><b>${esc(it.id)}</b>${condPips(it.cond, it.id)}</div>
           ${ITEMS[it.id].tool ? `<button class="use" data-use="${i}" title="Use tool (T)">Use <kbd>T</kbd></button>` : ''}
           ${ITEMS[it.id].boost ? `<button class="use" data-pill="${i}" title="+${ITEMS[it.id].boost} AP, −${ITEMS[it.id].toll} max AP (−1 condition)">${ITEMS[it.id].verb}</button>` : ''}
-          <button class="drop ${dropArmed === i ? 'armed' : ''}" data-drop="${i}" title="Leave it on this tile">${dropArmed === i ? 'Leave it?' : '✕'}</button></div>`
+          ${ITEMS[it.id].leads ? `<button class="use" data-read="${i}" title="Read it">Read</button>` : ''}</div>`
       : `<div class="slot-item empty"></div>`;
   }
   $('#pack').innerHTML = h;
@@ -1409,14 +1465,7 @@ function renderActions() {
     renderLog();
     return;
   }
-  let warn = '';
-  const apWarn = p.ap < 2 ? ` Fleeing costs 1 🎲 — keep some AP!` : '';
-  const nextRound = G.round % 6 + 1;
-  const nextUp = G.checksOff ? '' : upkeepText(nextRound);
-  if (nextUp && !E.attackDue(G, nextRound)) warn = `<div class="note">Next round starts with a check: ${nextUp}</div>`;
-  if (E.attackDue(G, nextRound)) {
-    warn = `<div class="note ${isNight(G.round) ? 'bad' : ''}">🌙 Next round starts with a night attack — 1d6 🧟 vs your 🟡 ${t.safety}${nextUp ? `, then a ${nextUp} check` : ''}.${apWarn}</div>`;
-  }
+  let warn = '';   // (what the next round brings is on the clock)
   if (mode === 'hope') warn = `<div class="note hope">🌙 What hope is there? Pick it from your backpack.</div>`;   // (renderPack)
   if (fight) warn = '';   // the battlefield over your hex says it all
   if (mode === 'flee') warn = `<div class="note good">🏃 You got away!</div>`;
@@ -1506,11 +1555,12 @@ const CHEATS = {
   'zombies(n)': 'set zombies on your tile (fight/flee if > 0)',
   'safety(n)': 'set your tile\'s Safety',
   'item(name[,cond])': 'add an item (vehicles park on your tile)',
+  'Bubba()': '+25 of each resource (up to 18; the rest is left on your tile), a Shotgun and an Axe, and a Truck parked on your tile',
   'ap(n) maxap(n) food(n) water(n) fuel(n) ammo(n)': 'set a value',
   'round(n) day(n)': 'jump the clock (no checks run)',
   'checks() checks(on|off)': 'toggle the food / water / hope checks',
   'badnight() badnight(on|off)': 'toggle a bad night (round 6 attacks too)',
-  'timer() timer(on|off)': 'the 30 s round timer: act in time or lose 1 AP (remembered)',
+  'timer() timer(on|off)': `the ${CONFIG.roundSeconds} s round timer: act in time or lose 1 AP (remembered)`,
   'reset()': 'start a fresh world (admin-only once online)',
 };
 async function runCheat(cmd, args) {
@@ -1600,17 +1650,17 @@ document.addEventListener('keydown', (e) => {
   if (isBack(e)) {   // clear the highlighted action or slot; then stop picking a hex (decisions like Fight or Flee stay)
     e.preventDefault();
     if (selected) selectAction(null);
-    else if (packSel >= 0) { dropArmed = -1; selectSlot(-1); }
+    else if (packSel >= 0) selectSlot(-1);
     else if (mode === 'move') { mode = null; render(); }
     return;
   }
   if (e.key === 'Enter') {
     e.preventDefault();
     if (e.shiftKey && mode === 'threat' && packSel >= 0) return attackAll(packSel);
-    if (packSel >= 0) {   // the slot's own button: Use / Take, otherwise ✕ (Enter again to leave it)
-      const slot = $('#pack .slot-item.sel'), btn = slot?.querySelector('.use') ?? slot?.querySelector('.drop');
+    if (packSel >= 0) {   // the slot's own button: Use / Take / Read
+      const btn = $('#pack .slot-item.sel .use');
       btn?.click();
-      if (btn?.matches('.use')) selectSlot(-1);   // after the click: redrawing first would detach the button
+      selectSlot(-1);   // after the click: redrawing first would detach the button
       return;
     }
     const b = selected && $(`#actions [data-act="${selected}"]`);
@@ -1645,22 +1695,16 @@ $('#pack').addEventListener('click', (e) => {
   if (e.target.closest('[data-packtoggle]')) { $('#pack').classList.toggle('open'); return; }
   const u = e.target.closest('[data-use]'); if (u) { useTool(+u.dataset.use); return; }
   const pl = e.target.closest('[data-pill]'); if (pl) { takePills(+pl.dataset.pill); return; }
+  const rd = e.target.closest('[data-read]'); if (rd) { readItem(+rd.dataset.read); return; }
   const pk = e.target.closest('[data-pick]') ?? (picking() && e.target.closest('.slot-item.pickable'));   // hope, or a weapon: tap the item
   if (pk) { pickFromPack(+(pk.dataset.pick ?? pk.dataset.slot)); return; }
-  const b = e.target.closest('[data-drop]');
-  if (!b) {   // the slot itself: one click uses it (Drink, Take, Use — the button's hidden); otherwise, what is it?
-    const slot = e.target.closest('[data-slot]'), it = cur().items[slot?.dataset.slot];
-    if (!it) return;
-    const use = slot.querySelector('.use');
-    if (use) { use.click(); return; }
-    toast(it.text ? `${ITEMS[it.id].icon} “${it.text}”` : `${ITEMS[it.id].icon} ${it.id} — condition ${it.cond}. ${ITEMS[it.id].desc}`);
-    return;
-  }
-  const i = +b.dataset.drop;
-  if (dropArmed === i) { dropArmed = -1; dropItem(i); } else { dropArmed = i; renderPack(); }
+  // the slot itself: one click uses it (Drink, Take, Use, Read — the button's hidden); otherwise, what is it?
+  const slot = e.target.closest('[data-slot]'), it = cur().items[slot?.dataset.slot];
+  if (!it) return;
+  const use = slot.querySelector('.use');
+  if (use) { use.click(); return; }
+  toast(`${ITEMS[it.id].icon} ${it.id} — condition ${it.cond}. ${ITEMS[it.id].desc}`);
 });
-// a tap anywhere else disarms ✕ (composedPath, as the tapped button may already have been redrawn away)
-document.addEventListener('click', (e) => { if (dropArmed >= 0 && !e.composedPath().includes($('#pack'))) { dropArmed = -1; renderPack(); } });
 // Log panel: hidden by default; remembered per browser.
 // Unread counter: log messages (not round markers) added while the log is hidden.
 let logSeen = 0;

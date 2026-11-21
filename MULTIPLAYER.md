@@ -37,7 +37,7 @@ Taking turns one player at a time doesn't scale (100 players × 30 s = 50 min pe
 - **Zombie fights don't use your action:** if a night attack, or another player's scavenge, brings zombies onto your tile, you face Fight/Flee — then still take your action for the round (if the 30 s aren't up).
 - **Pending decisions** (Fight/Flee, armor reroll, backpack full, A/D food/water loss) get their **own 10 s timer**. If time runs out on **Fight/Flee**: **Fight if you have a usable weapon, otherwise Flee**.
 - **Round end waits for open decisions:** if the 30 s run out mid-fight, the next round (and its checks / night attack) starts once every open decision has finished (≤ 10 s more).
-- **Single player:** the 30 s timer is **on by default**; the cheat `timer(off)` turns it off (then the round only ends when you act).
+- **Single player:** the round timer (**1 min**, `CONFIG.roundSeconds`) is **on by default**; the cheat `timer(off)` turns it off (then the round only ends when you act).
 
 ## 3. World & fog of war
 

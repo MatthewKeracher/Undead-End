@@ -11,9 +11,10 @@ const CONFIG = {
   startMaxAP: 12,         // max AP at the start (food & water missed lower it; paid raises it back, up to 12)
   startAP: 8,             // AP at the start (sleep — 1d6 + the tile's 🟡 Safety — tops it up to max AP)
   startRes: { food: 4, water: 6, fuel: 0, ammo: 0 },   // what every survivor starts with
-  startItems: [{ id: 'Booze', cond: 3 }],              // …and carries (no weapon: find one)
+  maxRes: 18,             // most of each resource you can carry — finds beyond it stay on the tile (in your stash)
+  startItems: [{ id: 'Note', cond: 6 }],               // …and carries: a Note, read as the game starts — the way to go (no weapon: find one)
   startSafety: 0.5,       // every place is found with this share of its max Safety (rounded down): half
-  maxSafety: 5,           // most Safety a tile can hold, unless its location says otherwise (safety: 0–8 in locations.js)
+  maxSafety: 5,           // most Safety a tile can hold, unless its location says otherwise (safety: 0, or 3–6, in locations.js)
   maxSleepBonus: 6,       // most of that Safety a sleep adds (one die's worth)
   maxZombies: 6,          // most zombies a tile can hold — and that many can't be outrun
   maxItems: 6,            // backpack size
@@ -43,8 +44,10 @@ const CONFIG = {
   },
   townGap: 2,             // at least this many hexes of countryside between two settlements
   edgeChain: [1, 3],      // a stretch of edge land (Fields, Golf Course: edge: in locations.js) is 1–3 hexes long
-  roundSeconds: 30,       // round timer: act within this or lose 1 AP (online always; single player: on by default)
+  roundSeconds: 60,       // round timer: act within this or lose 1 AP (online always; single player: on by default)
   leadDistance: 6,        // a Note reveals a place this many hexes away (or as near to it as there's room), with a stash
+  randomNote: 0,          // chance a Random row is a Note (only while no place a Note named is still unreached) — 0: the one
+                          // trail is the one your starting Note begins, each stash along it holding the next
 
   // What each round of the clock calls for (checked at the END of the round).
   upkeep: {
@@ -78,8 +81,7 @@ const boostItem = (icon, verb, what, boost, toll) => ({ icon, hope: true, boost,
 
 // Item cards. Condition = uses left; at 0 the item breaks.
 const ITEMS = {
-  Pistol: gun('🔫'),
-  Bow: gun('🏹', 'Loose', { sound: 'bow' }),
+  Pistol: gun('🔫', 'Fire', { img: 'assets/pistol.png' }),
   Shotgun: gun('🔫', 'Fire', { img: 'assets/shotgun.png', kills: 3, sound: 'shotgun', desc: 'Fight: no AP; 1 condition per round; each 🟢 ammo fired kills up to 3 zombies.' }),
   Axe: melee('🪓'),
   Sword: melee('🗡️', 'Slash'),
@@ -109,7 +111,7 @@ const ITEMS = {
   Binoculars: { icon: '🔭', binoculars: true, desc: 'Scouting also reveals the hexes beyond the ones next to you — but not past a Mountain. −1 condition per scout; gone at 0.' },
   Pills: boostItem('💊', 'Take', 'a dose', 12, 2),
   Booze: boostItem('🍾', 'Drink', 'a swig', 6, 1),
-  Note: { icon: '📝', hope: true, leads: true, desc: 'Hope: someone went on ahead and left a stash — the place it names is marked in purple on the map. −1 condition each night you lean on it.' },
+  Note: { icon: '📝', hope: true, leads: true, full: true, desc: 'Hope: someone went on ahead and left a stash — the place it names is marked in purple on the map. −1 condition each night you lean on it.' },
 };
 
 // The welcome sign on the banner when you first set foot in a village, town or city — each settlement always has the
@@ -165,7 +167,6 @@ const TUTORIAL = {
     flee: { icon: '🏃', title: 'Flee', text: ['1 AP: roll a d6 and beat the number of zombies to escape to a safe, scouted hex next to you — or away in a vehicle here.', 'Fail and you\'re caught: you must fight. Six zombies can\'t be outrun.'] },
     tool: { icon: '🧰', title: 'Use a tool', text: ['Free, any time: move some of the tool\'s condition onto another item, or a vehicle on your tile (up to 6). The tool is gone at 0.'] },
     pills: { icon: '💊', title: 'Pills and booze', text: ['Free, any time: Booze +6 AP for −1 max AP, Pills +12 AP for −2 max AP. −1 condition — a pip of hope.'] },
-    drop: { icon: '✕', title: 'Leave an item', text: ['Leave it on this tile, condition and all. It takes a row of the table — roll that row to pick it up again.'] },
   },
   // the line above an item's desc on its card
   kinds: {
@@ -184,6 +185,7 @@ const MULTIPLIERS = { double: 2, triple: 3, quadruple: 4 };
 function parseResult(text, where) {
   let t = String(text).trim().toLowerCase().replace(/\s+/g, ' ');
   if (t === 'zombies') return { zombies: 1 };
+  if (t === 'empty') return { empty: 1 };     // nothing there
   if (t === 'random') return { random: 1 };   // anything: drawn from every place's table as the tile is placed
   // 'Endless …' never runs out: the row is never crossed off
   const endless = t.startsWith('endless ');
@@ -224,7 +226,7 @@ function loadLocations(list) {
     if (raw.length && String(raw[2]).trim().toLowerCase() !== 'random') errors.push(`${where}: roll 3 is always 'Random' (it's "${raw[2]}").`);
     // most Safety it can be fortified to: safety: N, or 0 (also fortify: false) for outdoors
     const safety = loc.fortify === false ? 0 : loc.safety ?? CONFIG.maxSafety;
-    if (!Number.isInteger(safety) || safety < 0 || safety > 12) errors.push(`${where}: safety must be a whole number from 0 (outdoors) to 12.`);
+    if (!(safety === 0 || (Number.isInteger(safety) && safety >= 3 && safety <= 6))) errors.push(`${where}: safety must be 0 (outdoors), or a whole number from 3 to 6.`);
     return { name: loc.name, icon: loc.icon || '', safety, fortify: safety > 0, passable: loc.passable !== false, count, in: settlements, edge, spread: loc.spread || null, table };
   });
   if (tiles.filter((t) => t && t.count > 0).length < 1) errors.push('Add at least one location with a count above 0, for scouting.');

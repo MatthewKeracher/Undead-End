@@ -203,12 +203,12 @@ body:not(.log-open) #panel { display: none; }
 @container board (min-width: 1260px) { #dock { right: var(--dockl); width: max-content; } }
 @media (max-height: 860px) { @container board (min-width: 1190px) { #dock { right: var(--dockl); width: max-content; } } }   /* smaller dials there */
 /* round timer: a thin yellow line along the bottom of the header, the full width of the screen, draining as the
-   round runs; red in the last 10 s, dimmed while animations pause it. No numbers. */
+   round runs; red in the last 10 s, white while Paused (nothing else stops it). No numbers. */
 #timer { position: absolute; z-index: 5; left: 0; right: 0; bottom: -1px; height: 3px; pointer-events: none; }
 #timer:empty { display: none; }
 #timer i { display: block; height: 100%; background: #f2c94c; box-shadow: 0 0 6px #f2c94c88; transition: width .1s linear, background .3s; }
 #timer.low i { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
-#timer.paused { opacity: .45; }
+#timer.held i { background: #fff; box-shadow: 0 0 6px #fff8; }   /* Paused: white */
 #actions > * { pointer-events: auto; }
 #actions.roundover > *, #pack.roundover { opacity: .35; filter: grayscale(1); pointer-events: none; }   /* the whole bar, panel and all, like the action ribbon */
 #actions.roundover .act.sel { animation: none; }
@@ -248,8 +248,13 @@ kbd { font: 600 10px ui-monospace, monospace; margin-left: 6px; padding: 1px 5px
 
 /* scavenge popup */
 /* pause: a veil over the whole board */
-#pauseveil { position: absolute; inset: 0; z-index: 8; display: grid; place-content: center; text-align: center; gap: 6px; cursor: pointer;
-  background: #071410cc; backdrop-filter: blur(4px); animation: fade .2s; }
+/* Paused: the map shows through and can be dragged and zoomed (the veil lets the pointer by — but for its words,
+   which carry on when clicked); the bars wait, all but the Pause button */
+#pauseveil { position: absolute; inset: 0; z-index: 8; display: grid; place-content: center; text-align: center; gap: 6px;
+  background: #07141055; animation: fade .2s; pointer-events: none; }
+#pauseveil > * { pointer-events: auto; cursor: pointer; text-shadow: 0 2px 12px #000; }
+body.paused :is(#dock, #pack, #rightcol, #msgs), body.paused :is(#dock, #pack, #rightcol, #msgs) * { pointer-events: none; }
+body.paused #dock .act[data-act="pause"], body.paused #dock .act[data-act="pause"] * { pointer-events: auto; }
 .pv-title { font-size: clamp(32px, 7vw, 56px); font-weight: 900; letter-spacing: .06em; color: var(--text); }
 .pv-sub { color: var(--muted); }
 /* round banner: a band across the middle of the board at the start of every round */
@@ -401,7 +406,6 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
   #pack .slot-item .cond { grid-area: pips; }
   #pack .slot-item .use { grid-area: ic; align-self: end; justify-self: center; z-index: 1; padding: 0 3px; font-size: 9px; line-height: 1.35; border-radius: 4px; }
   #pack .slot-item .use kbd { display: none; }
-  #pack .slot-item .drop { grid-area: drop; align-self: start; padding: 0 4px; line-height: 1.2; }
 }
 .slot-item { display: flex; align-items: center; gap: 8px; height: 42px; padding: 4px 6px 4px 8px; background: var(--panel-a); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 12px #0007; }
 .slot-item.empty { background: #ffffff06; border-style: dashed; box-shadow: none; }
@@ -429,9 +433,8 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 #notes .note { margin: 0; box-shadow: 0 4px 12px #0008; background: var(--panel-a); border: 1px solid var(--line); }
 #toast { position: relative; transform: translateY(-10px); z-index: 6; width: max-content; max-width: calc(100vw - 32px); text-align: center; padding: 8px 14px; border-radius: 8px; background: var(--panel-a); border: 1px solid var(--accent); box-shadow: 0 8px 24px #000a; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
 #toast.show { opacity: 1; transform: none; }
-.slot-item .drop { padding: 2px 6px; font-size: 11px; color: var(--muted); background: transparent; border-color: transparent; }
-.slot-item .drop:hover { color: var(--bad); border-color: var(--bad); }
-.slot-item .drop.armed { color: #fff; background: var(--bad); border-color: var(--bad); }
+/* a Note's words: they stay up till a later round ends (noteCard) */
+#notecard { width: max-content; max-width: calc(100vw - 32px); text-align: center; padding: 8px 14px; border-radius: 8px; background: var(--panel-a); border: 1px solid var(--hope); box-shadow: 0 8px 24px #000a; }
 .cond { display: inline-flex; gap: 2px; vertical-align: middle; }
 .cond i { width: 8px; height: 8px; border-radius: 50%; background: #ffffff1a; }
 .cond i.on { background: var(--accent); }
@@ -441,6 +444,13 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 /* hope is purple: hope items' pips, their rows on a table, a place a Note leads to, and the night's question */
 :root { --hope: #c084ff; }
 .cond.hope i.on { background: var(--hope); }
+/* a Note losing hope (its place reached): it glows purple and its pips go out */
+.losehope { border-color: var(--hope) !important; box-shadow: 0 0 14px #c084ff88 !important; background: #2e2140 !important; }
+.cond i.going { animation: pipout .25s ease-in forwards; }
+/* a Note new to the backpack, not yet read: it glows purple to be noticed (its first round) */
+.newnote { border-color: var(--hope) !important; animation: notepulse 1.4s ease-in-out infinite; }
+@keyframes notepulse { 50% { box-shadow: 0 0 16px #c084ffaa; background: #2e2140; } }
+@keyframes pipout { 40% { scale: 1.5; } to { scale: 1; background: #ffffff1a; box-shadow: none; } }
 .hex .cell.hope { fill: var(--hope); font-weight: 700; }
 .ptable li.hope { color: var(--hope); }
 .ptable li.hope.picked { color: #111; background: var(--hope); }
@@ -456,7 +466,7 @@ button.packhead { display: flex; align-items: center; gap: 6px; width: 100%; pad
 body.battling :is(#map, #clock, #notes > *, #stats, #leadmarks) { filter: blur(3px); }
 body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (its shadow kept, so it eases in) */
 #battle::before { content: ''; position: absolute; inset: 1.4cqw; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-  background: #3d4a33; }   /* the tiles' green (.tile.d1) */
+  background: var(--tilebg, #3d4a33); }   /* the place's own colour (bfOpen: read off its hex on the map) */
 .bf-in { position: absolute; inset: 9% 10% calc(50% + 12cqw); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }   /* (the horde: centred in the space above the die) */
 .bf-horde { --zs: 11cqw; font-size: var(--zs); display: flex; flex-wrap: wrap; justify-content: center; gap: .1em .2em; max-width: 4em; min-height: 1.2em; }   /* (three to a row) */
 .bf-horde .z { position: relative; font-style: normal; width: 1.2em; line-height: 1.15; display: inline-block; text-align: center; transition: transform .38s ease-in, opacity .38s ease-in; }
@@ -521,13 +531,22 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
 .bf-top { position: absolute; left: 50%; top: 83%; translate: -50% -50%; display: flex; align-items: center; gap: 3cqw; }
 .bf-top .slot { width: 13cqw; height: 13cqw; }
 .bf-top .mult { font-size: 6cqw; }
-.bf-res { position: absolute; left: 50%; top: 52%; translate: -50% -50%; width: 76cqw; text-align: center; font-size: 8cqw; font-weight: 900; line-height: 1.25;
-  text-shadow: 0 .5cqw 0 #000, 0 0 3cqw #000; }
+/* what scavenging found: big, filling the middle of the hex (between the name and the die) — an icon, what it is or
+   how many under it, its condition; a mix (Food + Water) side by side, a little smaller */
+.bf-res { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: 84cqw; display: flex; justify-content: center; align-items: center; gap: 6cqw;
+  text-align: center; font-weight: 900; line-height: 1.15; text-shadow: 0 .5cqw 0 #000, 0 0 3cqw #000; }
 .bf-res:empty { display: none; }
 .bf-res > * { animation: popin .35s cubic-bezier(.2, 1.8, .5, 1); }
+.bf-res .fd { display: flex; flex-direction: column; align-items: center; gap: 1.5cqw; min-width: 0; }
+.bf-res .fi { font-size: 30cqw; line-height: 1; }
+.bf-res .fi:empty { display: none; }
+.bf-res .fn { font-size: 9cqw; }
+.bf-res.two .fi { font-size: 20cqw; } .bf-res.two .fn { font-size: 7cqw; }
+.bf-res.bad .fn { font-size: 13cqw; }
 .bf-res.good { color: #5ee87a; } .bf-res.bad { color: #ff5a4a; } .bf-res.jackpot { color: var(--accent); }
-.bf-res small { display: block; font-size: 4.2cqw; font-weight: 600; color: var(--text); }
-.bf-res .cond { gap: .8cqw; margin-top: 1cqw; } .bf-res .cond i { width: 3.2cqw; height: 3.2cqw; }
+.bf-res small { display: block; font-size: 5cqw; font-weight: 600; color: var(--text); }
+.bf-res .cond { gap: 1.2cqw; } .bf-res .cond i { width: 5cqw; height: 5cqw; }
+.bf-res.two .cond i { width: 3.6cqw; height: 3.6cqw; }
 /* how a flee went: one big word under the die, so the roll still shows (the zombies can rush you behind it) */
 .bf-word { position: absolute; left: 50%; top: 70%; translate: -50% -50%; z-index: 2; white-space: nowrap; font-size: 12cqw; font-weight: 900;
   letter-spacing: .02em; text-shadow: 0 .6cqw 0 #000, 0 0 3cqw #000; animation: wordin .35s cubic-bezier(.2, 1.6, .4, 1) both; pointer-events: none; }
@@ -678,7 +697,6 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
   #pack .slot-item .cond { grid-area: pips; }
   #pack .slot-item .use { grid-area: ic; align-self: end; justify-self: center; z-index: 1; padding: 0 3px; font-size: 9px; line-height: 1.35; border-radius: 4px; }
   #pack .slot-item .use kbd { display: none; }
-  #pack .slot-item .drop { grid-area: drop; padding: 0 4px; line-height: 1.2; }
   /* the action tray: one row; the main tray shows the emoji, named small underneath */
   #dock { grid-area: dock; position: static; width: auto; margin: 0; }
   #actions, #actions .ribbon { width: 100%; }
@@ -725,8 +743,6 @@ body.battling #clock { filter: drop-shadow(0 6px 14px #000a) blur(3px); }   /* (
   #pack .slot-item .cond { gap: 1px; }
   #pack .slot-item .cond i { width: 4px; height: 4px; }
   #pack .slot-item .use { position: absolute; left: 1px; top: 1px; }
-  #pack .slot-item .drop { position: absolute; right: 0; top: 0; padding: 1px 4px; font-size: 10px; }
-  #pack .slot-item .drop.armed { inset: 0; z-index: 2; padding: 0; font-size: 10px; font-weight: 700; border-radius: 8px; }   /* "Leave it?" covers the slot */
   .ribbon.main .act { padding: 8px 2px; }
   .ribbon.main .act .ai { font-size: 24px; }
   .stat small, .ribbon.main .act .al { display: none; }   /* no room for the names */
