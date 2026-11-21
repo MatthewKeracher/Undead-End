@@ -139,6 +139,11 @@ test('sleep: 1d6 AP plus the Safety on the tile — up to max AP — and it ends
   p.ap = 2; S.forced = [4];
   act(S, { type: 'sleep' });
   assert.equal(p.ap, 6);
+  E.tileOf(S, p).safety = 8;             // Safety over 6 adds just 6
+  p.ap = 0; S.forced = [1];
+  const ev8 = act(S, { type: 'sleep' }).events.find((e) => e.type === 'sleep');
+  assert.equal(ev8.bonus, 6);
+  assert.equal(p.ap, 7);
 });
 
 test('one round action per round when rounds are timed', () => {

@@ -69,7 +69,8 @@ function newGame(names = ['Survivor']) {
   });
 }
 
-// The opening menu (and after New game).
+// The opening menu (and after New game). The Tutorial is off it for now (parked: the code's all still here) — to bring
+// it back, add a button that resolves true: go(true).
 function showMenu() {
   const pop = $('#popup');
   pop.className = 'menu';
@@ -77,15 +78,12 @@ function showMenu() {
     <div class="ptitle"><small>A zombie survival game</small><h2>🧟 Undead End</h2></div>
     <div class="menubtns">
       <button class="primary" id="mplay">▶ Play <kbd>Enter</kbd></button>
-      <button id="mtut">📖 Tutorial <kbd>T</kbd></button>
-    </div>
-    <small class="pskip">The tutorial explains each action and item the first time you meet it.</small></div>`;
+    </div></div>`;
   pop.hidden = false;
   return new Promise((res) => {
     const go = (tut) => { modalKey = null; pop.hidden = true; res(tut); };
     $('#mplay').onclick = (e) => { e.stopPropagation(); go(false); };
-    $('#mtut').onclick = (e) => { e.stopPropagation(); go(true); };
-    modalKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); go(false); } else if (e.key.toLowerCase() === 't') go(true); };
+    modalKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); go(false); } };
   });
 }
 
@@ -134,7 +132,10 @@ async function explainFinds() {
 async function send(action) {
   if (busy || G.over) return;
   mode = null;
+  const was = !!driving();
   const res = E.act(G, cur().id, action);
+  if (!was && carTrip()) carStart();   // a trip in a car begins (to go, or to escape): it starts up
+  if (driving()) mode = 'drive';   // a trip still under way keeps its bar (Stop here) up while the step plays — a town banner and all
   if (res.error) { toast(res.error); return render(); }
   await play(res.events);
 }
@@ -167,7 +168,7 @@ async function show(ev) {
     case 'fortify': await fortifyShow(ev); return showSafety(ev.k, ev.after);
     case 'scavenge': return scavengeShow(ev);
     case 'scout': return revealShow(ev);
-    case 'reveal': return revealShow(ev, 900);   // stepped into the unknown
+    case 'reveal': return revealShow(ev, mode === 'drive' ? 0 : 900);   // stepped into the unknown (driving: on you go)
     case 'night': await bfArrive(ev.k, ev.c); delete held[ev.k]; return renderMap();
     case 'checks': return renderStats(ev.stats[cur().id]);   // the check's effect (after any night attack)
     case 'maxApLoss': return maxApLossShow(ev);
@@ -179,9 +180,10 @@ async function show(ev) {
     case 'hide': await bfHide(ev); return renderMap();
     case 'hope': toast(`${ITEMS[ev.item].icon} You find hope in the ${ev.item}.`); return sfx.hope();
     case 'lead': return leadShow(ev);
-    case 'driveStep': sfx.drive(ev.fuel); return render();
+    case 'driveStep': sfx.drive(ev.fuel); hushRes = ev.fuel; render(); setTimeout(() => (hushRes = null)); return;   // (its own sound, not the fuel's too)
     case 'move': renderMap(); return wait(450);   // arrive (the camera glides over) before the round can move on
-    case 'outOfFuel': return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'ap' ? 'AP' : ev.fuel} — stopping here.`);
+    case 'outOfFuel': if (ev.fuel === 'fuel') clip('carNoGas');
+      return toast(`${ITEMS[ev.vehicle].icon} Out of ${ev.fuel === 'ap' ? 'AP' : ev.fuel} — stopping here.`);
     case 'die': tone(200, 1.4, 'sawtooth', 0.12, -170); await bfRush(); return bfClose();
     case 'round': return roundBannerShow(ev);
     case 'town': return townBannerShow(ev);
@@ -267,6 +269,7 @@ function togglePause() {
   $('#pauseveil').hidden = !paused;
   tone(paused ? 330 : 494, 0.12, 'triangle', 0.06);
   renderTimer();
+  syncCar();
 }
 // Looking away pauses it: switching tab, minimising, another app or window taking focus. You come back to the
 // pause screen and carry on when ready. (Not while the opening menu is up — nothing's running yet.)
@@ -313,8 +316,7 @@ async function backpackPrompt(p, item) {
   pop.className = '';
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>Backpack full (${CONFIG.maxItems}/${CONFIG.maxItems})</small><h2>Leave one here</h2></div>
-    <ol class="pack-choose">${all.map((it, i) => `<li><button data-i="${i}"><kbd>${i + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond, it.id)}${i === all.length - 1 ? ' <em>NEW</em>' : ''}</button></li>`).join('')}</ol>
-    <small class="pskip">press 1–${all.length} or click · it stays on this tile, condition and all</small></div>`;
+    <ol class="pack-choose">${all.map((it, i) => `<li><button data-i="${i}"><kbd>${i + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond, it.id)}${i === all.length - 1 ? ' <em>NEW</em>' : ''}</button></li>`).join('')}</ol></div>`;
   pop.hidden = false;
   const i = await new Promise((res) => {
     pop.querySelectorAll('[data-i]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); res(+b.dataset.i); }));
@@ -360,8 +362,7 @@ async function stashPrompt(d) {
           ${mine ? `<li class="pc-head">Your backpack</li>${all.slice(0, mine).map((it, i) => row(it, i)).join('')}` : ''}
           <li class="pc-head">${esc(s.owner)}'s stash</li>${all.slice(mine).map((it, i) => row(it, mine + i)).join('')}
         </ol>
-        <button class="primary" id="take">Carry ${picked.size} <kbd>Enter</kbd></button>
-        <small class="pskip">tap to swap · the rest stay in the stash</small></div>`;
+        <button class="primary" id="take">Carry ${picked.size} <kbd>Enter</kbd></button></div>`;
       pop.querySelectorAll('[data-i]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); toggle(+b.dataset.i); }));
       $('#take').onclick = (e) => { e.stopPropagation(); done(); };
     };
@@ -402,8 +403,7 @@ async function useTool(i) {
   // step 1: pick the item to repair
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>${itemIcon(tool.id)} ${tool.id} ${condPips(tool.cond)}</small><h2>Repair which item?</h2></div>
-    <ol class="pack-choose">${targets.map(({ it }, n) => `<li><button data-n="${n}"><kbd>${n + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond)}</button></li>`).join('')}</ol>
-    <small class="pskip">press 1–${targets.length} or click · Backspace to cancel</small></div>`;
+    <ol class="pack-choose">${targets.map(({ it }, n) => `<li><button data-n="${n}"><kbd>${n + 1}</kbd> ${itemIcon(it.id)} ${it.id} ${condPips(it.cond)}</button></li>`).join('')}</ol></div>`;
   pop.hidden = false;
   const target = await new Promise((res) => {
     pop.querySelectorAll('[data-n]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); res(targets[+b.dataset.n]); }));
@@ -414,8 +414,7 @@ async function useTool(i) {
   const max = Math.min(tool.cond, CONFIG.maxCondition - target.it.cond);
   pop.innerHTML = `<div class="pcard">
     <div class="ptitle"><small>${itemIcon(tool.id)} ${tool.id} ${condPips(tool.cond)} → ${itemIcon(target.it.id)} ${target.it.id} ${condPips(target.it.cond)}</small><h2>Transfer how much?</h2></div>
-    <div class="frow">${[...Array(max)].map((_, n) => `<button data-a="${n + 1}"><kbd>${n + 1}</kbd></button>`).join('')}</div>
-    <small class="pskip">press 1–${max} or click · Backspace to cancel</small></div>`;
+    <div class="frow">${[...Array(max)].map((_, n) => `<button data-a="${n + 1}"><kbd>${n + 1}</kbd></button>`).join('')}</div></div>`;
   const amount = await new Promise((res) => {
     pop.querySelectorAll('[data-a]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); res(+b.dataset.a); }));
     modalKey = (e) => { if (isBack(e)) res(0); const n = +e.key; if (n >= 1 && n <= max) res(n); };
@@ -469,12 +468,14 @@ function clickHex(q, r) {
 }
 
 // New locations: they appear one after another around you, then pause so the player can take them in.
+// pause 0: no wait (driving) — the tile still ripples in, over the next renders
 async function revealShow(ev, pause = 2800) {
-  justRevealed = ev.tiles.map((x) => x.k);
+  const shown = justRevealed = ev.tiles.map((x) => x.k);
   renderMap();
   const towns = [...new Map(ev.tiles.filter((x) => x.town).map((x) => [x.town, x])).values()];   // the settlements they belong to
   toast(`${ev.map ? '🗺️ The Map shows' : '🗺️ Discovered'}: ${ev.tiles.map((x) => `${x.icon} ${x.name}`).join(', ')}${towns.length ? ` · 🏘️ ${towns.map((x) => `${x.town} (${x.kind})`).join(', ')}` : ''}`);
   ev.tiles.forEach((_, i) => setTimeout(() => tone(520 + i * 60, 0.15, 'triangle', 0.07), i * 120));
+  if (!pause) return void setTimeout(() => { if (justRevealed === shown) justRevealed = []; }, 700);
   await new Promise((res) => { const tm = setTimeout(res, pause + ev.tiles.length * 120); dismissPopup = () => { clearTimeout(tm); res(); }; });
   dismissPopup = null;
   justRevealed = [];
@@ -507,7 +508,7 @@ function noise(dur, vol, cutoff) {
     src.connect(f).connect(g).connect(AC.destination); src.start();
   } catch { /* audio unavailable */ }
 }
-let AC = null, muted = false;
+let AC = null, muted = false, hushRes = null;   // hushRes: a resource whose spending makes no sound just now
 function tone(freq, dur = 0.05, type = 'square', vol = 0.04, slide = 0) {
   if (muted) return;
   try {
@@ -520,7 +521,8 @@ function tone(freq, dur = 0.05, type = 'square', vol = 0.04, slide = 0) {
   } catch { /* audio unavailable */ }
 }
 // Recorded sounds (assets/), restarted rather than stacked when played again quickly.
-const CLIPS = { axe: 'assets/axe.mp3', chainsaw: 'assets/chainsaw.mp3', groan: 'assets/groan.mp3', pistol: 'assets/pistol.mp3', shotgun: 'assets/shotgun.mp3' }, clipEls = {};
+const CLIPS = { axe: 'assets/axe.mp3', chainsaw: 'assets/chainsaw.mp3', groan: 'assets/groan.mp3', pistol: 'assets/pistol.mp3', shotgun: 'assets/shotgun.mp3',
+  carstart: 'assets/carstart.mp3', carDriving: 'assets/carDriving.mp3', carNoGas: 'assets/carNoGas.mp3' }, clipEls = {};
 function clip(name, volume = 0.7) {
   if (muted) return;
   try {
@@ -538,6 +540,7 @@ const sfx = {
   shotgun: () => clip('shotgun'),   // the blast, then the pump
   // resource sounds: dir = +1 gained, -1 spent
   res: (k, dir) => {
+    if (k === hushRes) return;
     if (dir < 0) {
       if (k === 'food') { noise(0.07, 0.25, 1800); setTimeout(() => noise(0.06, 0.2, 1400), 90); setTimeout(() => noise(0.05, 0.15, 1100), 170); }   // crunch crunch
       else if (k === 'water') { tone(520, 0.12, 'sine', 0.15, -260); setTimeout(() => tone(380, 0.14, 'sine', 0.12, -180), 130); }               // gulp gulp
@@ -551,17 +554,43 @@ const sfx = {
   hope: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.5, 'sine', 0.05), i * 160)),   // a music-box rise
   repair: () => [0, 110, 220].forEach((d, i) => setTimeout(() => { noise(0.05, 0.2, 3000); tone(900 + i * 200, 0.05, 'square', 0.03); }, d)),
   armor: () => { noise(0.12, 0.35, 900); tone(180, 0.2, 'square', 0.1, -60); setTimeout(() => tone(1200, 0.25, 'triangle', 0.04, -300), 60); },
-  drive: (kind) => kind === 'fuel'
-    ? (tone(70, 0.4, 'sawtooth', 0.09, 40), noise(0.35, 0.12, 400))
-    : kind === 'water'   // hooves: clip-clop
-      ? [0, 140, 300, 440].forEach((d, i) => setTimeout(() => { noise(0.04, 0.12, 1800); tone(i % 2 ? 520 : 680, 0.04, 'square', 0.04); }, d))
-      : (noise(0.08, 0.1, 2500), setTimeout(() => tone(1400, 0.08, 'sine', 0.05), 80)),
+  // one light sound a step, so a trip runs on: two hoof-clops, a freewheel's ticks (a car's engine is running already: syncCar)
+  drive: (kind) => kind === 'fuel' ? undefined
+    : kind === 'water'
+      ? [0, 140].forEach((d, i) => setTimeout(() => { noise(0.04, 0.07, 1800); tone(i ? 520 : 680, 0.04, 'square', 0.025); }, d))
+      : [0, 60, 120].forEach((d) => setTimeout(() => tone(2200, 0.015, 'square', 0.012), d)),
   axe: () => clip('axe'),   // every melee weapon but the Chainsaw
   bow: () => { tone(220, 0.25, 'triangle', 0.12, -120); noise(0.12, 0.12, 4000); },   // twang and whoosh
   saw: () => clip('chainsaw'),
   zombie: () => { tone(95, 0.9, 'sawtooth', 0.12, -50); setTimeout(() => tone(70, 0.7, 'sawtooth', 0.1, -30), 150); },
   groan: () => {},   // the start of every zombie encounter — silenced for now (assets/groan.mp3: clip('groan', 0.8)) till a better sound's found
 };
+
+// A car (any fuel vehicle): it starts up as the trip begins, its engine runs on a loop while the trip lasts (hushed while
+// muted or paused), and it fades out as you stop — or splutters, out of fuel (carNoGas, with the outOfFuel event).
+const carTrip = () => !!driving() && vehicleFuel(driving().v) === 'fuel';
+let engineOn = false, carTimer = null, carFade = null;
+function carStart() {
+  clearTimeout(carTimer);
+  engineOn = false;
+  clip('carstart');
+  carTimer = setTimeout(() => { engineOn = true; syncCar(); }, 4300);   // the engine takes over just before the start-up ends
+}
+function syncCar() {
+  if (!carTrip()) engineOn = false;
+  if (!engineOn && !clipEls.carDriving) return;   // (not loaded till a car first runs)
+  const a = (clipEls.carDriving ??= Object.assign(new Audio(CLIPS.carDriving), { preload: 'auto', loop: true }));
+  if (engineOn && !muted && !paused) {
+    if (carFade) { clearInterval(carFade); carFade = null; }
+    if (a.paused) { a.volume = 0.5; a.play().catch(() => { /* not allowed yet, or unavailable */ }); }
+    else a.volume = 0.5;
+  } else if (!a.paused && !carFade) {
+    carFade = setInterval(() => {   // ~0.3 s fade, then stop
+      a.volume = Math.max(0, a.volume - 0.05);
+      if (!a.volume) { clearInterval(carFade); carFade = null; a.pause(); }
+    }, 30);
+  }
+}
 
 async function rollDie(slot, final, ms, onFace) {
   const t0 = performance.now(); let delay = 45;
@@ -573,22 +602,25 @@ async function rollDie(slot, final, ms, onFace) {
 }
 
 // Scavenging: your tile comes forward looking just as it does on the board — its colour, its name, its loot table
-// (2–6: a 1 is always Zombies) — with the die rolling where its Safety pips sit. The roll lights up a row (a looted
+// (all six rows here, the 1 Zombies too) — with the die rolling where its Safety pips sit. The roll lights up a row (a looted
 // row shakes and it rolls again); then the amount or condition dice, and what you found takes the table's place.
 // Zombies: it turns into the battlefield.
 async function scavengeShow({ rows: table, tries, r, hit, amts, dice, c }) {
   const e = hit.e, p = cur(), k = key(p.q, p.r), t = tileOf(p), town = G.towns?.[t.town];
   const W = Math.sqrt(3) * HEX, danger = t.def.table.filter((x) => x.zombies).length;
+  // the vehicles parked here, as on the board — less any this roll finds (already parked, at the end), till it's shown
+  const finds = hit.kind === 'item' ? (e.parts ?? [e]).filter((x) => ITEMS[x.item]?.vehicle).length : 0;
+  const parkedHere = (t.vehicles || []).slice(0, (t.vehicles || []).length - finds);
   skipAnim = false;
   bfOpen(k);
   bfStage('scav', `<svg class="bf-tile" viewBox="${-W / 2} ${-HEX} ${W} ${2 * HEX}">
       <g class="hex tile here d${Math.min(danger, 4)} ${town ? 'town' : ''}">
         <polygon points="${hexPoints(0, 0, HEX - 4)}" style="stroke:${p.color}"/>
         ${town ? `<text x="0" y="${-HEX * 0.72}" class="townname">${esc(town.name)}</text>` : ''}<text x="0" y="${-HEX * 0.56}" class="name">${esc(t.def.name)}</text>
-        ${tableRowsSvg(0, 4, table.slice(1))}</g></svg>
+        ${tableRowsSvg(0, 2, table)}${vehicleSvg(HEX * 0.69, 4, parkedHere)}</g></svg>
     <div class="bf-top"></div><div class="bf-res"></div>`);
   const top = $('#battle .bf-top'), res = $('#battle .bf-res'), rows = [...$('#battle').querySelectorAll('.trow')];
-  const row = (v) => rows.find((g) => +g.dataset.i === v);   // (a 1 has none: it's Zombies)
+  const row = (v) => rows.find((g) => +g.dataset.i === v);
   const mark = (v) => rows.forEach((g) => g.classList.toggle('hl', +g.dataset.i === v));
   const found = (html, cls = 'good') => { $('#battle .tblrows').classList.add('done'); res.className = `bf-res ${cls}`; res.innerHTML = html; };
   top.innerHTML = '<div class="slot"></div>';
@@ -728,15 +760,15 @@ async function maxApLossShow({ res, oldMax, newMax, oldAp, newAp }) {
 
 // Sleep: the 1d6 roll (plus the tile's 🟡 Safety) in a popup, then the AP ring around the clock fills, a segment at a time.
 // Sleeping: the tile comes forward — you up top, 💤; in the middle the die + the tile's 🟡 Safety, its pips laid out as
-// on a die; and in the bottom third what that comes to. Then it goes, and the AP charges on the clock.
-const FACE = { ...PIPS, 7: [0, 2, 3, 4, 5, 6, 8], 8: [0, 1, 2, 3, 5, 6, 7, 8], 9: [0, 1, 2, 3, 4, 5, 6, 7, 8] };   // (Safety goes to 8)
+// on a die (sleep adds 6 at most: one die); and in the bottom third what that comes to. Then it goes, and the AP
+// charges on the clock.
 async function sleepShow({ dice, bonus = 0, from, to, max }) {
   const r = dice.reduce((a, b) => a + b, 0) + bonus, p = cur();
   skipAnim = false;
   bfOpen(key(p.q, p.r));
   bfStage('sleep', `<div class="bf-sleeper">🧔‍♂️<span class="zz">💤</span></div>
     <div class="bf-mid">${dice.map(() => '<div class="bf-die slot"></div>').join('')}${bonus
-      ? `<span class="plus">+</span><div class="bf-face">${[...Array(9)].map((_, i) => `<i class="${FACE[bonus].includes(i) ? 'on' : ''}"></i>`).join('')}</div>` : ''}</div>`);
+      ? `<span class="plus">+</span><div class="bf-face">${[...Array(9)].map((_, i) => `<i class="${PIPS[bonus].includes(i) ? 'on' : ''}"></i>`).join('')}</div>` : ''}</div>`);
   await wait(150);
   const slots = [...$('#battle').querySelectorAll('.bf-mid .slot')];
   await Promise.all(dice.map((v, i) => rollDie(slots[i], v, 900 + i * 150)));
@@ -950,6 +982,7 @@ function render() {
   renderMap();
   renderPanel();
   renderBattle();
+  syncCar();
 }
 
 // Round clock: 6 wedges, nights (1 & 6) at the top like midnight, a hand that sweeps forward. Your AP rings it:
@@ -1011,7 +1044,8 @@ function tableSvg(x, y, t) {
 }
 // (each row a group, with a bar behind it that the scavenge hex lights up as the die rolls)
 function tableRowsSvg(x, y, rows) {
-  const ch = 21, w = HEX + 16, h = ch * rows.length;
+  // all six rows (the scavenge hex) sit a little tighter, to clear the name and the die
+  const ch = rows.length > 5 ? 19 : 21, w = HEX + 16, h = ch * rows.length;
   let s = `<g class="tblrows"><rect x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" rx="3" class="tbl"/>`;
   rows.forEach((row, i) => {
     const top = y - h / 2 + i * ch, txt = rowText(row);   // long rows (a stash: "🎒 Survivor's stash") get slightly smaller text to stay in the box
@@ -1223,9 +1257,6 @@ function renderMap() {
   const [cx, cy] = pix(p.q, p.r);
   if (!camInit) { cam.x = cx; cam.y = cy; camInit = true; applyView(); }
   cameraTo(cx, cy);
-
-  $('#hint').textContent = mode === 'flee' || fightMode() || mode === 'drive' ? ''
-    : mode === 'move' ? 'Press A Q E D X Z or click a highlighted tile to move there. (Backspace to cancel)' : '';
 }
 
 // AP gauge: a ring of 12 segments like the clock. Colour shows how full you are.
@@ -1370,12 +1401,11 @@ function renderActions() {
   };
 
   if (mode === 'drive') {
-    const { v, steps, flee } = driving(), uses = vehicleFuel(v);
+    const { v, steps, flee } = driving();
     $('#actions').innerHTML = `
       ${t.zombies ? `<div class="note bad">🧟 ${t.zombies} zombie${t.zombies > 1 ? 's' : ''} here — stopping on this tile triggers them!</div>` : ''}
-      <div class="note good">${itemIcon(v.id)} ${flee ? 'Escaping' : ITEMS[v.id].verb === 'Ride' ? 'Riding' : 'Driving'} the ${v.id} — ${uses === 'ap' ? `🎲 ${p.ap} AP` : `${ICON[uses]} ${p.res[uses]} ${uses}`} left · ${steps} tile${steps === 1 ? '' : 's'} so far.
-        Next hex: A Q E D X Z or tap one.</div>
-      <div class="ribbon">${btn('stopdrive', '⏹ Stop here', flee && !steps ? 'Pick a hex first' : 'Enter / Backspace', flee && !steps)}</div>`;
+      <div class="ribbon">${btn('stopdrive', '⏹ Stop here', flee && !steps ? 'Pick a hex first' : 'Enter / Backspace', flee && !steps)
+        .replace('</button>', `<span class="vehtag">${itemIcon(v.id)}${ITEMS[v.id].animal ? '' : condPips(v.cond, v.id)}</span></button>`)}</div>`;   // what you're in, on the right (an animal has no condition)
     renderLog();
     return;
   }
@@ -1389,7 +1419,7 @@ function renderActions() {
   }
   if (mode === 'hope') warn = `<div class="note hope">🌙 What hope is there? Pick it from your backpack.</div>`;   // (renderPack)
   if (fight) warn = '';   // the battlefield over your hex says it all
-  if (mode === 'flee') warn = `<div class="note good">🏃 You got away! Press A Q E D X Z or click a highlighted hex to run to.</div>`;
+  if (mode === 'flee') warn = `<div class="note good">🏃 You got away!</div>`;
 
   $('#actions').innerHTML = `
     ${warn}
@@ -1655,7 +1685,7 @@ const playersBox = $('#playersbox');
 try { playersBox.open = localStorage.getItem('playersOpen') !== '0'; } catch { /* storage unavailable */ }
 playersBox.addEventListener('toggle', () => { try { localStorage.setItem('playersOpen', playersBox.open ? '1' : '0'); } catch { /* storage unavailable */ } });
 
-function toggleMute() { muted = !muted; $('#mute').textContent = muted ? '🔇' : '🔊'; }
+function toggleMute() { muted = !muted; $('#mute').textContent = muted ? '🔇' : '🔊'; syncCar(); }
 $('#mute').onclick = toggleMute;
 setTimer(timerOn);
 let lastTick = performance.now();

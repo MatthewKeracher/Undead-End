@@ -77,6 +77,19 @@ Logged from a playtest. Tick when handled.
 - [ ] **Fuel** is only used by the Truck. Anything else use fuel (generator, Molotov, fire for booze…)?
   > Answer:
 
+### Notes 📝
+- [ ] **Notes leading to towns and cities** (idea, 2026-11-21). *Now: a Note leads only to a Castle, Army Checkpoint or Church, standing alone ~6 hexes away (`LEADS.places`, `makeLead`).*
+  Plan: towns and cities join that list. A Note picks a town or city you haven't found yet whose nearest edge is ~4–8 hexes away, or founds a new one ~6 away (a stronghold instead, if there's no room). Settlements are planned whole when founded, so the town's **edge hex closest to you** can be found and revealed alone — purple-bordered, with the writer's stash — the rest of the town staying hidden. The Note names the town, not the tile: "Gone to Bramford. Follow if you can. — Mara" (the note lines' "the {place}" would carry its own "the": "the Castle" / "Bramford"; the "reaches…" log and toast name the town too).
+  > Answer:
+- [ ] **When is a town Note done?** On reaching the marked edge hex (as now), or on setting foot anywhere in the town? *Suggested: the marked hex — the stash is there.*
+  > Answer:
+- [ ] **Can a Note point to a town you've already found?** *Suggested: no — only undiscovered ones, so it always leads somewhere new.*
+  > Answer:
+- [ ] **How often a town or city, against a stronghold?** *Suggested: evenly from the five (2 in 5 Notes lead to a settlement); cities could be rarer.*
+  > Answer:
+- [ ] **The off-screen lead arrow's icon for a town:** the edge hex's own place (⛪, 🏪…) or 🏘️?
+  > Answer:
+
 ### Tiles
 - [ ] **The real tile list and their d6 tables** — the 14 tiles in `locations.js` are placeholders I invented. What tiles does your board game have?
   > Answer:

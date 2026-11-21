@@ -801,9 +801,9 @@ const Engine = (() => {
 
   // ---------------------------------------------------------------- actions
   // Round actions: one per round. Sleep is free; the rest cost 1 AP.
-  // Sleep: 1d6 AP plus the 🟡 Safety on your tile (a safe place to rest), up to your max AP.
+  // Sleep: 1d6 AP plus the 🟡 Safety on your tile (a safe place to rest; at most CONFIG.maxSleepBonus of it), up to your max AP.
   function sleep(S, p) {
-    const dice = [roll(S)], bonus = tileOf(S, p).safety, r = dice[0] + bonus;
+    const dice = [roll(S)], bonus = Math.min(CONFIG.maxSleepBonus, tileOf(S, p).safety), r = dice[0] + bonus;
     const from = p.ap;
     p.ap = Math.min(p.maxAP, p.ap + r);
     emit(S, { type: 'sleep', player: p.id, dice, bonus, from, to: p.ap, max: p.maxAP });

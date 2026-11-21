@@ -14,6 +14,7 @@ const CONFIG = {
   startItems: [{ id: 'Booze', cond: 3 }],              // …and carries (no weapon: find one)
   startSafety: 0.5,       // every place is found with this share of its max Safety (rounded down): half
   maxSafety: 5,           // most Safety a tile can hold, unless its location says otherwise (safety: 0–8 in locations.js)
+  maxSleepBonus: 6,       // most of that Safety a sleep adds (one die's worth)
   maxZombies: 6,          // most zombies a tile can hold — and that many can't be outrun
   maxItems: 6,            // backpack size
   maxCondition: 6,        // most condition any item can have
@@ -151,7 +152,7 @@ const TUTORIAL = {
     ],
   },
   actions: {
-    sleep: { icon: '😴', title: 'Sleep', text: ['Rest for the round: gain 1d6 AP plus the 🟡 Safety here — up to your max AP. Free, but it\'s your action.', 'At 0 AP, sleeping is all you can do.'] },
+    sleep: { icon: '😴', title: 'Sleep', text: ['Rest for the round: gain 1d6 AP plus the 🟡 Safety here (up to 6) — up to your max AP. Free, but it\'s your action.', 'At 0 AP, sleeping is all you can do.'] },
     scout: { icon: '🗺️', title: 'Scout', text: ['1 AP: reveals every unexplored hex next to you, so you can see where to go. You stay where you are.'] },
     move: { icon: '🚶', title: 'Move', text: ['Step into a hex next to you — pick it on the map (or press A Q E D X Z). An unexplored hex is revealed as you arrive.', 'Your first move each round is free and still leaves you your action — but you need at least 1 AP. A second move costs 1 AP and is your action.'] },
     scavenge: { icon: '🔍', title: 'Scavenge', text: ['1 AP: roll a d6 on this place\'s table. A 1 is always zombies, a 3 is a random find. What you find is crossed off.', 'Zombies drift back once nobody\'s here and the place has no Safety. You can\'t scavenge with zombies on the tile.'] },
